@@ -20,10 +20,10 @@ namespace FalkForge.Configuration;
 ///   <c>signing.keyEnv</c> in the JSON config) — there is no fixed name to catalog. Those call
 ///   sites still route through <see cref="GetRaw"/> (the shared read primitive) but do not get a
 ///   named constant here.</description></item>
-///   <item><description><b>OS/platform-owned variables.</b> <c>SESSIONNAME</c> (read in
-///   <c>BuiltInVariables.PopulateSessionInfo</c> for Remote Desktop detection) is a Windows
-///   session variable, not something FalkForge defines — it is read through the existing
-///   testable <c>IEnvironment</c>/<c>IPlatformServices</c> abstraction and is out of scope
+///   <item><description><b>OS/platform-owned variables.</b> <c>SESSIONNAME</c> (read by
+///   <c>BuiltInVariables.Populate</c> for Remote Desktop detection) is a Windows session
+///   variable, not something FalkForge defines — it is read through the existing testable
+///   <c>IEnvironment</c>/<c>IPlatformServices</c> abstraction and is out of scope
 ///   here.</description></item>
 /// </list>
 ///

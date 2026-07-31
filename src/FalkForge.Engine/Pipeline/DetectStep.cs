@@ -8,6 +8,7 @@ using FalkForge.Engine.Logging;
 using FalkForge.Engine.Msi;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
+using FalkForge.Engine.Variables;
 using FalkForge.Platform;
 
 /// <summary>
@@ -26,19 +27,28 @@ internal sealed class DetectStep : IDetectStep
     private readonly IUiChannel _uiChannel;
     private readonly UpdateChecker? _updateChecker;
     private readonly UpdateService? _updateService;
+    private readonly VariableStore? _variableStore;
+    private readonly IPlatformServices? _platform;
+    private readonly ISystemClock? _clock;
 
     public DetectStep(
         InstallerManifest manifest,
         IRegistry registry,
         IUiChannel uiChannel,
         UpdateChecker? updateChecker = null,
-        UpdateService? updateService = null)
+        UpdateService? updateService = null,
+        VariableStore? variableStore = null,
+        IPlatformServices? platform = null,
+        ISystemClock? clock = null)
     {
         _manifest = manifest;
         _registry = registry;
         _uiChannel = uiChannel;
         _updateChecker = updateChecker;
         _updateService = updateService;
+        _variableStore = variableStore;
+        _platform = platform;
+        _clock = clock;
     }
 
     /// <inheritdoc/>
@@ -54,6 +64,17 @@ internal sealed class DetectStep : IDetectStep
                 new PipelineEvent.PhaseChanged(EnginePhase.Detecting), ct);
 
             ctx.Manifest = _manifest;
+
+            // Seed built-in variables (VersionNT, Privileged, ComputerName, Date, ...) before
+            // detection so InstallCondition expressions that reference them (evaluated later by
+            // PlanStep/Planner) resolve against real machine state instead of always-empty. Only
+            // when a VariableStore is registered — headless/ordering-only pipelines that skip
+            // WithVariableStore stay unseeded, matching their pre-existing no-condition-evaluation
+            // behavior.
+            if (_variableStore is not null)
+            {
+                BuiltInVariables.Populate(_variableStore, _platform, _clock);
+            }
 
             var detector = new PackageDetector(_registry);
             var detection = detector.Detect(_manifest);

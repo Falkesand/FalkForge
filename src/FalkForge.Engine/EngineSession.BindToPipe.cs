@@ -142,6 +142,11 @@ public sealed partial class EngineSession
         var platform = new WindowsPlatformServices();
         var processRunner = new ProcessRunner();
 
+        // Created here (rather than at pipeline-build time, its previous home) so the same
+        // instance can be handed to MsiExecutor/ExeExecutor below AND to the pipeline builder —
+        // one VariableStore per session, not two disconnected ones.
+        var variableStore = new VariableStore();
+
         var msiExecutor = new MsiExecutor(
             static () => null,
             static () => null,
@@ -279,12 +284,13 @@ public sealed partial class EngineSession
         }
 
         // ── Pipeline ────────────────────────────────────────────────────────
-        var variableStore = new VariableStore();
         var pipelineBuilder = new InstallerPipelineBuilder()
             .WithManifest(manifest)
             .WithRegistry(platform.Registry)
             .WithPackageExecutor(packageExecutor)
             .WithVariableStore(variableStore)
+            .WithPlatformServices(platform)
+            .WithClock(options.Clock ?? new SystemClock())
             .WithUiChannel(uiChannel)
             .WithLogger(logger);
 

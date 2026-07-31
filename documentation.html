@@ -7835,7 +7835,9 @@ public sealed record EngineSessionOptions
 <p><code>src/FalkForge.Engine/Variables/BuiltInVariables.cs</code></p>
 <p>
     <code>BuiltInVariables.Populate()</code> initializes 30+ variables from the operating system,
-    platform services, and session information.
+    platform services, and session information. The pipeline calls it automatically during the
+    Detect phase (<code>DetectStep</code>), before any <code>InstallCondition</code> is evaluated,
+    so every install condition referencing a built-in sees real machine state.
 </p>
 
 <table class="api-table">

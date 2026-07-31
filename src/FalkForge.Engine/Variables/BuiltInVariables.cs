@@ -113,16 +113,7 @@ public static class BuiltInVariables
 
     private static void PopulateSessionInfo(VariableStore store, IPlatformServices? platform)
     {
-        // Privileged detection: check if running as admin
-        // Use platform registry to check for admin access (NativeAOT safe)
-        var isAdmin = false;
-        if (platform is not null)
-        {
-            // Try reading a key that requires admin access; if it exists we have registry access
-            // This is a heuristic - the real check happens via Windows API in the engine
-            isAdmin = platform.Registry.KeyExists(RegistryRoot.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion");
-        }
-        store.Set(BuiltInVariableNames.Privileged, isAdmin ? 1L : 0L);
+        store.Set(BuiltInVariableNames.Privileged, ProbeIsElevated(platform) ? 1L : 0L);
 
         // Terminal Server / Remote Desktop detection via registry
         var isTerminalServer = false;
@@ -140,6 +131,33 @@ public static class BuiltInVariables
         }
         store.Set(BuiltInVariableNames.TerminalServer, isTerminalServer ? 1L : 0L);
         store.Set(BuiltInVariableNames.RemoteSession, isRemoteSession ? 1L : 0L);
+    }
+
+    /// <summary>
+    /// Probes whether the current process is elevated (UAC admin) by attempting to read
+    /// <c>HKEY_LOCAL_MACHINE\SECURITY</c>. Unlike the old probe
+    /// (<c>SOFTWARE\Microsoft\Windows\CurrentVersion</c>, which any logged-on user — admin or
+    /// not — can read, so it always reported "elevated"), the SECURITY hive's ACL grants read
+    /// access only to SYSTEM and a non-filtered Administrators SID. A UAC-split token — the
+    /// normal state for a logged-on administrator who has not elevated — carries Administrators
+    /// as deny-only, so the read fails exactly when the process is not actually elevated. This
+    /// genuinely distinguishes elevated from non-elevated instead of testing "is this a Windows
+    /// machine".
+    /// </summary>
+    private static bool ProbeIsElevated(IPlatformServices? platform)
+    {
+        if (platform is null)
+            return false;
+
+        try
+        {
+            return platform.Registry.KeyExists(RegistryRoot.LocalMachine, "SECURITY");
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        {
+            // Access denied is the expected non-elevated outcome, not a failure to surface.
+            return false;
+        }
     }
 
     private static void PopulateUserInfo(VariableStore store, IPlatformServices? platform)

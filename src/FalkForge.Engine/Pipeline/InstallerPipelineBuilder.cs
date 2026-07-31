@@ -29,6 +29,8 @@ public sealed class InstallerPipelineBuilder
     private IRegistry? _registry;
     private PackageExecutor? _packageExecutor;
     private VariableStore? _variableStore;
+    private IPlatformServices? _platformServices;
+    private ISystemClock? _clock;
     private IReadOnlyList<IUndoOperation>? _undoOperations;
     private IFalkLogger? _logger;
     private FalkForge.Engine.Download.UpdateChecker? _updateChecker;
@@ -106,6 +108,29 @@ public sealed class InstallerPipelineBuilder
     public InstallerPipelineBuilder WithVariableStore(VariableStore variableStore)
     {
         _variableStore = variableStore;
+        return this;
+    }
+
+    /// <summary>
+    /// Registers the <see cref="IPlatformServices"/> used by <see cref="DetectStep"/> to seed
+    /// machine-state built-in variables (folders, architecture, elevation, computer name, ...)
+    /// into the <see cref="VariableStore"/> registered via <see cref="WithVariableStore"/>. When
+    /// not provided, built-ins that need platform data fall back to their OS-default values (see
+    /// <see cref="FalkForge.Engine.Variables.BuiltInVariables"/>).
+    /// </summary>
+    public InstallerPipelineBuilder WithPlatformServices(IPlatformServices platform)
+    {
+        _platformServices = platform;
+        return this;
+    }
+
+    /// <summary>
+    /// Registers the <see cref="ISystemClock"/> used to seed the <c>Date</c>/<c>Time</c> built-in
+    /// variables deterministically. When not provided, <see cref="DateTime.UtcNow"/> is used.
+    /// </summary>
+    public InstallerPipelineBuilder WithClock(ISystemClock clock)
+    {
+        _clock = clock;
         return this;
     }
 
@@ -198,7 +223,9 @@ public sealed class InstallerPipelineBuilder
         var uiChannel = _uiChannel ?? NullUiChannel.Instance;
 
         IDetectStep? detectStep = (_manifest is not null && _registry is not null)
-            ? new DetectStep(_manifest, _registry, uiChannel, _updateChecker, _updateService)
+            ? new DetectStep(
+                _manifest, _registry, uiChannel, _updateChecker, _updateService,
+                _variableStore, _platformServices, _clock)
             : null;
 
         IPlanStep? planStep = (_manifest is not null)
