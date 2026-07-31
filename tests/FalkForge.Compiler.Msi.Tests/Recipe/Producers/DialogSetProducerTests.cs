@@ -6,6 +6,8 @@ using FalkForge.Compiler.Msi;
 using FalkForge.Compiler.Msi.Recipe;
 using FalkForge.Compiler.Msi.Recipe.Producers;
 using FalkForge.Compiler.Msi.Tests.UI.Layout;
+using FalkForge.Compiler.Msi.UI;
+using FalkForge.Compiler.Msi.UI.Layout;
 using FalkForge.Models;
 using Xunit;
 
@@ -836,10 +838,22 @@ public sealed class DialogSetProducerTests
         AssertAllDialogsHaveSingleClosedCycle(tables);
     }
 
-    // ── Tab cycle: Control_First always names one of the dialog's own controls ──────────────
+    // ── Tab cycle: Control_First always names a focusable control of the dialog's own ────────
     // Control_First is left exactly as authored (never derived from the cycle), so this is an
     // invariant test rather than a value-pinning one: whichever control the dialog names as its
-    // entry point must actually exist as a Control row on that same dialog.
+    // entry point must actually exist as a Control row on that same dialog AND must be a
+    // focusable type. Naming a Text/Line/etc. control here would mean focus lands on a control
+    // with no Control_Next successor and Tab goes nowhere — exactly the defect this producer's
+    // tab-cycle wiring exists to fix (see ADR 0007 section 2, which names this test as the
+    // guarantee: it must actually assert focusability, not merely row existence).
+
+    // Duplicated ON PURPOSE from DialogTabCycle's exclusion set — see TabCycleAssert's remarks on
+    // why a test-owned copy, not a shared reference, catches a WRONG exclusion list instead of
+    // agreeing with it.
+    private static readonly HashSet<string> NonFocusableTypeNames = new(StringComparer.Ordinal)
+    {
+        "Text", "Line", "Bitmap", "Icon", "ProgressBar", "GroupBox", "VolumeCostList",
+    };
 
     [Theory]
     [InlineData(MsiDialogSet.Minimal)]
@@ -858,12 +872,17 @@ public sealed class DialogSetProducerTests
             string dialogName = Str(row.Cells[0]);
             string controlFirst = Str(row.Cells[7]);
 
-            bool namesOwnControl = control.Rows.Any(r =>
+            RecipeRow? firstControlRow = control.Rows.FirstOrDefault(r =>
                 Str(r.Cells[0]) == dialogName && Str(r.Cells[1]) == controlFirst);
 
             Assert.True(
-                namesOwnControl,
+                firstControlRow is not null,
                 $"Dialog '{dialogName}' declares Control_First '{controlFirst}', which is not one of its own Control rows.");
+
+            string controlFirstType = Str(firstControlRow.Cells[2]);
+            Assert.False(
+                NonFocusableTypeNames.Contains(controlFirstType),
+                $"Dialog '{dialogName}' declares Control_First '{controlFirst}' as a {controlFirstType} control, which cannot receive keyboard focus.");
         }
     }
 
@@ -891,6 +910,125 @@ public sealed class DialogSetProducerTests
                 Control: Str(r.Cells[1]),
                 Next: r.Cells[10] is CellValue.StringValue sv ? sv.Value : null))
             .ToList();
+
+    // ── Tab cycle: custom dialogs and extension-inserted steps are wired too ─────────────────
+    // Produce_every_dialog_has_a_single_closed_tab_cycle (above) only ever builds dialogs from
+    // stock templates (via ProduceTables) or from stock templates + MsiRMFilesInUse (via
+    // ProduceTablesWithRestartManager) — neither populates PackageModel.CustomDialogs nor passes
+    // extension step builders. DialogSetProducer.Produce's tab-cycle Assign loop runs AFTER all
+    // four dialog sources converge (stock templates, MsiRMFilesInUse, custom dialogs, extension
+    // steps — see Produce's remarks), so these two tests close the coverage gap: without them, a
+    // regression that moved the Assign loop earlier (before custom dialogs / extension steps are
+    // appended) would revert every custom and extension-step dialog to an all-NULL Control_Next
+    // chain while the whole suite stayed green.
+
+    [Fact]
+    public void Produce_custom_dialog_without_authored_chain_gets_an_automatic_tab_cycle()
+    {
+        var customDialog = new CustomDialogModel
+        {
+            Id = "AutoWireDlg",
+            Controls =
+            [
+                new CustomDialogControlModel
+                {
+                    Name = "Prompt", Type = CustomControlType.Text,
+                    X = 20, Y = 20, Width = 330, Height = 20, Text = "Enter a value:",
+                },
+                new CustomDialogControlModel
+                {
+                    Name = "ValueEdit", Type = CustomControlType.Edit,
+                    X = 20, Y = 50, Width = 330, Height = 18, Property = "VALUE",
+                },
+                new CustomDialogControlModel
+                {
+                    Name = "Next", Type = CustomControlType.PushButton,
+                    X = 280, Y = 240, Width = 66, Height = 17, Text = "Next",
+                },
+            ],
+        };
+
+        var package = new PackageModel
+        {
+            Name = "App", Manufacturer = "M", Version = new Version(1, 0, 0),
+            DialogSet = MsiDialogSet.None,
+            CustomDialogs = [customDialog],
+        };
+
+        RecipeBuildContext context = new(
+            new ResolvedPackage { Package = package, Components = [], Files = [] },
+            new MsiRecipeBuildOptions(),
+            new DictionaryStreamRegistry());
+
+        Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer().Produce(context);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
+
+        RecipeTable control = GetTable(result.Value, "Control");
+        var controls = control.Rows
+            .Where(r => Str(r.Cells[0]) == "AutoWireDlg")
+            .Select(r => (
+                Name: Str(r.Cells[1]),
+                TypeName: Str(r.Cells[2]),
+                Next: r.Cells[10] is CellValue.StringValue sv ? sv.Value : null))
+            .ToList();
+
+        TabCycleAssert.AssertSingleClosedCycle(controls);
+    }
+
+    [Fact]
+    public void Produce_extension_step_dialog_without_authored_chain_gets_an_automatic_tab_cycle()
+    {
+        var customization = new DialogCustomizationModel
+        {
+            InsertedSteps = ImmutableArray.Create(new InsertedDialogStep("AutoWireStep", StockDialog.Welcome)),
+        };
+        var package = new PackageModel
+        {
+            Name = "App", Manufacturer = "M", Version = new Version(1, 0, 0),
+            DialogSet = MsiDialogSet.None,
+            DialogCustomization = customization,
+        };
+
+        RecipeBuildContext context = new(
+            new ResolvedPackage { Package = package, Components = [], Files = [] },
+            new MsiRecipeBuildOptions(),
+            new DictionaryStreamRegistry());
+
+        Result<ImmutableArray<RecipeTable>> result =
+            new DialogSetProducer([new AutoWireStepBuilder()]).Produce(context);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
+
+        RecipeTable control = GetTable(result.Value, "Control");
+        var controls = control.Rows
+            .Where(r => Str(r.Cells[0]) == "AutoWireStep")
+            .Select(r => (
+                Name: Str(r.Cells[1]),
+                TypeName: Str(r.Cells[2]),
+                Next: r.Cells[10] is CellValue.StringValue sv ? sv.Value : null))
+            .ToList();
+
+        TabCycleAssert.AssertSingleClosedCycle(controls);
+    }
+
+    private sealed class AutoWireStepBuilder : IMsiDialogStepBuilder
+    {
+        public string Name => "AutoWireStep";
+
+        public MsiDialogModel Build(DialogBuildContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+            var model = new MsiDialogModel { Name = Name, FirstControl = "Body" };
+            model.Controls.Add(new MsiControlModel
+            {
+                Name = "Body", Type = MsiControlType.PushButton, X = 10, Y = 10, Width = 100, Height = 20, Text = "x",
+            });
+            model.Controls.Add(new MsiControlModel
+            {
+                Name = "Other", Type = MsiControlType.PushButton, X = 10, Y = 40, Width = 100, Height = 20, Text = "y",
+            });
+            return model;
+        }
+    }
 
     private static void AssertAllDialogsHaveSingleClosedCycle(ImmutableArray<RecipeTable> tables)
     {
