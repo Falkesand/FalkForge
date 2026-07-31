@@ -41,6 +41,7 @@ public static class CoreRuleCatalog
         all.AddRange(CustomTableRules.All);
         all.AddRange(CustomDialogRules.All);
         all.AddRange(RemainingRules.All);
+        all.AddRange(PropertyRules.All);
         return new RuleRegistry(all.ToImmutable());
     }
 }
