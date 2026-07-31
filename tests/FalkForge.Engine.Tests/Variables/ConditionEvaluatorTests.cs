@@ -383,6 +383,157 @@ public sealed class ConditionEvaluatorTests : IDisposable
         Assert.True(result.Value);
     }
 
+    // --- VersionNT MSI-style integer coercion — full six-operator matrix at an EXACT major.minor
+    // match ---
+    //
+    // MSI's VersionNT is documented as a two-component value (major*100 + minor); Build and
+    // Revision have no meaning in it at all. BuiltInVariables seeds VersionNT from the real OS
+    // Version though, which on any real machine carries a non-zero Build (e.g. 9600, 26200).
+    // Version.CompareTo ranks an unset component (-1, what MsiIntegerToVersion's two-arg
+    // `new Version(major, minor)` produces) below any defined non-negative one — so once Major
+    // and Minor tie, the real side's non-zero Build always outranks the coerced side's -1, and
+    // the comparison reports "greater" even though the two are MSI-equal. That silently breaks
+    // "=", "<=", "<>" AND "gt" at the exact-match boundary (only "<" and ">=" survive by std
+    // accident, because "greater" satisfies both "not equal to false" reasoning for >= and
+    // "not less" for <). Every case below uses a non-zero Build/Revision (Windows 8.1-shaped,
+    // 6.3.9600.16384) specifically so the boundary triggers, and pairs each operator with both a
+    // True and a False condition so no assertion can pass vacuously.
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_Equals_True()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT = 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_Equals_False()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT = 604", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_NotEquals_False()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT <> 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_NotEquals_True()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT <> 604", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_LessOrEqual_True()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT <= 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_LessOrEqual_False()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT <= 602", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_LessThan_False()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT < 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_LessThan_True()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT < 604", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_GreaterThan_False()
+    {
+        // The case that most contradicts "gt already works": at an exact match the real side's
+        // non-zero Build (9600) currently outranks the coerced side's undefined component, so
+        // today this wrongly evaluates True. 8.1 IS 6.3, not greater than it.
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT > 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_GreaterThan_True()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT > 602", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_GreaterOrEqual_True()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT >= 603", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void Evaluate_VersionNTExactMatch_GreaterOrEqual_False()
+    {
+        _store.Set("VersionNT", new Version(6, 3, 9600, 16384));
+
+        var result = ConditionEvaluator.Evaluate("VersionNT >= 604", _store);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
     // --- Integer comparisons ---
 
     [Fact]
