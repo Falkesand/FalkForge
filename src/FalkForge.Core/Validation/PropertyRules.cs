@@ -76,6 +76,40 @@ public static class PropertyRules
                     "computed row at the primary-key validator (\"Duplicate primary key in table Property\").")
                 : null));
 
+    /// <summary>
+    /// PRP003 — a property carrying <c>IsSecure</c>, <c>IsAdmin</c>, or <c>IsHidden</c> must not have a
+    /// ';' or whitespace character in its name. All three flags cause the compiler to write the name
+    /// into a semicolon-delimited list property (<c>SecureCustomProperties</c>, <c>AdminProperties</c>,
+    /// or <c>MsiHiddenProperties</c> — see <c>HiddenPropertiesEmitter</c> and
+    /// <c>PropertyTableProducer</c>, both of which build that list with <c>string.Join(';', names)</c>).
+    /// A ';' in the name splits into two entries; Windows Installer then parses the wrong pair of
+    /// property names out of the list. The actual property is left off the list entirely (so the flag
+    /// is silently inert) while an unrelated, accidental split-off name is added to it instead. Scoped
+    /// to flagged properties only — an unflagged property's name is never written into one of these
+    /// lists, so this rule does not apply to it (that is a broader identifier-format question, out of
+    /// scope here).
+    /// </summary>
+    public static readonly ValidationRule Prp003_FlaggedPropertyNameMustNotContainSemicolonOrWhitespace = new(
+        new RuleId("PRP003"),
+        Severity.Error,
+        ModelSection.Property,
+        "Flagged property name must not contain ';' or whitespace",
+        "A property marked IsSecure, IsAdmin, or IsHidden has its name written by the compiler into a "
+            + "semicolon-delimited list property (SecureCustomProperties, AdminProperties, or "
+            + "MsiHiddenProperties). A ';' or whitespace character in the name would split that entry "
+            + "into two names or otherwise mis-parse the list, silently corrupting it.",
+        static ctx => ValidationCollectionHelper.ValidateCollection(ctx.Package.Properties,
+            static (p, i) => (p.IsSecure || p.IsAdmin || p.IsHidden) && FindProblemChar(p.Name) is { } bad
+                ? new Violation(new RuleId("PRP003"), Severity.Error,
+                    ModelPath.Root.Field("Properties").Index(i).Field("Name"),
+                    $"Property '{p.Name}' is marked IsSecure/IsAdmin/IsHidden but its name contains " +
+                    $"{DescribeProblemChar(bad)}. Names carrying any of these flags are written into a " +
+                    "semicolon-delimited list (SecureCustomProperties, AdminProperties, or " +
+                    "MsiHiddenProperties), so this character would split the entry into two names or " +
+                    "otherwise mis-parse the list — the flag would be silently inert. Remove the " +
+                    "character from the property name.")
+                : null));
+
     private static bool ContainsLowercase(string name)
     {
         foreach (char c in name)
@@ -87,10 +121,30 @@ public static class PropertyRules
         return false;
     }
 
+    private static char? FindProblemChar(string name)
+    {
+        foreach (char c in name)
+        {
+            if (c == ';' || char.IsWhiteSpace(c))
+                return c;
+        }
+
+        return null;
+    }
+
+    private static string DescribeProblemChar(char c) => c switch
+    {
+        ';' => "a ';' character",
+        ' ' => "a space character",
+        '\t' => "a tab character",
+        _ => $"a whitespace character (U+{(int)c:X4})"
+    };
+
     /// <summary>All property rules, in order, ready to be included in a <see cref="RuleRegistry"/>.</summary>
     public static readonly ValidationRule[] All =
     [
         Prp001_SecurePropertyMustBeUppercase,
         Prp002_ReservedPropertyName,
+        Prp003_FlaggedPropertyNameMustNotContainSemicolonOrWhitespace,
     ];
 }
