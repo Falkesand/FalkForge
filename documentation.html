@@ -8678,7 +8678,7 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
 <p>
     The tab ring is <code>List &rarr; ShutdownOption &rarr; OK &rarr; Cancel &rarr; List</code>, with
     <code>Control_First = OK</code> (the seeded default action). This is a deliberate deviation from
-    WiX's own <code>MsiRMFilesInUse.wxs</code>, which marks the process list <code>TabSkip="yes"</code>
+    WiX's documented behaviour, which marks the process list <code>TabSkip="yes"</code>
     to skip past it: FalkForge keeps <code>List</code> in the cycle on purpose, because the in-use
     process names are exactly the information a user needs to decide whether to let Setup close those
     applications. There is also no <code>TabSkip</code>-equivalent knob anywhere in FalkForge &mdash;

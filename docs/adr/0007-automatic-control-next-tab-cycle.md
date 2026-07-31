@@ -45,13 +45,14 @@ point where every dialog source converges, so no future dialog builder can forge
 The cycle links controls sorted by `(Y ascending, X ascending, declaration index)`, not by the
 order they were declared in the `DialogContent`. This is a hard requirement, not a style choice:
 `RightPackedRegionLayout` (used by every stock `ButtonRow`) packs the **first-declared** control of
-a region against the region's right edge and lays each subsequent control to its left. Every stock
-footer declares its buttons `DialogFooter.CancelButton(), NextButton(), BackButton()` — so a
-declaration-order tab cycle would tab `Cancel -> Next -> Back`, which reads backwards against the
-on-screen `Back, Next, Cancel` row. Geometric order tabs `Back -> Next -> Cancel`, matching what
-the user sees. The `(Y, X, index)` key is a total order over the control list (no two controls
-share a key unless they share an index, which cannot happen), so the sort needs no stability
-guarantee and uses an explicit `Comparison<int>` rather than relying on it.
+a region against the region's right edge and lays each subsequent control to its left. Every
+three-button wizard footer declares its buttons `DialogFooter.CancelButton(), NextButton(),
+BackButton()` — so a declaration-order tab cycle would tab `Cancel -> Next -> Back`, which reads
+backwards against the on-screen `Back, Next, Cancel` row. Geometric order tabs
+`Back -> Next -> Cancel`, matching what the user sees. The `(Y, X, index)` key is a total order
+over the control list (no two controls share a key unless they share an index, which cannot
+happen), so the sort needs no stability guarantee and uses an explicit `Comparison<int>` rather
+than relying on it.
 
 ### 2. `Control_First` stays exactly as authored
 
@@ -65,7 +66,7 @@ per dialog.
 
 ### 3. `MsiRMFilesInUse.List` stays in the cycle, unlike WiX
 
-WiX's own `MsiRMFilesInUse.wxs` marks the in-use process list `TabSkip="yes"`, removing it from the
+WiX's documented behaviour marks the in-use process list `TabSkip="yes"`, removing it from the
 tab order. This repo deliberately keeps `List` (a `ListBox`) focusable and in the cycle: the list of
 processes about to be closed is exactly the information a user needs to decide whether to allow it,
 so skipping past it by keyboard would defeat the purpose of showing it. There is also no
@@ -73,7 +74,7 @@ so skipping past it by keyboard would defeat the purpose of showing it. There is
 no such flag — `TabSkip` is a WiX-compiler-only concept implemented by simply omitting a control
 from the linked list, which our type-based focusable/non-focusable split
 (`Text`, `Line`, `Bitmap`, `Icon`, `ProgressBar`, `GroupBox`, `VolumeCostList` excluded; everything
-else focusable, mirroring WiX's own `Compiler_UI.cs` `notTabbable` set) already provides as the only
+else focusable, matching WiX's documented `notTabbable` exclusion set) already provides as the only
 lever. `MsiRMFilesInUse`'s ring is `List -> ShutdownOption -> OK -> Cancel -> List`, with
 `Control_First = OK`.
 
