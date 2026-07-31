@@ -103,7 +103,7 @@ Shipped: Plugins.Sql (`ISqlServerDiscovery, IDatabaseLister, IConnectionTester`)
 
 **WinGet/** (`Core/WinGet/`): WinGetManifestWriter (3-file YAML manifest generation), WinGetConfig model. PackageBuilder.WinGet() fluent configuration.
 
-**Validation** (`Core/Validation/`): PKG001-011, FEA001-005, SVC001-005/SVC009-012, REG001-003/REG007/RRG001-003, CTB001-011, MUP001/003, DNG001-002 | MergeModuleValidator MSM001-004 | PatchValidator MSP001-004 | TransformValidator MST001-002. (REG001-003 = empty-key error + scope-aware duplicate detection; SVC012 = service account without password.)
+**Validation** (`Core/Validation/`): PKG001-011, FEA001-005, SVC001-005/SVC009-012, REG001-003/REG007/RRG001-003, CTB001-011, MUP001/003, DNG001-002, PropertyRules PRP001-003 | MergeModuleValidator MSM001-004 | PatchValidator MSP001-004 | TransformValidator MST001-002. (REG001-003 = empty-key error + scope-aware duplicate detection; SVC012 = service account without password; PRP001 = IsSecure name must contain no lowercase letter, PRP002 = reserved compiler-computed property name, PRP003 = flagged name must not contain ';'/whitespace.)
 
 ## Compiler.Msi (`src/FalkForge.Compiler.Msi/`)
 Compilers: MsiCompiler (ICompiler), MsmCompiler, PatchCompiler, TransformCompiler
@@ -112,6 +112,7 @@ Cabinets: CabinetBuilder (single-threaded), CabinetExtractor (FDI)
 Tables/: MsiTableDefinitions, EnvironmentEncoding
 Recipe/: MsiAuthoring, MsiRecipeBuilder, MsiDatabaseRecipe, ITableProducer, IMultiTableProducer, RecipeBuildContext, RecipeTable, RecipeRow, RecipeColumn, CellValue, TableId, TableSchema, ForeignKeySpec, DirectoryTreeSynthesizer, LanguageTransformGenerator (per-culture MST diff via MsiDatabaseGenerateTransform, DLG005 no-diff warning)
 Recipe/Producers/: ComponentTableProducer, DirectoryTableProducer, DialogSetProducer, FeatureTableProducer, FeatureComponentsTableProducer, PropertyTableProducer, RegistryTableProducer, ShortcutTableProducer, ServiceInstallTableProducer, UpgradeTableProducer, and others. ValidateCustomTableIdentifiers() defense-in-depth SQL identifier validation enforced by CustomTablesProducer.
+Recipe/: HiddenPropertiesEmitter (merges author IsHidden names with extension-contributed ExecutionStep.HiddenProperties into the single MsiHiddenProperties row — the only write-side occurrence of that literal), StaticTableContributor (shared IMsiTableContributor over an already-materialized row set for a built-in table; used by both HiddenPropertiesEmitter and ExecutionStepEmitter).
 Interop/: NativeMethods.Msi (msi.dll LibraryImport), NativeMethods.Cabinet (cabinet.dll), CabinetCallbackShim (shared FCI/FDI alloc/free/open callbacks), MsiDatabaseHandle, MsiRecordHandle, MsiViewHandle, FdiHandle. Assembly-level DefaultDllImportSearchPaths(System32) prevents DLL hijacking.
 Signing/, Validation/IceValidator (validates a disposable temp copy — never mutates the shipped MSI)
 UI/: MsiDialogModel, MsiControlModel, MsiControlEventModel, MsiControlConditionModel, IDialogTemplate. Dialog tables produced via DialogSetProducer in the recipe pipeline. Custom dialog authoring via PackageBuilder.AddCustomDialog + CustomDialogTranslator (DLG010-022).
