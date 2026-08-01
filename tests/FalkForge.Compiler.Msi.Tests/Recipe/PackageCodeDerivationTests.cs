@@ -52,8 +52,8 @@ public sealed class PackageCodeDerivationTests
                 payloadPath: payloadPath,
                 reproducible: true);
 
-            var recipe1 = MsiRecipeBuilder.Build(resolved1, [], new MsiRecipeBuildOptions()).Value;
-            var recipe2 = MsiRecipeBuilder.Build(resolved2, [], new MsiRecipeBuildOptions()).Value;
+            var recipe1 = MsiRecipeBuilder.Build(resolved1, []).Value;
+            var recipe2 = MsiRecipeBuilder.Build(resolved2, []).Value;
 
             Assert.Equal(recipe1.SummaryInfo.RevisionNumber, recipe2.SummaryInfo.RevisionNumber);
         }
@@ -89,8 +89,8 @@ public sealed class PackageCodeDerivationTests
             var resolvedV1 = BuildResolvedPackage(productCode, payloadPath: payloadV1, reproducible: true);
             var resolvedV2 = BuildResolvedPackage(productCode, payloadPath: payloadV2, reproducible: true);
 
-            var recipeV1 = MsiRecipeBuilder.Build(resolvedV1, [], new MsiRecipeBuildOptions()).Value;
-            var recipeV2 = MsiRecipeBuilder.Build(resolvedV2, [], new MsiRecipeBuildOptions()).Value;
+            var recipeV1 = MsiRecipeBuilder.Build(resolvedV1, []).Value;
+            var recipeV2 = MsiRecipeBuilder.Build(resolvedV2, []).Value;
 
             // RED today: both equal pkg.ProductCode.ToString("B").ToUpperInvariant()
             Assert.NotEqual(recipeV1.SummaryInfo.RevisionNumber, recipeV2.SummaryInfo.RevisionNumber);
@@ -117,7 +117,7 @@ public sealed class PackageCodeDerivationTests
             var productCode = new Guid("CCCCCCCC-0000-0000-0000-000000000003");
 
             var resolved = BuildResolvedPackage(productCode, payloadPath, reproducible: true);
-            var recipe = MsiRecipeBuilder.Build(resolved, [], new MsiRecipeBuildOptions()).Value;
+            var recipe = MsiRecipeBuilder.Build(resolved, []).Value;
 
             var productCodeFormatted = productCode.ToString("B").ToUpperInvariant();
 
@@ -156,8 +156,8 @@ public sealed class PackageCodeDerivationTests
             var resolved1 = BuildResolvedPackage(explicitProductCode, payloadPath, reproducible: false);
             var resolved2 = BuildResolvedPackage(explicitProductCode, payloadPath, reproducible: false);
 
-            var recipe1 = MsiRecipeBuilder.Build(resolved1, [], new MsiRecipeBuildOptions()).Value;
-            var recipe2 = MsiRecipeBuilder.Build(resolved2, [], new MsiRecipeBuildOptions()).Value;
+            var recipe1 = MsiRecipeBuilder.Build(resolved1, []).Value;
+            var recipe2 = MsiRecipeBuilder.Build(resolved2, []).Value;
 
             // RED today: both equal explicitProductCode.ToString("B").ToUpperInvariant()
             Assert.NotEqual(recipe1.SummaryInfo.RevisionNumber, recipe2.SummaryInfo.RevisionNumber);
@@ -286,7 +286,7 @@ public sealed class PackageCodeDerivationTests
             };
 
             // Act — must NOT throw; must return a failure Result.
-            var result = MsiRecipeBuilder.Build(resolved, [], new MsiRecipeBuildOptions());
+            var result = MsiRecipeBuilder.Build(resolved, []);
 
             Assert.False(result.IsSuccess,
                 "Expected failure when source file is missing, but Build returned success.");

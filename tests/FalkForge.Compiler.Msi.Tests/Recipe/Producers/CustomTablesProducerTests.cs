@@ -402,7 +402,6 @@ public sealed class CustomTablesProducerTests
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
             [],
-            new MsiRecipeBuildOptions(),
             [new CustomTablesProducer()]);
 
         Assert.True(result.IsSuccess);

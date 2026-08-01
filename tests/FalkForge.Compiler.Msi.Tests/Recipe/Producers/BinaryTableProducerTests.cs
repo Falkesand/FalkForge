@@ -303,8 +303,7 @@ public sealed class BinaryTableProducerTests : IDisposable
 
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
-            [],
-            new MsiRecipeBuildOptions());
+            []);
 
         Assert.True(result.IsSuccess);
         Assert.Contains("TestBin", result.Value.Streams);
@@ -343,7 +342,6 @@ public sealed class BinaryTableProducerTests : IDisposable
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
             contributors: [],
-            options: new MsiRecipeBuildOptions(),
             multiProducers: [new DialogSetProducer()]);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
@@ -378,8 +376,7 @@ public sealed class BinaryTableProducerTests : IDisposable
 
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
-            [],
-            new MsiRecipeBuildOptions());
+            []);
 
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Value.Streams);

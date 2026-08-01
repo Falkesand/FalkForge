@@ -16,8 +16,7 @@ public sealed class MsiRecipeBuilderTests
     {
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved: null!,
-            contributors: new List<IMsiTableContributor>(),
-            options: new MsiRecipeBuildOptions());
+            contributors: new List<IMsiTableContributor>());
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
@@ -28,20 +27,7 @@ public sealed class MsiRecipeBuilderTests
     {
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved: MakeResolvedPackage(),
-            contributors: null!,
-            options: new MsiRecipeBuildOptions());
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
-    }
-
-    [Fact]
-    public void Build_returns_failure_on_null_options()
-    {
-        Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
-            resolved: MakeResolvedPackage(),
-            contributors: new List<IMsiTableContributor>(),
-            options: null!);
+            contributors: null!);
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
@@ -52,8 +38,7 @@ public sealed class MsiRecipeBuilderTests
     {
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(result.IsSuccess);
     }
@@ -71,8 +56,7 @@ public sealed class MsiRecipeBuilderTests
         // (TARGETDIR root), and Property (built-in MSI properties).
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions()).Value;
+            new List<IMsiTableContributor>()).Value;
 
         Assert.False(recipe.Tables.IsDefault);
         Assert.Equal(35, recipe.Tables.Length);
@@ -129,8 +113,7 @@ public sealed class MsiRecipeBuilderTests
     {
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions()).Value;
+            new List<IMsiTableContributor>()).Value;
 
         Assert.Empty(recipe.Streams);
     }
@@ -140,8 +123,7 @@ public sealed class MsiRecipeBuilderTests
     {
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions()).Value;
+            new List<IMsiTableContributor>()).Value;
 
         Assert.True(recipe.CabinetEmbeddings.IsEmpty);
     }
@@ -155,8 +137,7 @@ public sealed class MsiRecipeBuilderTests
         // summary info, etc.). The digest is stable across repeated builds.
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions()).Value;
+            new List<IMsiTableContributor>()).Value;
 
         Assert.False(recipe.ContentHash.IsEmpty);
         Assert.Equal(32, recipe.ContentHash.Length);
@@ -184,8 +165,7 @@ public sealed class MsiRecipeBuilderTests
 
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             resolved,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions()).Value;
+            new List<IMsiTableContributor>()).Value;
 
         SummaryInfoRecipe info = recipe.SummaryInfo;
         Assert.Equal("Installation Database", info.Title);
@@ -229,8 +209,7 @@ public sealed class MsiRecipeBuilderTests
 
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             resolved,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions()).Value;
+            new List<IMsiTableContributor>()).Value;
 
         Assert.Equal("Custom description text.", recipe.SummaryInfo.Comments);
     }
@@ -253,8 +232,7 @@ public sealed class MsiRecipeBuilderTests
 
         MsiDatabaseRecipe x86Recipe = MsiRecipeBuilder.Build(
             x86Resolved,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions()).Value;
+            new List<IMsiTableContributor>()).Value;
 
         Assert.Equal("Intel;1033", x86Recipe.SummaryInfo.Template);
     }

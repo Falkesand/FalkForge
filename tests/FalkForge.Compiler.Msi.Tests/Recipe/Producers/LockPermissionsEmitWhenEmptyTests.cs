@@ -62,8 +62,7 @@ public sealed class LockPermissionsEmitWhenEmptyTests
 
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(result.IsSuccess);
         bool hasLockPerms = false;
@@ -86,8 +85,7 @@ public sealed class LockPermissionsEmitWhenEmptyTests
 
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(result.IsSuccess);
         bool hasMsiLockEx = false;
@@ -112,8 +110,7 @@ public sealed class LockPermissionsEmitWhenEmptyTests
 
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(result.IsSuccess);
         Assert.Equal(35, result.Value.Tables.Length);
@@ -143,8 +140,7 @@ public sealed class LockPermissionsEmitWhenEmptyTests
 
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(result.IsSuccess);
         bool hasLockPerms = false;
@@ -173,8 +169,7 @@ public sealed class LockPermissionsEmitWhenEmptyTests
 
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(result.IsSuccess);
         bool hasMsiLockEx = false;

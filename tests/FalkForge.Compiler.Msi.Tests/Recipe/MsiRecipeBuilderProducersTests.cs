@@ -19,8 +19,7 @@ public sealed class MsiRecipeBuilderProducersTests
         // 37 producers - 2 suppressed Lock* = 35 tables.
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(result.IsSuccess);
         Assert.Equal(35, result.Value.Tables.Length);
@@ -35,8 +34,7 @@ public sealed class MsiRecipeBuilderProducersTests
         // executor (CREATE all → INSERT all) produces byte-identical OLE layout.
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions()).Value;
+            new List<IMsiTableContributor>()).Value;
 
         Assert.Equal("Directory",      recipe.Tables[0].Name.Value);
         Assert.Equal("Component",      recipe.Tables[1].Name.Value);
@@ -82,8 +80,7 @@ public sealed class MsiRecipeBuilderProducersTests
     {
         MsiDatabaseRecipe recipe = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions()).Value;
+            new List<IMsiTableContributor>()).Value;
 
         foreach (RecipeTable table in recipe.Tables)
         {

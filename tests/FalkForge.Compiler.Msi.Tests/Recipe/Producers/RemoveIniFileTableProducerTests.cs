@@ -266,8 +266,7 @@ public sealed class RemoveIniFileTableProducerTests
         // (EmitWhenEmpty=false), so indices in that range shift down by two.
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(result.IsSuccess);
         Assert.Equal("RemoveIniFile", result.Value.Tables[18].Name.Value);
@@ -279,8 +278,7 @@ public sealed class RemoveIniFileTableProducerTests
         // 37 producers total - 2 suppressed Lock* (no permissions) = 35.
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             MakeResolvedPackage(),
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(result.IsSuccess);
         Assert.Equal(35, result.Value.Tables.Length);
