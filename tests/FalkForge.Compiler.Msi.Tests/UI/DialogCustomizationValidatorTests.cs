@@ -201,7 +201,7 @@ public sealed class DialogCustomizationValidatorTests
         var dlg002 = errors.First(e => e.Code == "DLG002");
         Assert.Contains("Progress", dlg002.Message);
         Assert.Contains("#44", dlg002.Message);
-        Assert.Contains("SuppressDialog", dlg002.Message);
+        Assert.Contains("SuppressedDialogs", dlg002.Message);
     }
 
     // ── DLG003 — bitmap/icon customization key must be a registered Binary ────

@@ -73,9 +73,10 @@ The old `ProtectedDialogs`/`BuildProtectedDialogs` table was deleted rather than
 (`CA1823`/`IDE0052` fail an unread private field under this build's analyzer set, and this
 codebase's convention is to fix or delete rather than add a suppression pragma for a
 gate-defeating warning). Its content — five `MsiDialogSet` → navigation-target-`StockDialog`-set
-entries, including the now-confirmed-wrong `InstallDir` entry — is preserved verbatim in the PR
-description for this change and in task #44's notes, with an explicit note that it should be
-re-derived from the templates rather than pasted back as-is, since it was wrong.
+entries, including the now-confirmed-wrong `InstallDir` entry — is preserved verbatim below, in
+this ADR's Consequences section, with an explicit note that it should be re-derived from the
+templates rather than pasted back as-is, since it was wrong. It is also recorded in task #44's
+notes as a secondary copy.
 
 We did not implement real suppression. Composing a subset of dialogs while keeping the wizard's
 `NewDialog`/`SpawnDialog` chain internally consistent (the exact defect DLG002 was trying, and
@@ -108,3 +109,65 @@ failing, to catch) is a nontrivial per-template change that task #44 owns.
   per-template navigation-target data DLG002 used to rely on, plus deciding whether the eventual
   real DLG002 should resemble the deleted navigation-aware check or take a different shape
   entirely once dialogs can actually be omitted from composition.
+
+### Deleted `ProtectedDialogs` table (recovered verbatim from git history)
+
+The table below is the exact content of `BuildProtectedDialogs()` as it existed in
+`src/FalkForge.Compiler.Msi/UI/DialogCustomizationValidator.cs` immediately before this change
+deleted it. It is reproduced here — not merely referenced — because a document that only points
+at another document as the source of truth, when that other document does not actually contain
+the data, is the same defect this ADR exists to gate against. The `InstallDir` entry's error is
+annotated in place; do not re-copy it as-is into any future implementation — re-derive per-template
+navigation targets from the templates themselves (`InstallDirDialogTemplate`,
+`FeatureTreeDialogTemplate`, `MondoDialogTemplate`, `AdvancedDialogTemplate`,
+`MinimalDialogTemplate`).
+
+```csharp
+private static FrozenDictionary<MsiDialogSet, FrozenSet<StockDialog>> BuildProtectedDialogs()
+{
+    // Each template's protected set is the union of all dialogs that appear as
+    // NewDialog targets in that template's event wiring. These were extracted from
+    // the builder DialogFlowContext chains in FeatureTreeDialogTemplate,
+    // InstallDirDialogTemplate, MondoDialogTemplate, AdvancedDialogTemplate, and
+    // MinimalDialogTemplate.
+    //
+    // Entry-point dialogs (Welcome) are also protected because they are referenced
+    // from the install sequence Execute action to start the UI sequence.
+    return new Dictionary<MsiDialogSet, FrozenSet<StockDialog>>
+    {
+        [MsiDialogSet.Minimal] = FrozenSet.Create(
+            StockDialog.Welcome,    // UI sequence entry point
+            StockDialog.Progress,   // target of Welcome->Next
+            StockDialog.Exit),      // target of Progress completion
+
+        [MsiDialogSet.InstallDir] = FrozenSet.Create(
+            StockDialog.Welcome,    // UI sequence entry point
+            StockDialog.InstallDir, // target of Welcome->Next   <-- WRONG: the real target is License
+            StockDialog.Progress,   // target of InstallDir->Next (Install)
+            StockDialog.Exit),      // target of Progress completion
+
+        [MsiDialogSet.FeatureTree] = FrozenSet.Create(
+            StockDialog.Welcome,    // UI sequence entry point
+            StockDialog.License,    // target of Welcome->Next
+            StockDialog.Features,   // target of License->Next
+            StockDialog.Progress,   // target of Customize->Next (Install)
+            StockDialog.Exit),      // target of Progress completion
+
+        [MsiDialogSet.Mondo] = FrozenSet.Create(
+            StockDialog.Welcome,    // UI sequence entry point
+            StockDialog.License,    // target of Welcome->Next
+            StockDialog.InstallDir, // target of SetupType->Next (one branch)
+            StockDialog.Features,   // target of SetupType->Next (another branch)
+            StockDialog.Progress,   // target of InstallDir/Features->Next (Install)
+            StockDialog.Exit),      // target of Progress completion
+
+        [MsiDialogSet.Advanced] = FrozenSet.Create(
+            StockDialog.Welcome,    // UI sequence entry point
+            StockDialog.License,    // target of Welcome->Next
+            StockDialog.InstallDir, // navigation target
+            StockDialog.Features,   // navigation target
+            StockDialog.Progress,   // target of install branch
+            StockDialog.Exit),      // target of Progress completion
+    }.ToFrozenDictionary();
+}
+```

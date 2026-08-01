@@ -83,8 +83,9 @@ internal static class DialogCustomizationValidator
         {
             errors.Add(new DialogValidationError(
                 "DLG002",
-                $"DialogCustomization.SuppressDialog({suppressed}) is not implemented (see task #44) " +
-                $"and has no effect on the {dialogSet} template's compiled MSI — remove '{suppressed}' from SuppressedDialogs."));
+                $"Dialog suppression is not implemented (see task #44) — '{suppressed}' in " +
+                $"SuppressedDialogs has no effect on the {dialogSet} template's compiled MSI. " +
+                $"Remove '{suppressed}' from SuppressedDialogs."));
         }
 
         // DLG003 — bitmap/icon customization keys must resolve to a registered Binary.
@@ -100,9 +101,10 @@ internal static class DialogCustomizationValidator
     // to live here for the old navigation-aware DLG002 rule. It was deleted rather than kept
     // unused, because keeping an unread field fails the build (CA1823 / IDE0052 under
     // TreatWarningsAsErrors) and this codebase's convention is no suppression pragmas for a
-    // gate-defeating warning. Its content is preserved verbatim in this PR's description and
-    // task #44's notes for whoever builds the real suppression feature — note it was also
-    // provably wrong (ProtectedDialogs[InstallDir] omitted License even though
+    // gate-defeating warning. Its content is preserved verbatim in docs/adr/0010-gate-suppress-
+    // dialog-instead-of-delete.md (Consequences section) — the single home for this table — with
+    // a secondary copy in task #44's notes, for whoever builds the real suppression feature. Note
+    // it was also provably wrong (ProtectedDialogs[InstallDir] omitted License even though
     // InstallDirDialogTemplate wires Welcome→License), so re-derive it from the templates
     // rather than pasting it back as-is.
 
