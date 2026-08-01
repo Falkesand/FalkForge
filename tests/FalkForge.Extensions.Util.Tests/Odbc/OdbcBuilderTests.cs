@@ -12,12 +12,14 @@ public sealed class OdbcBuilderTests
             .DriverName("My ODBC Driver")
             .FileName("mydriver.dll")
             .SetupFileName("mysetup.dll")
+            .ComponentRef("MainComponent")
             .Build();
 
         Assert.Equal("Drv1", model.Id);
         Assert.Equal("My ODBC Driver", model.DriverName);
         Assert.Equal("mydriver.dll", model.FileName);
         Assert.Equal("mysetup.dll", model.SetupFileName);
+        Assert.Equal("MainComponent", model.ComponentRef);
     }
 
     [Fact]
@@ -29,6 +31,7 @@ public sealed class OdbcBuilderTests
             .Registration(OdbcRegistration.PerUser)
             .Property("Server", "localhost")
             .Property("Database", "mydb")
+            .ComponentRef("MainComponent")
             .Build();
 
         Assert.Equal("DSN1", model.Id);
@@ -38,6 +41,7 @@ public sealed class OdbcBuilderTests
         Assert.Equal(2, model.Properties.Count);
         Assert.Equal("localhost", model.Properties["Server"]);
         Assert.Equal("mydb", model.Properties["Database"]);
+        Assert.Equal("MainComponent", model.ComponentRef);
     }
 
     [Fact]
