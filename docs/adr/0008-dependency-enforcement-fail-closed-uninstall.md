@@ -112,3 +112,28 @@ hurt most — it must still be refused unless the override is explicit.
 - Reversing the fail-closed/fail-open split (e.g. making a write-side failure hard-fail the apply, or
   making the uninstall check fail open on a read error) would need a new ADR — this one is the record of
   why the asymmetry is deliberate, not an oversight.
+- **A stale provider row can make a MISSING dependency read as satisfied (added 2026-08-01).** A
+  provider's own uninstall removes only its `DependencyConsumers` entries — its own provider row (the one
+  `DetectUnsatisfiedProviders` reads `Version` from) is never removed, deliberately: the same provider key
+  can legitimately be written by more than one product (an MSI-authored dependency and a bundle-authored
+  one sharing a key, or several products from one vendor), so there is no way to tell "the last provider
+  of this key just uninstalled" from "another one is still present" without actually reference-counting
+  providers the way consumers already are — a mechanism that does not exist today. Considered and
+  rejected: unconditionally deleting the provider row on its own uninstall, which would be simpler but
+  would incorrectly un-satisfy the requirement for every OTHER product still legitimately providing the
+  same key. The accepted trade-off leaves a narrow but real gap in the other direction from the
+  stale-refusal case documented above: after the actual provider is gone, `DetectUnsatisfiedProviders` can
+  read the leftover row and let a dependent install proceed against a component that is no longer present.
+  `documentation.html` §9.3e and this file previously disclosed only the stale-BLOCKER direction; both now
+  disclose this stale-SATISFIED direction too, since "install refusal on missing dependency" is a weaker
+  guarantee than release notes describing it have implied.
+- **An elevated bundle can Register a dependent under a provider key it does not own (added 2026-08-01).**
+  `DependencyRegistrationCommand`'s allowlist and traversal guard constrain WHERE in the registry a
+  payload can write, not WHOSE provider key it claims to depend on — nothing stops bundle A's manifest
+  from declaring `DependencyConsumer("SomeOtherVendorsProviderKey", "BundleA")`. Once registered, that
+  consumer entry legitimately (per this ADR's own reference-counting design) blocks a future uninstall of
+  the other vendor's component until BundleA's entry is removed — an effective cross-vendor lockout. This
+  is contained by the facts that (a) the write is confined to the fixed
+  `SOFTWARE\Classes\Installer\Dependencies\` prefix (the allowlist's whole purpose) and (b) it requires the
+  same elevation consent any per-machine install already needs — it is not a privilege-escalation path,
+  only a mis-scoped-trust one. `--ignore-dependencies` remains the operator's escape hatch if this occurs.
