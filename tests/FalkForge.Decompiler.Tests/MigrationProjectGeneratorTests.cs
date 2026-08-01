@@ -411,6 +411,25 @@ public sealed class MigrationProjectGeneratorTests
         Assert.Equal(["Binary", "CustomAction", "ServiceControl"], unmapped);
     }
 
+    [Fact]
+    public void ComputeUnmappedTableNames_MediaTable_IsMappedNotUnmapped()
+    {
+        // WHY: MsiPayloadExtractor.Extract (called from MigrationProjectGenerator.GenerateFromMsi
+        // on every real MSI-with-files migration) reads `Media` directly
+        // (`SELECT DiskId, LastSequence, Cabinet FROM Media`) to locate the embedded cabinets that
+        // drive extraction into the generated project's payload/ directory. If `Media` is ever
+        // reported as "unmapped" the report falsely claims its rows were dropped and cannot be
+        // recovered from the generated project, even though Media.Cabinet is exactly what payload
+        // extraction consumes.
+        string[] allTables = ["Property", "Directory", "Component", "File", "Feature",
+            "FeatureComponents", "Registry", "ServiceInstall", "Shortcut", "Upgrade", "Media"];
+
+        var unmapped = MigrationMsiEmitter.ComputeUnmappedTableNames(
+            allTables, ImmutableDictionary<string, IReadOnlyList<object>>.Empty);
+
+        Assert.Empty(unmapped);
+    }
+
     // ── error paths ──────────────────────────────────────────────────────────
 
     [Fact]
