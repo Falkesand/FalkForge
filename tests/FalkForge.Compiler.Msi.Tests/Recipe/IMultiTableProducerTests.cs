@@ -125,10 +125,11 @@ public sealed class IMultiTableProducerTests
     }
 
     [Fact]
-    public void MsiRecipeBuilder_backwards_compatible_three_param_overload_still_works()
+    public void MsiRecipeBuilder_two_param_overload_builds_recipe_without_multi_producers()
     {
-        // The original three-argument Build overload must continue to work so
-        // existing call sites are not broken by the Phase A change.
+        // The two-argument convenience overload (no multiProducers parameter)
+        // must still resolve and produce a working recipe for callers that
+        // don't supply multi-table producers.
         ResolvedPackage resolved = MakeResolvedPackage();
 
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
