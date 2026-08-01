@@ -163,6 +163,42 @@ public sealed class RealExtensionEmissionTests
     }
 
     [Fact]
+    public void UtilExtension_EmitsOdbcDriverDataSourceAndSourceAttributeTables()
+    {
+        using var scratch = new Scratch();
+
+        var util = new UtilExtension();
+        util.AddOdbcDriver("MyDriver", d => d
+            .DriverName("My ODBC Driver").FileName("mydriver.dll").ComponentRef("MainComponent"));
+        util.AddOdbcDataSource("MyDSN", ds => ds
+            .Name("My Data Source").DriverName("My ODBC Driver").ComponentRef("MainComponent")
+            .Property("Server", "localhost"));
+
+        using var db = Compile(scratch, "OdbcEmitApp", c => c.Use(util));
+
+        var driverRows = db.QueryRows("SELECT `Driver`, `Component_` FROM `ODBCDriver`", 2);
+        Assert.True(driverRows.IsSuccess, driverRows.IsFailure ? driverRows.Error.Message : "");
+        var driverRow = Assert.Single(driverRows.Value);
+        Assert.Equal("MyDriver", driverRow[0]);
+        Assert.Equal("MainComponent", driverRow[1]);
+
+        var dsRows = db.QueryRows("SELECT `DataSource`, `Component_` FROM `ODBCDataSource`", 2);
+        Assert.True(dsRows.IsSuccess, dsRows.IsFailure ? dsRows.Error.Message : "");
+        var dsRow = Assert.Single(dsRows.Value);
+        Assert.Equal("MyDSN", dsRow[0]);
+        Assert.Equal("MainComponent", dsRow[1]);
+
+        // Proves .Property(...) on the data source builder actually reaches the compiled MSI,
+        // instead of being silently dropped (there was previously no contributor for this table).
+        var attrRows = db.QueryRows("SELECT `DataSource_`, `Attribute`, `Value` FROM `ODBCSourceAttribute`", 3);
+        Assert.True(attrRows.IsSuccess, attrRows.IsFailure ? attrRows.Error.Message : "");
+        var attrRow = Assert.Single(attrRows.Value);
+        Assert.Equal("MyDSN", attrRow[0]);
+        Assert.Equal("Server", attrRow[1]);
+        Assert.Equal("localhost", attrRow[2]);
+    }
+
+    [Fact]
     public void IisExtension_EmitsAppPoolWebSiteTablesAndLiveScheduledCustomActions()
     {
         using var scratch = new Scratch();

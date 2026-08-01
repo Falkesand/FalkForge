@@ -21,6 +21,7 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
     private readonly OdbcDriverTableContributor _odbcDriverContributor = new();
     private readonly OdbcDataSourceTableContributor _odbcDataSourceContributor = new();
     private readonly OdbcSequenceContributor _odbcSequenceContributor;
+    private readonly OdbcSourceAttributeTableContributor _odbcSourceAttributeContributor;
     private readonly List<QuietExecModel> _quietExecs = [];
     private readonly List<RemoveFolderExModel> _removeFolderExes = [];
     private readonly List<FileShareModel> _fileShares = [];
@@ -31,6 +32,7 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
     public UtilExtension()
     {
         _odbcSequenceContributor = new OdbcSequenceContributor(_odbcDriverContributor, _odbcDataSourceContributor);
+        _odbcSourceAttributeContributor = new OdbcSourceAttributeTableContributor(_odbcDataSourceContributor);
     }
 
     public string Name => "Util";
@@ -179,6 +181,7 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
         registry.RegisterTableContributor(_odbcDriverContributor);
         registry.RegisterTableContributor(_odbcDataSourceContributor);
         registry.RegisterTableContributor(_odbcSequenceContributor);
+        registry.RegisterTableContributor(_odbcSourceAttributeContributor);
         registry.RegisterExecutionContributor(new UtilExecutionContributor(
             () => _quietExecs, () => _removeFolderExes, () => _fileShares, () => _internetShortcuts));
         // User/Group management: a separate execution contributor (it carries a password secret). Each
