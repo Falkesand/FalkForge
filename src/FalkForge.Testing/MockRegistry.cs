@@ -6,16 +6,19 @@ public sealed class MockRegistry : IRegistry
 {
     private readonly Dictionary<string, Dictionary<string, object?>> _keys = new(StringComparer.OrdinalIgnoreCase);
 
-    // Prefixes (root-qualified, e.g. "LocalMachine\SOFTWARE\Classes\...") under which
-    // TryReadSubKeyNames simulates a read failure — lets tests exercise fail-closed handling
-    // (an access-denied/unreadable key) without touching a real registry ACL.
+    // Prefixes matched against the BARE subkey path (e.g. "SOFTWARE\Classes\Installer\Dependencies"),
+    // with no root prefix — TryReadSubKeyNames/TryGetStringValue compare against their `subKey`
+    // parameter directly, never against a root-qualified string. Because the root is never part of the
+    // comparison, one prefix simulates a read failure under LocalMachine and CurrentUser alike.
     private readonly List<string> _failReadPrefixes = [];
 
     /// <summary>
-    /// Makes <see cref="TryReadSubKeyNames"/> return a <c>Failure</c> for any subkey path under
-    /// <paramref name="subKeyPrefix"/> (matched against <see cref="RegistryRoot.LocalMachine"/> and
-    /// <see cref="RegistryRoot.CurrentUser"/> alike via the root-qualified key). Simulates an
-    /// access-denied/unreadable registry key for fail-closed tests.
+    /// Makes <see cref="TryReadSubKeyNames"/> and <see cref="TryGetStringValue"/> return a
+    /// <c>Failure</c> for any subkey path under <paramref name="subKeyPrefix"/>. The match is against the
+    /// bare subkey — do NOT pass a root-qualified prefix (e.g. <c>"LocalMachine\SOFTWARE\..."</c>); it
+    /// will never match and the simulated failure silently won't trigger. Because the root is never part
+    /// of the comparison, <see cref="RegistryRoot.LocalMachine"/> and <see cref="RegistryRoot.CurrentUser"/>
+    /// are matched alike. Simulates an access-denied/unreadable registry key for fail-closed tests.
     /// </summary>
     public MockRegistry FailReadsUnder(string subKeyPrefix)
     {
