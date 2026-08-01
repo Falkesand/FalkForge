@@ -1,7 +1,6 @@
 namespace FalkForge.Engine.Elevation.Commands;
 
 using System.Runtime.Versioning;
-using System.Text.RegularExpressions;
 using FalkForge.Engine.Protocol.Dependencies;
 using FalkForge.Platform;
 using FalkForge.Platform.Dependencies;
@@ -12,12 +11,21 @@ using FalkForge.Platform.Windows;
 /// command from <see cref="RegistryWriteCommand"/> — that command's allowlist permanently reserves
 /// <c>SOFTWARE\Classes\...</c> (COM/shell hijack surface), so un-reserving it for this one path would
 /// reopen that surface for every other caller. This command's own allowlist is scoped to exactly
-/// <c>SOFTWARE\Classes\Installer\Dependencies\</c> via <see cref="DependencyRegistrationPaths"/>, and every
-/// provider/consumer key SEGMENT — sourced from the manifest, which can be attacker-authored — is
-/// traversal-checked before it is interpolated into a registry path.
+/// <c>SOFTWARE\Classes\Installer\Dependencies\</c> via <see cref="DependencyRegistrationPaths"/>.
+///
+/// <para>
+/// Every provider/consumer key SEGMENT — sourced from the manifest, which can be attacker-authored — is
+/// traversal-checked via <see cref="DependencyRegistrationPaths.IsSafeKeySegment"/> before it is
+/// interpolated into a registry path. That guard is shared, feature-wide, single-source-of-truth
+/// validation: <see cref="DependencyRegistrar"/> (the only writer of the registry layout, used directly
+/// by this command AND by the unprivileged <c>PerUser</c> write path in <c>ApplyStep</c>) enforces it
+/// internally, so every caller is covered, not just this elevated command. The loop below is an
+/// additional up-front, all-or-nothing pre-check specific to this command: it rejects the ENTIRE payload
+/// before writing anything if any single key is unsafe, rather than partially applying a batch.
+/// </para>
 /// </summary>
 [SupportedOSPlatform("windows")]
-public sealed partial class DependencyRegistrationCommand : IElevatedCommand
+public sealed class DependencyRegistrationCommand : IElevatedCommand
 {
     private readonly IRegistry _registry;
 
@@ -49,17 +57,20 @@ public sealed partial class DependencyRegistrationCommand : IElevatedCommand
 
         foreach (var provider in providers)
         {
-            if (!IsSafeKeySegment(provider.Key))
+            if (!DependencyRegistrationPaths.IsSafeKeySegment(provider.Key))
                 return Result<byte[]>.Failure(ErrorKind.SecurityError,
                     $"DependencyRegistration: unsafe provider key segment '{provider.Key}'.");
         }
 
         foreach (var consumer in consumers)
         {
-            if (!IsSafeKeySegment(consumer.ProviderKey) || !IsSafeKeySegment(consumer.ConsumerKey))
+            if (!DependencyRegistrationPaths.IsSafeKeySegment(consumer.ProviderKey) ||
+                !DependencyRegistrationPaths.IsSafeKeySegment(consumer.ConsumerKey))
+            {
                 return Result<byte[]>.Failure(ErrorKind.SecurityError,
                     $"DependencyRegistration: unsafe dependency key segment " +
                     $"('{consumer.ProviderKey}'/'{consumer.ConsumerKey}').");
+            }
         }
 
         var registrar = new DependencyRegistrar(_registry);
@@ -69,15 +80,30 @@ public sealed partial class DependencyRegistrationCommand : IElevatedCommand
             if (opcode == DependencyRegistrationOpcode.Register)
             {
                 foreach (var provider in providers)
-                    registrar.RegisterProvider(RegistryRoot.LocalMachine, provider.Key, provider.Version, provider.DisplayName);
+                {
+                    var providerResult = registrar.RegisterProvider(
+                        RegistryRoot.LocalMachine, provider.Key, provider.Version, provider.DisplayName);
+                    if (providerResult.IsFailure)
+                        return Result<byte[]>.Failure(providerResult.Error);
+                }
 
                 foreach (var consumer in consumers)
-                    registrar.RegisterConsumer(RegistryRoot.LocalMachine, consumer.ProviderKey, consumer.ConsumerKey, bundleId);
+                {
+                    var consumerResult = registrar.RegisterConsumer(
+                        RegistryRoot.LocalMachine, consumer.ProviderKey, consumer.ConsumerKey, bundleId);
+                    if (consumerResult.IsFailure)
+                        return Result<byte[]>.Failure(consumerResult.Error);
+                }
             }
             else
             {
                 foreach (var consumer in consumers)
-                    registrar.UnregisterConsumer(RegistryRoot.LocalMachine, consumer.ProviderKey, consumer.ConsumerKey);
+                {
+                    var unregisterResult = registrar.UnregisterConsumer(
+                        RegistryRoot.LocalMachine, consumer.ProviderKey, consumer.ConsumerKey);
+                    if (unregisterResult.IsFailure)
+                        return Result<byte[]>.Failure(unregisterResult.Error);
+                }
             }
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException)
@@ -87,17 +113,4 @@ public sealed partial class DependencyRegistrationCommand : IElevatedCommand
 
         return Array.Empty<byte>();
     }
-
-    /// <summary>
-    /// Traversal/injection guard for a single registry key SEGMENT (never a whole path — the segment is
-    /// interpolated directly into the fixed <c>Dependencies\{key}\Dependents\{key}</c> template). Allows
-    /// the common WiX/Burn GUID-style provider key (e.g. <c>{12345678-...}</c>) in addition to plain
-    /// alphanumeric identifiers; rejects backslash so a crafted key cannot expand into unexpected subkey
-    /// structure.
-    /// </summary>
-    private static bool IsSafeKeySegment(string segment) =>
-        segment.Length is > 0 and <= 255 && SafeKeySegmentPattern().IsMatch(segment);
-
-    [GeneratedRegex(@"^[A-Za-z0-9{][A-Za-z0-9 ._\-{}]*$")]
-    private static partial Regex SafeKeySegmentPattern();
 }

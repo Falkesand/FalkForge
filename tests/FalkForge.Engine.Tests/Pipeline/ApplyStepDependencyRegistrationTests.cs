@@ -108,6 +108,50 @@ public sealed class ApplyStepDependencyRegistrationTests
     }
 
     [Fact]
+    public async Task Install_PerUser_UnsafeConsumerKey_RefusesWrite_NeverTouchesRegistry()
+    {
+        // Commit A regression: before the fix, ApplyStep built DependencyRegistrar directly with the
+        // RAW manifest-sourced ConsumerKey — no validation anywhere on this path. A crafted key
+        // containing a backslash would nest straight under another product's existing consumer subkey
+        // (unexpected subkey structure, per the guard's own doc comment) instead of being rejected. Post-
+        // fix, DependencyRegistrar's shared safe-segment guard refuses it before any IRegistry call.
+        var registry = new MockRegistry();
+        var registrar = new DependencyRegistrar(registry);
+        registrar.RegisterProvider(RegistryRoot.CurrentUser, "SharedLib", "1.0.0", "Shared Library");
+        registrar.RegisterConsumer(RegistryRoot.CurrentUser, "SharedLib", "LegitApp", Guid.NewGuid());
+
+        var pkg = ExePackage();
+        var maliciousManifest = new InstallerManifest
+        {
+            Name = "EvilApp",
+            Manufacturer = "Acme",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerUser,
+            Packages = [pkg],
+            DependencyConsumers = [new ManifestDependencyConsumer("SharedLib", @"LegitApp\Injected")]
+        };
+        var ctx = new PipelineContext
+        {
+            Manifest = maliciousManifest,
+            Plan = PlanFor(pkg, PlanActionType.Install),
+            PlanRequest = RequestFor(InstallAction.Install)
+        };
+
+        var step = new ApplyStep(SucceedingExecutor(), new InMemoryJournalStore(), new FakeUiChannel(), registry);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        // Best-effort: the apply itself never fails because of a dependency-registration refusal.
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.False(registry.KeyExists(
+            RegistryRoot.CurrentUser, DependencyRegistrationPaths.ConsumerKeyPath("SharedLib", @"LegitApp\Injected")));
+        // The pre-existing legitimate registration must survive untouched.
+        Assert.True(registry.KeyExists(
+            RegistryRoot.CurrentUser, DependencyRegistrationPaths.ConsumerKeyPath("SharedLib", "LegitApp")));
+    }
+
+    [Fact]
     public async Task Uninstall_PerUser_UnregistersConsumerOnly_LeavesProviderKey()
     {
         var registry = new MockRegistry();

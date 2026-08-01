@@ -1,5 +1,6 @@
 namespace FalkForge.Platform.Dependencies;
 
+using System.Text.RegularExpressions;
 using FalkForge;
 
 /// <summary>
@@ -16,7 +17,7 @@ using FalkForge;
 /// bundle-enforced one are visible to each other under the same registry subtree.
 /// </para>
 /// </summary>
-public static class DependencyRegistrationPaths
+public static partial class DependencyRegistrationPaths
 {
     private const string Base = @"SOFTWARE\Classes\Installer\Dependencies\";
 
@@ -50,4 +51,28 @@ public static class DependencyRegistrationPaths
     /// </summary>
     public static IReadOnlyList<RegistryRoot> ReadRoots { get; } =
         [RegistryRoot.LocalMachine, RegistryRoot.CurrentUser];
+
+    /// <summary>
+    /// Traversal/injection guard for a single registry key SEGMENT (never a whole path — a segment is
+    /// always interpolated directly into one of the fixed templates above, e.g.
+    /// <c>Dependencies\{key}\Dependents\{key}</c>). Allows the common WiX/Burn GUID-style provider key
+    /// (e.g. <c>{12345678-...}</c>) in addition to plain alphanumeric identifiers; rejects backslash and
+    /// forward slash so a crafted key cannot expand into unexpected subkey structure, rejects empty and
+    /// whitespace-only segments, and rejects a trailing newline (a bare <c>$</c> anchor in .NET matches
+    /// before a trailing <c>\n</c> — do NOT reintroduce <c>^</c>/<c>$</c> here; always use <c>\A</c>/<c>\z</c>).
+    ///
+    /// <para>
+    /// This is the SINGLE validator for every writer of the <c>Dependencies\</c> layout — both
+    /// <see cref="DependencyRegistrar"/> (used directly by the unprivileged <c>PerUser</c> write path
+    /// and, wrapped in a <c>HKLM</c>-backed <see cref="FalkForge.IRegistry"/>, by the elevated
+    /// <c>DependencyRegistrationCommand</c>) call this same method rather than keeping their own copies,
+    /// so a manifest-sourced (attacker-authorable) provider/consumer key is checked identically no
+    /// matter which path writes it.
+    /// </para>
+    /// </summary>
+    public static bool IsSafeKeySegment(string segment) =>
+        segment.Length is > 0 and <= 255 && SafeKeySegmentPattern().IsMatch(segment);
+
+    [GeneratedRegex(@"\A[A-Za-z0-9{][A-Za-z0-9 ._\-{}]*\z")]
+    private static partial Regex SafeKeySegmentPattern();
 }
