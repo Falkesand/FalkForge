@@ -201,7 +201,6 @@ public sealed class FeatureGatedServiceRegistryIntegrationTests
         var resolved = new ComponentResolver(new MockFileSystem()).Resolve(package).Value;
         var context = new RecipeBuildContext(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
 
         var result = new RegistryTableProducer().Produce(context);

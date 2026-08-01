@@ -304,7 +304,6 @@ public sealed class ServiceControlTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         ServiceControlTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

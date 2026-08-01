@@ -172,7 +172,6 @@ public sealed class MIMETableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         MIMETableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

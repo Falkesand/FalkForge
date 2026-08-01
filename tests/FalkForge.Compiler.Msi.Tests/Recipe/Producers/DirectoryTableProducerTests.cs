@@ -202,7 +202,6 @@ public sealed class DirectoryTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         DirectoryTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

@@ -311,7 +311,6 @@ public sealed class CustomTablesProducerTests
         DictionaryStreamRegistry registry = new();
         RecipeBuildContext context = new(
             MakeResolvedPackage([table]),
-            new MsiRecipeBuildOptions(),
             registry);
 
         Result<ImmutableArray<RecipeTable>> result = new CustomTablesProducer().Produce(context);
@@ -417,7 +416,6 @@ public sealed class CustomTablesProducerTests
     private static RecipeBuildContext MakeContext(IReadOnlyList<CustomTableModel> customTables)
         => new(
             MakeResolvedPackage(customTables),
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
 
     private static ResolvedPackage MakeResolvedPackage(IReadOnlyList<CustomTableModel> customTables)

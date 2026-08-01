@@ -181,7 +181,6 @@ public sealed class UpgradeTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         UpgradeTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

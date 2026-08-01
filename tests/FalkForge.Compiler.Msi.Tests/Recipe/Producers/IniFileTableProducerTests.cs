@@ -214,7 +214,6 @@ public sealed class IniFileTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         IniFileTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

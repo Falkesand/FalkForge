@@ -14,13 +14,11 @@ public sealed class RecipeBuildContextTests
     public void Constructor_assigns_all_dependencies()
     {
         ResolvedPackage resolved = MakeResolvedPackage();
-        MsiRecipeBuildOptions options = new();
         DictionaryStreamRegistry registry = new();
 
-        RecipeBuildContext context = new(resolved, options, registry);
+        RecipeBuildContext context = new(resolved, registry);
 
         Assert.Same(resolved, context.Resolved);
-        Assert.Same(options, context.Options);
         Assert.Same(registry, context.Streams);
     }
 
@@ -76,21 +74,14 @@ public sealed class RecipeBuildContextTests
     public void Constructor_throws_on_null_resolved()
     {
         Assert.Throws<ArgumentNullException>(() => new RecipeBuildContext(
-            null!, new MsiRecipeBuildOptions(), new DictionaryStreamRegistry()));
-    }
-
-    [Fact]
-    public void Constructor_throws_on_null_options()
-    {
-        Assert.Throws<ArgumentNullException>(() => new RecipeBuildContext(
-            MakeResolvedPackage(), null!, new DictionaryStreamRegistry()));
+            null!, new DictionaryStreamRegistry()));
     }
 
     [Fact]
     public void Constructor_throws_on_null_streams()
     {
         Assert.Throws<ArgumentNullException>(() => new RecipeBuildContext(
-            MakeResolvedPackage(), new MsiRecipeBuildOptions(), null!));
+            MakeResolvedPackage(), null!));
     }
 
     [Fact]
@@ -178,7 +169,6 @@ public sealed class RecipeBuildContextTests
     {
         return new RecipeBuildContext(
             MakeResolvedPackage(installDir),
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
     }
 

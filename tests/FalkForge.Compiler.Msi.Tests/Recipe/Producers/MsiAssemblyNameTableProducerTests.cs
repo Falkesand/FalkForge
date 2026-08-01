@@ -461,7 +461,6 @@ public sealed class MsiAssemblyNameTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         MsiAssemblyNameTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

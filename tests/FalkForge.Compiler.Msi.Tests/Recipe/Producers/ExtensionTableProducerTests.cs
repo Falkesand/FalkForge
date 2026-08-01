@@ -200,7 +200,6 @@ public sealed class ExtensionTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         ExtensionTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

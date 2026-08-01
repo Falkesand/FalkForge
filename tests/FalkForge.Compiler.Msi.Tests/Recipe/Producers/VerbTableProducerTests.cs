@@ -316,7 +316,6 @@ public sealed class VerbTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         VerbTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

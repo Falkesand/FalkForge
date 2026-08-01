@@ -149,7 +149,6 @@ public sealed class ComponentTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         ComponentTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

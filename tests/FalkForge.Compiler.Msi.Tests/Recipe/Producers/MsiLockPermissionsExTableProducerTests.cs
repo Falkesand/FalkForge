@@ -219,7 +219,6 @@ public sealed class MsiLockPermissionsExTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         MsiLockPermissionsExTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

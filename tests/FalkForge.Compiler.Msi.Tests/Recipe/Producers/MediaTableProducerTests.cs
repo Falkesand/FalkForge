@@ -77,7 +77,6 @@ public sealed class MediaTableProducerTests
 
         return new RecipeBuildContext(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
     }
 }

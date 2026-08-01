@@ -44,23 +44,17 @@ internal sealed class RecipeBuildContext
 
     public RecipeBuildContext(
         ResolvedPackage resolved,
-        MsiRecipeBuildOptions options,
         IStreamRegistry streams)
     {
         ArgumentNullException.ThrowIfNull(resolved);
-        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(streams);
 
         Resolved = resolved;
-        Options = options;
         Streams = streams;
     }
 
     /// <summary>The resolved package input to the recipe build.</summary>
     public ResolvedPackage Resolved { get; }
-
-    /// <summary>Build options controlling hashing and memory thresholds.</summary>
-    public MsiRecipeBuildOptions Options { get; }
 
     /// <summary>Stream payload registry shared across all producers.</summary>
     public IStreamRegistry Streams { get; }

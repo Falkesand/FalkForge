@@ -393,7 +393,6 @@ public sealed class BinaryTableProducerTests : IDisposable
         DictionaryStreamRegistry registry = new();
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             registry);
         BinaryTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);
