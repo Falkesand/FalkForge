@@ -3,9 +3,11 @@ namespace FalkForge.Engine.Tests.Pipeline;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Protocol;
+using FalkForge.Engine.Protocol.Dependencies;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Tests.Logging;
 using FalkForge.Engine.Tests.Mocks;
+using FalkForge.Platform.Dependencies;
 using FalkForge.Testing;
 using Xunit;
 
@@ -35,7 +37,7 @@ public sealed class DependencyLifecycleEndToEndTests
             }
         };
 
-    private static InstallerManifest ProviderManifest(string providerKey) =>
+    private static InstallerManifest ProviderManifest(string providerKey, InstallScope scope = InstallScope.PerUser) =>
         new()
         {
             Name = "ProviderBundle",
@@ -43,12 +45,13 @@ public sealed class DependencyLifecycleEndToEndTests
             Version = "1.0.0",
             BundleId = Guid.NewGuid(),
             UpgradeCode = Guid.NewGuid(),
-            Scope = InstallScope.PerUser,
+            Scope = scope,
             Packages = [ExePackage("ProviderPkg")],
             DependencyProviders = [new ManifestDependencyProvider(providerKey, "1.0.0", "Provider " + providerKey)]
         };
 
-    private static InstallerManifest ConsumerManifest(string providerKey, string consumerKey) =>
+    private static InstallerManifest ConsumerManifest(
+        string providerKey, string consumerKey, InstallScope scope = InstallScope.PerUser) =>
         new()
         {
             Name = "ConsumerBundle-" + consumerKey,
@@ -56,10 +59,52 @@ public sealed class DependencyLifecycleEndToEndTests
             Version = "1.0.0",
             BundleId = Guid.NewGuid(),
             UpgradeCode = Guid.NewGuid(),
-            Scope = InstallScope.PerUser,
+            Scope = scope,
             Packages = [ExePackage("ConsumerPkg-" + consumerKey)],
             DependencyConsumers = [new ManifestDependencyConsumer(providerKey, consumerKey)]
         };
+
+    /// <summary>
+    /// Simulates the elevated companion's <c>DependencyRegistrationCommand</c> for PerMachine tests
+    /// without a cross-project reference to <c>FalkForge.Engine.Elevation</c> (a Windows-only project;
+    /// this test project targets plain <c>net10.0</c>). Decodes the wire payload with the SAME
+    /// <see cref="DependencyRegistrationPayload"/> codec <see cref="ApplyStep"/> serializes with, and
+    /// applies it through the SAME <see cref="DependencyRegistrar"/> the real command uses — only the
+    /// out-of-process elevation boundary itself is a test double, exactly like every other elevated-command
+    /// test in this codebase (see <see cref="InProcessElevationGateway"/>). The command's own
+    /// codec/validation/allowlist behavior is separately unit-tested in
+    /// <c>DependencyRegistrationCommandTests</c>.
+    /// </summary>
+    private static InProcessElevationGateway PerMachineDependencyGateway(MockRegistry registry) =>
+        new((commandName, payload, _, _) =>
+        {
+            if (commandName != "DependencyRegistration")
+                return Task.FromResult(Result<byte[]>.Success(Array.Empty<byte>()));
+
+            if (!DependencyRegistrationPayload.TryDeserialize(
+                    payload, out var opcode, out var bundleId, out var providers, out var consumers))
+            {
+                return Task.FromResult(Result<byte[]>.Failure(
+                    ErrorKind.SecurityError, "malformed DependencyRegistration payload"));
+            }
+
+            var registrar = new DependencyRegistrar(registry);
+            if (opcode == DependencyRegistrationOpcode.Register)
+            {
+                foreach (var provider in providers)
+                    registrar.RegisterProvider(RegistryRoot.LocalMachine, provider.Key, provider.Version, provider.DisplayName);
+
+                foreach (var consumer in consumers)
+                    registrar.RegisterConsumer(RegistryRoot.LocalMachine, consumer.ProviderKey, consumer.ConsumerKey, bundleId);
+            }
+            else
+            {
+                foreach (var consumer in consumers)
+                    registrar.UnregisterConsumer(RegistryRoot.LocalMachine, consumer.ProviderKey, consumer.ConsumerKey);
+            }
+
+            return Task.FromResult(Result<byte[]>.Success(Array.Empty<byte>()));
+        });
 
     private static InstallerManifest RequirementManifest(string requiredProviderKey) =>
         new()
@@ -95,7 +140,8 @@ public sealed class DependencyLifecycleEndToEndTests
     /// failing phase's Result, exactly like <see cref="PipelineRunner"/> does.
     /// </summary>
     private static async Task<Result<Unit>> RunLifecycleAsync(
-        InstallerManifest manifest, InstallAction action, MockRegistry registry, bool ignoreDependencies = false)
+        InstallerManifest manifest, InstallAction action, MockRegistry registry, bool ignoreDependencies = false,
+        InProcessElevationGateway? elevationGateway = null)
     {
         var builder = new InstallerPipelineBuilder()
             .WithManifest(manifest)
@@ -105,6 +151,8 @@ public sealed class DependencyLifecycleEndToEndTests
             .WithUiChannel(new FakeUiChannel());
         if (ignoreDependencies)
             builder = builder.WithIgnoreDependencies();
+        if (elevationGateway is not null)
+            builder = builder.WithElevationGateway(elevationGateway);
 
         await using var pipeline = builder.Build();
 
@@ -182,6 +230,39 @@ public sealed class DependencyLifecycleEndToEndTests
         Assert.True(uninstallProvider.IsFailure);
         Assert.Equal(ErrorKind.PlanningError, uninstallProvider.Error.Kind);
         Assert.Contains("ConsumerB", uninstallProvider.Error.Message);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // PerMachine: the only prior PerMachine coverage anywhere in the suite checked that the elevated
+    // command NAME was sent (ApplyStepDependencyRegistrationTests) — nothing exercised a full PerMachine
+    // lifecycle through Detect -> Plan -> Elevate -> Apply against a shared HKLM-rooted registry, the
+    // same shape the PerUser tests above already prove.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task PerMachine_ProviderInstalled_ThenConsumerInstalled_UninstallOfProvider_IsRefused()
+    {
+        var registry = new MockRegistry();
+        var gateway = PerMachineDependencyGateway(registry);
+
+        var installProvider = await RunLifecycleAsync(
+            ProviderManifest("SharedLib", InstallScope.PerMachine), InstallAction.Install, registry,
+            elevationGateway: gateway);
+        Assert.True(installProvider.IsSuccess, installProvider.IsFailure ? installProvider.Error.Message : null);
+
+        var installConsumer = await RunLifecycleAsync(
+            ConsumerManifest("SharedLib", "ConsumerApp", InstallScope.PerMachine), InstallAction.Install, registry,
+            elevationGateway: gateway);
+        Assert.True(installConsumer.IsSuccess, installConsumer.IsFailure ? installConsumer.Error.Message : null);
+
+        var uninstallProvider = await RunLifecycleAsync(
+            ProviderManifest("SharedLib", InstallScope.PerMachine), InstallAction.Uninstall, registry,
+            elevationGateway: gateway);
+
+        Assert.True(uninstallProvider.IsFailure);
+        Assert.Equal(ErrorKind.PlanningError, uninstallProvider.Error.Kind);
+        Assert.Contains("SharedLib", uninstallProvider.Error.Message);
+        Assert.Contains("ConsumerApp", uninstallProvider.Error.Message);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
