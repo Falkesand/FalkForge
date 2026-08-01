@@ -6,6 +6,23 @@ public sealed class MockRegistry : IRegistry
 {
     private readonly Dictionary<string, Dictionary<string, object?>> _keys = new(StringComparer.OrdinalIgnoreCase);
 
+    // Prefixes (root-qualified, e.g. "LocalMachine\SOFTWARE\Classes\...") under which
+    // TryReadSubKeyNames simulates a read failure — lets tests exercise fail-closed handling
+    // (an access-denied/unreadable key) without touching a real registry ACL.
+    private readonly List<string> _failReadPrefixes = [];
+
+    /// <summary>
+    /// Makes <see cref="TryReadSubKeyNames"/> return a <c>Failure</c> for any subkey path under
+    /// <paramref name="subKeyPrefix"/> (matched against <see cref="RegistryRoot.LocalMachine"/> and
+    /// <see cref="RegistryRoot.CurrentUser"/> alike via the root-qualified key). Simulates an
+    /// access-denied/unreadable registry key for fail-closed tests.
+    /// </summary>
+    public MockRegistry FailReadsUnder(string subKeyPrefix)
+    {
+        _failReadPrefixes.Add(subKeyPrefix);
+        return this;
+    }
+
     public MockRegistry AddKey(RegistryRoot rootKey, string subKey)
     {
         var fullKey = $@"{rootKey}\{subKey}";
@@ -98,6 +115,20 @@ public sealed class MockRegistry : IRegistry
     void IRegistry.SetStringValue(RegistryRoot rootKey, string subKey, string valueName, string value)
     {
         SetStringValue(rootKey, subKey, valueName, value);
+    }
+
+    public Result<IReadOnlyList<string>> TryReadSubKeyNames(RegistryRoot rootKey, string subKey)
+    {
+        foreach (var prefix in _failReadPrefixes)
+        {
+            if (subKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return Result<IReadOnlyList<string>>.Failure(ErrorKind.SecurityError,
+                    $"Simulated read failure under '{rootKey}\\{subKey}'.");
+            }
+        }
+
+        return Result<IReadOnlyList<string>>.Success(GetSubKeyNames(rootKey, subKey));
     }
 
     public void DeleteKey(RegistryRoot rootKey, string subKey)

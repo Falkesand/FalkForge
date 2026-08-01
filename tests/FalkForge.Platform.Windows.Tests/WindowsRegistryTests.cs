@@ -229,4 +229,36 @@ public sealed class WindowsRegistryTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(
             () => _registry.DeleteKey(invalidRoot, _subKey));
     }
+
+    // ─── TryReadSubKeyNames: fail-closed read primitive (dependency enforcement) ──────────
+
+    [Fact]
+    public void TryReadSubKeyNames_MissingKey_ReturnsSuccessWithEmptyList()
+    {
+        var result = _registry.TryReadSubKeyNames(RegistryRoot.CurrentUser, _subKey + @"\NoSuch");
+
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
+    }
+
+    [Fact]
+    public void TryReadSubKeyNames_ExistingKey_ReturnsSuccessWithChildNames()
+    {
+        Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"{_subKey}\ChildA").Dispose();
+        Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"{_subKey}\ChildB").Dispose();
+
+        var result = _registry.TryReadSubKeyNames(RegistryRoot.CurrentUser, _subKey);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains("ChildA", result.Value);
+        Assert.Contains("ChildB", result.Value);
+    }
+
+    [Fact]
+    public void TryReadSubKeyNames_InvalidEnum_ThrowsArgumentOutOfRange()
+    {
+        var invalidRoot = (RegistryRoot)999;
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => _registry.TryReadSubKeyNames(invalidRoot, _subKey));
+    }
 }
