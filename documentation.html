@@ -694,6 +694,7 @@
           <a href="#bundle-package-groups">9.3b PackageGroupBuilder</a>
           <a href="#bundle-built-in-prerequisites">9.3c Built-in Prerequisites</a>
           <a href="#bundle-variable-resolution">9.3d Variable Resolution</a>
+          <a href="#bundle-dependency-enforcement">9.3e Runtime Dependency Enforcement</a>
           <a href="#bundle-msu-package-builder">9.4 MsuPackageBuilder</a>
           <a href="#bundle-msp-package-builder">9.5 MspPackageBuilder</a>
           <a href="#bundle-nested-package-builder">9.6 NestedBundlePackageBuilder</a>
@@ -4959,6 +4960,60 @@ Installer.BuildBundle(args, bundle =&gt;
   <div class="note">
     Unresolved variables (not found in the <code>VariableStore</code>) are left as-is in the argument
     string. The pattern <code>[name]</code> is matched by a regex and replaced only when the variable exists.
+  </div>
+
+  <!-- 9.3e Runtime Dependency Enforcement -->
+  <h3 id="bundle-dependency-enforcement">9.3e Runtime Dependency Enforcement</h3>
+  <p>
+    <code>DependencyProvider(key, version, displayName)</code> and <code>DependencyConsumer(providerKey,
+    consumerKey)</code> (&sect;9.1) are now ENFORCED at runtime, not just recorded. The engine's plan
+    phase refuses the operation before any package is touched:
+  </p>
+  <ul>
+    <li>
+      <strong>Uninstall is refused</strong> while another installed product's consumer registration still
+      references a provider key this bundle declares. The refusal names both the blocking provider key
+      and the dependent key(s) so the operator can identify what to remove first.
+    </li>
+    <li>
+      <strong>Install is refused</strong> when a required dependency provider is missing, or installed at
+      a version outside the declared range.
+    </li>
+  </ul>
+  <p>
+    Both checks read <strong>both</strong> <code>HKEY_LOCAL_MACHINE</code> and
+    <code>HKEY_CURRENT_USER</code> under <code>SOFTWARE\Classes\Installer\Dependencies\</code> — a
+    per-user consumer of a per-machine provider (or the reverse) is a real shape and would otherwise be
+    missed. A <code>PerUser</code>-scoped bundle writes its own provider/consumer registrations directly
+    to <code>HKCU</code>; a <code>PerMachine</code>-scoped bundle writes to <code>HKLM</code> through the
+    elevated companion process. The layout is byte-identical to the MSI-authored one
+    (<code>FalkForge.Extensions.Dependency</code>, &sect;7.11 in the extensions table), so a bundle-level
+    dependency and an MSI-table-authored one are visible to each other.
+  </p>
+  <p>
+    The uninstall check fails <strong>closed</strong>: if the registry cannot be read (access denied,
+    corrupted key), the uninstall is refused rather than silently treated as "nothing depends on this" —
+    an unknown state must never be assumed safe. The install check refuses on a genuinely missing/
+    unsatisfied provider; a registration <em>write</em> failure after a successful apply (e.g. the
+    elevated companion round-trip failed) is logged as a warning and never fails an install or uninstall
+    that otherwise completed.
+  </p>
+  <p>
+    <strong><code>--ignore-dependencies</code></strong> bypasses both checks — pass it on the command line
+    (<code>MyInstaller.exe --ignore-dependencies --uninstall</code>) when a stale or unwanted registration
+    is blocking an operation you are sure is safe. It is NOT implied by silent/unattended mode: an
+    automated uninstall that would otherwise break a dependent product still gets refused unless this flag
+    is explicitly passed, since silent automation is exactly where a silently broken dependent hurts most.
+  </p>
+  <div class="note">
+    <strong>Stale registrations.</strong> Uninstalling a bundle only removes ITS OWN consumer
+    registration — the provider row it may have authored is never removed (nothing currently collects an
+    orphaned provider once its last consumer is gone). If an uninstall is unexpectedly refused, check
+    <code>HKLM</code>/<code>HKCU</code> under <code>SOFTWARE\Classes\Installer\Dependencies\&lt;key&gt;
+    \Dependents\</code> for a dependent subkey belonging to a product that is itself no longer installed
+    (a leftover from an MSI-authored dependency predating this feature, or a bundle that was removed by
+    means other than its own uninstaller) — delete the stale subkey by hand, or pass
+    <code>--ignore-dependencies</code> for that one run.
   </div>
 
   <!-- 9.4 MsuPackageBuilder -->
