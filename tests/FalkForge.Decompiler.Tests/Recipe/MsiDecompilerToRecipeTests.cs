@@ -102,6 +102,28 @@ public sealed class MsiDecompilerToRecipeTests
     }
 
     [Fact]
+    public void DecompileToRecipe_GetTableNamesFails_PropagatesFailureInsteadOfEmptyAllTableNames()
+    {
+        // WHY (task #34 stage 1 hardening): DecompileToRecipe is the exact entry point
+        // MigrationProjectGenerator.GenerateFromMsi calls for the real `forge migrate`
+        // production path (MigrateCommand -> Generate -> GenerateFromMsi -> DecompileToRecipe).
+        // If ReadRecipeFromAccess ever stopped checking access.GetTableNames() for failure and
+        // instead defaulted AllTableNames to empty, MigrationMsiEmitter.ComputeUnmappedTableNames
+        // would compare against zero known tables and re-print the false
+        // "All present features were mapped." all-clear on a database FalkForge could not even
+        // enumerate. The failure must come back as a Result failure, not a recipe.
+        using var access = new MockMsiTableAccess()
+            .WithTable("Property", [["ProductName", "AcmeApp"]])
+            .WithTableNamesQueryFailure("simulated _Tables catalog read failure");
+
+        var decompiler = new MsiDecompiler(access);
+        var result = decompiler.DecompileToRecipe("ignored.msi");
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("simulated _Tables catalog read failure", result.Error.Message);
+    }
+
+    [Fact]
     public void DecompileToRecipe_DoesNotRunReconstructor()
     {
         // Verifies DecompileToRecipe skips MsiPackageReconstructor by succeeding

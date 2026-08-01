@@ -12,6 +12,7 @@ public sealed class MockMsiTableAccess : IMsiTableAccess
     private readonly Dictionary<string, string> _tableQueryFailures = new(StringComparer.Ordinal);
     private readonly Dictionary<string, HashSet<string>> _tableColumns = new(StringComparer.Ordinal);
     private readonly Dictionary<int, string?> _summaryProperties = [];
+    private string? _tableNamesQueryFailure;
     private bool _disposed;
 
     public MockMsiTableAccess WithTable(string tableName, List<string?[]> rows)
@@ -49,6 +50,18 @@ public sealed class MockMsiTableAccess : IMsiTableAccess
     public MockMsiTableAccess WithSummaryProperty(int propertyId, string? value)
     {
         _summaryProperties[propertyId] = value;
+        return this;
+    }
+
+    /// <summary>
+    /// Makes <see cref="GetTableNames"/> return a failure instead of the configured table set.
+    /// Simulates a real MSI whose <c>SELECT Name FROM _Tables</c> catalog query fails
+    /// (e.g. a corrupt or partially-opened database) so tests can pin that callers propagate
+    /// the failure instead of silently degrading to an empty table-name list.
+    /// </summary>
+    public MockMsiTableAccess WithTableNamesQueryFailure(string errorMessage)
+    {
+        _tableNamesQueryFailure = errorMessage;
         return this;
     }
 
@@ -92,6 +105,10 @@ public sealed class MockMsiTableAccess : IMsiTableAccess
     public Result<IReadOnlyList<string>> GetTableNames()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        if (_tableNamesQueryFailure is not null)
+            return Result<IReadOnlyList<string>>.Failure(ErrorKind.CompilationError, _tableNamesQueryFailure);
+
         IReadOnlyList<string> names = _tables.Keys.ToList();
         return Result<IReadOnlyList<string>>.Success(names);
     }
