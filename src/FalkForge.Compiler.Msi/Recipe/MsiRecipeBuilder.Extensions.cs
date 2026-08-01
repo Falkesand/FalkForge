@@ -10,6 +10,44 @@ namespace FalkForge.Compiler.Msi.Recipe;
 /// </summary>
 public static partial class MsiRecipeBuilder
 {
+    /// <summary>
+    /// Projects the resolved files onto the extension-facing <see cref="ResolvedFileRef"/> shape so
+    /// contributors can derive <c>File</c> / <c>Component</c> external keys from a file the author
+    /// declared, instead of being handed a column no author can fill correctly.
+    /// </summary>
+    private static IReadOnlyList<ResolvedFileRef> BuildResolvedFileRefs(ResolvedPackage resolved)
+    {
+        if (resolved.Files.Count == 0)
+            return [];
+
+        var refs = new ResolvedFileRef[resolved.Files.Count];
+        for (int i = 0; i < resolved.Files.Count; i++)
+        {
+            ResolvedFile file = resolved.Files[i];
+            refs[i] = new ResolvedFileRef
+            {
+                FileId = file.FileId,
+                ComponentId = file.ComponentId,
+                FileName = file.FileName,
+                TargetDirectory = file.TargetDirectory.ToString(),
+            };
+        }
+
+        return refs;
+    }
+
+    private static IReadOnlyList<string> BuildResolvedComponentIds(ResolvedPackage resolved)
+    {
+        if (resolved.Components.Count == 0)
+            return [];
+
+        var ids = new string[resolved.Components.Count];
+        for (int i = 0; i < resolved.Components.Count; i++)
+            ids[i] = resolved.Components[i].Id;
+
+        return ids;
+    }
+
     private static Result<(ImmutableArray<RecipeTable> BuiltInTables, ImmutableArray<RecipeTable> CustomTables)> ApplyExtensionContributors(
         IReadOnlyList<IMsiTableContributor> contributors,
         IReadOnlyList<IExecutionContributor>? executionContributors,

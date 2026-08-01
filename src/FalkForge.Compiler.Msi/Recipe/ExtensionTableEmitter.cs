@@ -82,6 +82,7 @@ internal static class ExtensionTableEmitter
         var customColumns = new Dictionary<string, ImmutableArray<RecipeColumn>>(StringComparer.Ordinal);
         var customPrimaryKey = new Dictionary<string, ImmutableArray<ColumnIndex>>(StringComparer.Ordinal);
         var customRows = new Dictionary<string, ImmutableArray<RecipeRow>.Builder>(StringComparer.Ordinal);
+        var customHints = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
 
         bool logDebug = logger is not null && logger.MinimumLevel <= LogLevel.Debug;
 
@@ -146,6 +147,7 @@ internal static class ExtensionTableEmitter
                 customPrimaryKey[tableName] = schema.Value.Pk;
                 rowBuilder = ImmutableArray.CreateBuilder<RecipeRow>(rows.Count);
                 customRows[tableName] = rowBuilder;
+                customHints[tableName] = CollectMissingValueHints(writeColumns);
             }
 
             FalkForge.Result<TableId> tableIdResult = TableId.Create(tableName);
@@ -153,7 +155,8 @@ internal static class ExtensionTableEmitter
                 return FalkForge.Result<EmissionOutcome>.Failure(tableIdResult.Error);
 
             FalkForge.Result<Unit> rowResult = MapRows(
-                rows, tableIdResult.Value, customColumns[tableName], streams, rowBuilder);
+                rows, tableIdResult.Value, customColumns[tableName], streams, rowBuilder,
+                customHints[tableName]);
             if (rowResult.IsFailure)
                 return FalkForge.Result<EmissionOutcome>.Failure(rowResult.Error);
 
@@ -252,6 +255,24 @@ internal static class ExtensionTableEmitter
             (cols.ToImmutable(), pk.ToImmutable()));
     }
 
+    /// <summary>
+    /// Indexes the contributor's <see cref="ContributedColumn.MissingValueHint"/> values by column
+    /// name so <see cref="MapRows"/> can attach the contributor's own guidance to the generic
+    /// "missing value for non-nullable column" failure.
+    /// </summary>
+    private static Dictionary<string, string> CollectMissingValueHints(IReadOnlyList<ContributedColumn> writeColumns)
+    {
+        var hints = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (int i = 0; i < writeColumns.Count; i++)
+        {
+            ContributedColumn col = writeColumns[i];
+            if (!string.IsNullOrWhiteSpace(col.MissingValueHint))
+                hints[col.Name] = col.MissingValueHint;
+        }
+
+        return hints;
+    }
+
     private static (ColumnType Type, int Width) MapColumnType(ContributedColumn col)
         => col.Type switch
         {
@@ -268,7 +289,8 @@ internal static class ExtensionTableEmitter
         TableId tableId,
         ImmutableArray<RecipeColumn> columns,
         IStreamRegistry streams,
-        ImmutableArray<RecipeRow>.Builder sink)
+        ImmutableArray<RecipeRow>.Builder sink,
+        IReadOnlyDictionary<string, string>? missingValueHints = null)
     {
         // Column-name set for the "unknown field" guard below. Built once per call.
         var columnNames = new HashSet<string>(columns.Length, StringComparer.Ordinal);
@@ -304,10 +326,16 @@ internal static class ExtensionTableEmitter
                 {
                     if (!column.Nullable)
                     {
+                        string hint =
+                            missingValueHints is not null
+                            && missingValueHints.TryGetValue(column.Name, out string? columnHint)
+                                ? " " + columnHint
+                                : string.Empty;
+
                         return FalkForge.Result<Unit>.Failure(
                             ErrorKind.CompilationError,
                             $"Contributed table '{tableId.Value}' row {r} is missing a value for non-nullable " +
-                            $"column '{column.Name}'.");
+                            $"column '{column.Name}'.{hint}");
                     }
 
                     cells.Add(new CellValue.Null());

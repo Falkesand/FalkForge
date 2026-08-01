@@ -130,11 +130,17 @@ public static partial class MsiRecipeBuilder
         // CustomAction + InstallExecuteSequence contributors inside ApplyExtensionContributors,
         // which is what makes extension work actually RUN at install time (deferred, elevated
         // custom actions) rather than only landing as inert table data.
-        ExtensionContext emitContext = extensionContext ?? new ExtensionContext
+        // Always rebuilt here rather than used as passed in: the caller's context is created ahead
+        // of component resolution (it feeds IComponentContributor.GetAdditionalFiles), so it cannot
+        // carry the resolved File/Component keys. Contributors whose tables hold external keys into
+        // those tables derive them from ResolvedFiles — see ExtensionContext.ResolvedFiles.
+        ExtensionContext emitContext = new()
         {
-            Package = resolved.Package,
-            OutputDirectory = string.Empty,
-            SourceDirectory = string.Empty,
+            Package = extensionContext?.Package ?? resolved.Package,
+            OutputDirectory = extensionContext?.OutputDirectory ?? string.Empty,
+            SourceDirectory = extensionContext?.SourceDirectory ?? string.Empty,
+            ResolvedFiles = BuildResolvedFileRefs(resolved),
+            ResolvedComponentIds = BuildResolvedComponentIds(resolved),
         };
 
         Result<(ImmutableArray<RecipeTable> BuiltInTables, ImmutableArray<RecipeTable> CustomTables)> extResult =

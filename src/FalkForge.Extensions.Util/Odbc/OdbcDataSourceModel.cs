@@ -4,15 +4,15 @@ public sealed class OdbcDataSourceModel
 {
     public required string Id { get; init; }
     public required string Name { get; init; }
-    public required string DriverName { get; init; }
-    public required OdbcRegistration Registration { get; init; }
 
     /// <summary>
-    /// External key into the MSI Component table. Required by the real ODBCDataSource schema's
-    /// non-nullable Component_ column: the compiler fails the build loudly when it is left unset,
-    /// rather than emitting an invalid ODBCDataSource row.
+    /// Description of the driver this data source uses. When it matches the
+    /// <see cref="OdbcDriverModel.DriverName"/> of a driver the same package installs, the compiler
+    /// attaches the data source to that driver's component so the two are removed together.
     /// </summary>
-    public string? ComponentRef { get; init; }
+    public required string DriverName { get; init; }
+
+    public required OdbcRegistration Registration { get; init; }
 
     public Dictionary<string, string> Properties { get; init; } = new();
 }

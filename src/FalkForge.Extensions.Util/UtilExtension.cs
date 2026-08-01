@@ -19,7 +19,7 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
     private readonly ScheduledTaskTableContributor _scheduledTaskContributor = new();
     private readonly PerfCounterTableContributor _perfCounterContributor = new();
     private readonly OdbcDriverTableContributor _odbcDriverContributor = new();
-    private readonly OdbcDataSourceTableContributor _odbcDataSourceContributor = new();
+    private readonly OdbcDataSourceTableContributor _odbcDataSourceContributor;
     private readonly OdbcSequenceContributor _odbcSequenceContributor;
     private readonly OdbcSourceAttributeTableContributor _odbcSourceAttributeContributor;
     private readonly List<QuietExecModel> _quietExecs = [];
@@ -31,6 +31,9 @@ public sealed class UtilExtension : IFalkForgeExtension, IDryRunContributor
 
     public UtilExtension()
     {
+        // The data-source contributor needs the driver list to attach each DSN to the component
+        // that carries the driver DLL it names.
+        _odbcDataSourceContributor = new OdbcDataSourceTableContributor(_odbcDriverContributor);
         _odbcSequenceContributor = new OdbcSequenceContributor(_odbcDriverContributor, _odbcDataSourceContributor);
         _odbcSourceAttributeContributor = new OdbcSourceAttributeTableContributor(_odbcDataSourceContributor);
     }

@@ -146,7 +146,7 @@ public sealed class RealExtensionEmissionTests
 
         var util = new UtilExtension();
         util.AddOdbcDriver("MyDriver", d => d
-            .DriverName("My ODBC Driver").FileName("mydriver.dll").ComponentRef("MainComponent"));
+            .DriverName("My ODBC Driver").FileName("app.exe"));
 
         using var db = Compile(scratch, "OdbcSeqApp", c => c.Use(util));
 
@@ -169,9 +169,9 @@ public sealed class RealExtensionEmissionTests
 
         var util = new UtilExtension();
         util.AddOdbcDriver("MyDriver", d => d
-            .DriverName("My ODBC Driver").FileName("mydriver.dll").ComponentRef("MainComponent"));
+            .DriverName("My ODBC Driver").FileName("app.exe"));
         util.AddOdbcDataSource("MyDSN", ds => ds
-            .Name("My Data Source").DriverName("My ODBC Driver").ComponentRef("MainComponent")
+            .Name("My Data Source").DriverName("My ODBC Driver")
             .Property("Server", "localhost"));
 
         using var db = Compile(scratch, "OdbcEmitApp", c => c.Use(util));
@@ -180,13 +180,11 @@ public sealed class RealExtensionEmissionTests
         Assert.True(driverRows.IsSuccess, driverRows.IsFailure ? driverRows.Error.Message : "");
         var driverRow = Assert.Single(driverRows.Value);
         Assert.Equal("MyDriver", driverRow[0]);
-        Assert.Equal("MainComponent", driverRow[1]);
 
         var dsRows = db.QueryRows("SELECT `DataSource`, `Component_` FROM `ODBCDataSource`", 2);
         Assert.True(dsRows.IsSuccess, dsRows.IsFailure ? dsRows.Error.Message : "");
         var dsRow = Assert.Single(dsRows.Value);
         Assert.Equal("MyDSN", dsRow[0]);
-        Assert.Equal("MainComponent", dsRow[1]);
 
         // Proves .Property(...) on the data source builder actually reaches the compiled MSI,
         // instead of being silently dropped (there was previously no contributor for this table).
@@ -196,6 +194,87 @@ public sealed class RealExtensionEmissionTests
         Assert.Equal("MyDSN", attrRow[0]);
         Assert.Equal("Server", attrRow[1]);
         Assert.Equal("localhost", attrRow[2]);
+    }
+
+    /// <summary>
+    /// The ODBC tables are pure foreign-key carriers: <c>ODBCDriver.Component_</c> is an external
+    /// key into Component and <c>ODBCDriver.File_</c> / <c>File_Setup</c> are external keys into
+    /// File. Extension custom tables are exempt from the recipe foreign-key validator, so a
+    /// dangling key here produces an MSI that builds cleanly, schedules InstallODBC, and registers
+    /// nothing. This test asserts both cells resolve against the real compiled tables — the
+    /// compiler-generated ids (<c>C_…</c> / <c>F_…</c>) that no author could have typed by hand.
+    /// </summary>
+    [Fact]
+    public void UtilExtension_OdbcDriverComponentAndFileResolveAgainstTheCompiledTables()
+    {
+        using var scratch = new Scratch();
+
+        var util = new UtilExtension();
+        util.AddOdbcDriver("MyDriver", d => d
+            .DriverName("My ODBC Driver").FileName("app.exe"));
+        util.AddOdbcDataSource("MyDSN", ds => ds
+            .Name("My Data Source").DriverName("My ODBC Driver"));
+
+        using var db = Compile(scratch, "OdbcFkApp", c => c.Use(util));
+
+        var componentRows = db.QueryRows("SELECT `Component` FROM `Component`", 1);
+        Assert.True(componentRows.IsSuccess, componentRows.IsFailure ? componentRows.Error.Message : "");
+        var componentKeys = componentRows.Value.Select(r => r[0]).ToList();
+
+        var fileRows = db.QueryRows("SELECT `File` FROM `File`", 1);
+        Assert.True(fileRows.IsSuccess, fileRows.IsFailure ? fileRows.Error.Message : "");
+        var fileKeys = fileRows.Value.Select(r => r[0]).ToList();
+
+        var driverRows = db.QueryRows("SELECT `Component_`, `File_` FROM `ODBCDriver`", 2);
+        Assert.True(driverRows.IsSuccess, driverRows.IsFailure ? driverRows.Error.Message : "");
+        var driverRow = Assert.Single(driverRows.Value);
+        Assert.Contains(driverRow[0], componentKeys);
+        Assert.Contains(driverRow[1], fileKeys);
+
+        var dsRows = db.QueryRows("SELECT `Component_` FROM `ODBCDataSource`", 1);
+        Assert.True(dsRows.IsSuccess, dsRows.IsFailure ? dsRows.Error.Message : "");
+        Assert.Contains(Assert.Single(dsRows.Value)[0], componentKeys);
+    }
+
+    /// <summary>
+    /// The counterpart guard: naming a file the package never declares must FAIL the build. If it
+    /// compiles, the ODBC row is a dangling reference again and the driver silently never
+    /// registers — the exact defect this table's write schema was added to prevent.
+    /// </summary>
+    [Fact]
+    public void UtilExtension_OdbcDriverReferencingUndeclaredFile_FailsTheBuild()
+    {
+        using var scratch = new Scratch();
+
+        var util = new UtilExtension();
+        util.AddOdbcDriver("MyDriver", d => d
+            .DriverName("My ODBC Driver").FileName("nosuchfile.dll"));
+
+        var result = CompileRaw(scratch, "OdbcDanglingApp", c => c.Use(util));
+
+        Assert.True(result.IsFailure, "Compile succeeded although the ODBC driver names an undeclared file.");
+        Assert.Contains("ODB001", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("ODBCDriver", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Same guard for the optional setup DLL. <c>File_Setup</c> is nullable in the MSI schema, so
+    /// an unresolved reference would otherwise degrade into a silently-null cell: authored, dropped,
+    /// build green.
+    /// </summary>
+    [Fact]
+    public void UtilExtension_OdbcDriverReferencingUndeclaredSetupFile_FailsTheBuild()
+    {
+        using var scratch = new Scratch();
+
+        var util = new UtilExtension();
+        util.AddOdbcDriver("MyDriver", d => d
+            .DriverName("My ODBC Driver").FileName("app.exe").SetupFileName("nosuchsetup.dll"));
+
+        var result = CompileRaw(scratch, "OdbcDanglingSetupApp", c => c.Use(util));
+
+        Assert.True(result.IsFailure, "Compile succeeded although the ODBC driver names an undeclared setup file.");
+        Assert.Contains("ODB001", result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -237,7 +316,7 @@ public sealed class RealExtensionEmissionTests
         Assert.Single(seqRows.Value); // genuinely scheduled, not inert
     }
 
-    private static MsiDatabase Compile(Scratch scratch, string name, Action<MsiCompiler> attach)
+    private static Result<string> CompileRaw(Scratch scratch, string name, Action<MsiCompiler> attach)
     {
         var sourceFile = Path.Combine(scratch.SourceDir, "app.exe");
         File.WriteAllText(sourceFile, "payload for real extension emission test");
@@ -252,7 +331,12 @@ public sealed class RealExtensionEmissionTests
 
         var compiler = new MsiCompiler(new WindowsFileSystem());
         attach(compiler);
-        var result = compiler.Compile(package, scratch.OutputDir);
+        return compiler.Compile(package, scratch.OutputDir);
+    }
+
+    private static MsiDatabase Compile(Scratch scratch, string name, Action<MsiCompiler> attach)
+    {
+        var result = CompileRaw(scratch, name, attach);
         Assert.True(result.IsSuccess, $"Compile failed: {(result.IsFailure ? result.Error.Message : "")}");
 
         var dbResult = MsiDatabase.Open(result.Value, readOnly: true);
