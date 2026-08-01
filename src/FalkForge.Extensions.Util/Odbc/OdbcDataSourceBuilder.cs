@@ -7,6 +7,7 @@ public sealed class OdbcDataSourceBuilder
     private string _driverName = "";
     private OdbcRegistration _registration = OdbcRegistration.PerMachine;
     private readonly Dictionary<string, string> _properties = new();
+    private string? _componentRef;
 
     public OdbcDataSourceBuilder(string id) => _id = id;
 
@@ -14,6 +15,7 @@ public sealed class OdbcDataSourceBuilder
     public OdbcDataSourceBuilder DriverName(string driver) { _driverName = driver; return this; }
     public OdbcDataSourceBuilder Registration(OdbcRegistration reg) { _registration = reg; return this; }
     public OdbcDataSourceBuilder Property(string key, string value) { _properties[key] = value; return this; }
+    public OdbcDataSourceBuilder ComponentRef(string componentRef) { _componentRef = componentRef; return this; }
 
     internal OdbcDataSourceModel Build() => new()
     {
@@ -21,6 +23,7 @@ public sealed class OdbcDataSourceBuilder
         Name = _name,
         DriverName = _driverName,
         Registration = _registration,
+        ComponentRef = _componentRef,
         Properties = new Dictionary<string, string>(_properties)
     };
 }

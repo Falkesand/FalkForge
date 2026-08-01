@@ -29,7 +29,8 @@ public sealed class OdbcTableContributorTests
             Id = "MyDriver",
             DriverName = "My ODBC Driver",
             FileName = "mydriver.dll",
-            SetupFileName = "mysetup.dll"
+            SetupFileName = "mysetup.dll",
+            ComponentRef = "MainComponent"
         });
 
         var rows = contributor.GetRows(CreateContext());
@@ -38,9 +39,22 @@ public sealed class OdbcTableContributorTests
         Assert.Equal("ODBCDriver", contributor.TableName);
         var row = rows[0];
         Assert.Equal("MyDriver", row.Get("Driver"));
+        Assert.Equal("MainComponent", row.Get("Component_"));
         Assert.Equal("My ODBC Driver", row.Get("Description"));
         Assert.Equal("mydriver.dll", row.Get("File_"));
         Assert.Equal("mysetup.dll", row.Get("File_Setup"));
+    }
+
+    [Fact]
+    public void WriteColumns_Driver_DeclaresComponentRefAsNonNullable()
+    {
+        var contributor = new OdbcDriverTableContributor();
+
+        var columns = contributor.WriteColumns;
+
+        Assert.NotNull(columns);
+        var componentColumn = Assert.Single(columns, c => c.Name == "Component_");
+        Assert.False(componentColumn.Nullable);
     }
 
     [Fact]
@@ -53,6 +67,7 @@ public sealed class OdbcTableContributorTests
             Name = "My Data Source",
             DriverName = "My ODBC Driver",
             Registration = OdbcRegistration.PerMachine,
+            ComponentRef = "MainComponent",
             Properties = new Dictionary<string, string>
             {
                 ["Server"] = "localhost",
@@ -66,9 +81,22 @@ public sealed class OdbcTableContributorTests
         Assert.Equal("ODBCDataSource", contributor.TableName);
         var row = rows[0];
         Assert.Equal("MyDSN", row.Get("DataSource"));
+        Assert.Equal("MainComponent", row.Get("Component_"));
         Assert.Equal("My Data Source", row.Get("Description"));
         Assert.Equal("My ODBC Driver", row.Get("DriverDescription"));
         Assert.Equal((int)OdbcRegistration.PerMachine, row.Get("Registration"));
+    }
+
+    [Fact]
+    public void WriteColumns_DataSource_DeclaresComponentRefAsNonNullable()
+    {
+        var contributor = new OdbcDataSourceTableContributor();
+
+        var columns = contributor.WriteColumns;
+
+        Assert.NotNull(columns);
+        var componentColumn = Assert.Single(columns, c => c.Name == "Component_");
+        Assert.False(componentColumn.Nullable);
     }
 
     [Fact]
