@@ -11,6 +11,10 @@
     <PackageReference Include="xunit.v3" />
     <!-- SPDX conformance checking only — see Sbom/SpdxSchemaConformanceTests.cs. -->
     <PackageReference Include="JsonSchema.Net" />
+    <!-- Roslyn in-memory compile probe for DialogCustomizationSuppressDialogGateTests — proves
+         SuppressDialog's [Obsolete(error: true)] is a genuine compile-time gate, not just a
+         warning. Same package + technique as EmittedSourceCompilesTests.cs. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
   </ItemGroup>
   <ItemGroup>
     <!-- The official SPDX 2.3 JSON schema, vendored verbatim so CI keeps checking emitted documents

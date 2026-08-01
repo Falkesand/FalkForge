@@ -1,4 +1,3 @@
-using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using FalkForge.Compiler.Msi.UI.Layout;
@@ -16,10 +15,17 @@ namespace FalkForge.Compiler.Msi.UI;
 ///           <see cref="DialogCustomizationModel.InsertedSteps"/> must have a matching
 ///           builder registered before compilation begins.
 /// <para>
-/// DLG002 — a suppressed <see cref="StockDialog"/> is a navigation target of another
-///           dialog in the same template. Suppressing such a dialog leaves the wizard
-///           with a dangling NewDialog event that points to a dialog that will never be
-///           emitted, causing the wizard to stall.
+/// DLG002 — <see cref="DialogCustomizationModel.SuppressedDialogs"/> is non-empty.
+///           <see cref="FalkForge.Models.DialogCustomization.SuppressDialog"/> is not
+///           implemented (task #44): nothing downstream consumes this set — every stock
+///           dialog is composed and emitted regardless of it — so a populated entry
+///           silently produces an MSI that ignores the request. The fluent builder method
+///           is gated separately with <c>[Obsolete(error: true)]</c>, but
+///           <see cref="DialogCustomizationModel.SuppressedDialogs"/> is a public
+///           <c>init</c> property, so an object initializer can populate it without ever
+///           calling that method. This rule is the only gate covering that path, so it
+///           fails the build unconditionally rather than only for navigation-breaking
+///           entries.
 /// </para>
 /// <para>
 /// DLG003 — <see cref="DialogCustomizationModel.BannerBitmap"/>, <see cref="DialogCustomizationModel.DialogBitmap"/>,
@@ -32,13 +38,6 @@ namespace FalkForge.Compiler.Msi.UI;
 /// </remarks>
 internal static class DialogCustomizationValidator
 {
-    // Per-template set of stock dialogs that are navigation targets of other
-    // dialogs in the same sequence. Suppressing any of these breaks the flow.
-    // The sets are conservative: they list every dialog that another dialog in
-    // the template navigates TO via a NewDialog or EndDialog event.
-    private static readonly FrozenDictionary<MsiDialogSet, FrozenSet<StockDialog>> ProtectedDialogs =
-        BuildProtectedDialogs();
-
     /// <summary>
     /// Validates the customization model and returns any DLG001/DLG002/DLG003 violations.
     /// Returns an empty list when the customization is valid.
@@ -74,21 +73,18 @@ internal static class DialogCustomizationValidator
             }
         }
 
-        // DLG002 — suppressed dialogs must not be navigation targets.
-        if (customization.SuppressedDialogs.Count > 0
-            && ProtectedDialogs.TryGetValue(dialogSet, out var protected_))
+        // DLG002 — SuppressDialog is not implemented (task #44). No dialog-set emitter or
+        // DialogComposer consumes SuppressedDialogs, so any non-empty set would silently
+        // compile into an MSI that shows every stock dialog anyway. Reject unconditionally —
+        // this is the only check that also closes the object-initializer path around the
+        // Obsolete(error: true) builder method, since SuppressedDialogs is a public init
+        // property.
+        foreach (var suppressed in customization.SuppressedDialogs)
         {
-            foreach (var suppressed in customization.SuppressedDialogs)
-            {
-                if (protected_.Contains(suppressed))
-                {
-                    errors.Add(new DialogValidationError(
-                        "DLG002",
-                        $"Cannot suppress '{suppressed}' dialog in the {dialogSet} template: " +
-                        $"it is a navigation target of another dialog in the same set. " +
-                        $"Suppressing it would leave a dangling NewDialog event."));
-                }
-            }
+            errors.Add(new DialogValidationError(
+                "DLG002",
+                $"DialogCustomization.SuppressDialog({suppressed}) is not implemented (see task #44) " +
+                $"and has no effect on the {dialogSet} template's compiled MSI — remove '{suppressed}' from SuppressedDialogs."));
         }
 
         // DLG003 — bitmap/icon customization keys must resolve to a registered Binary.
@@ -98,6 +94,17 @@ internal static class DialogCustomizationValidator
 
         return errors;
     }
+
+    // NOTE (task #24): a per-template FrozenDictionary<MsiDialogSet, FrozenSet<StockDialog>>
+    // mapping each dialog set to its "navigation target" dialogs (BuildProtectedDialogs) used
+    // to live here for the old navigation-aware DLG002 rule. It was deleted rather than kept
+    // unused, because keeping an unread field fails the build (CA1823 / IDE0052 under
+    // TreatWarningsAsErrors) and this codebase's convention is no suppression pragmas for a
+    // gate-defeating warning. Its content is preserved verbatim in this PR's description and
+    // task #44's notes for whoever builds the real suppression feature — note it was also
+    // provably wrong (ProtectedDialogs[InstallDir] omitted License even though
+    // InstallDirDialogTemplate wires Welcome→License), so re-derive it from the templates
+    // rather than pasting it back as-is.
 
     // Ordinal, exact-match lookup — mirrors how BinaryTableProducer keys the emitted Binary
     // table rows and stream registry by the literal BinaryModel.Name string.
@@ -124,53 +131,5 @@ internal static class DialogCustomizationValidator
             "DLG003",
             $"DialogCustomization.{verbName}('{key}') references Binary key '{key}' which is not " +
             $"registered. Register it via PackageBuilder.Binary(\"{key}\", <sourcePath>) before compiling."));
-    }
-
-    private static FrozenDictionary<MsiDialogSet, FrozenSet<StockDialog>> BuildProtectedDialogs()
-    {
-        // Each template's protected set is the union of all dialogs that appear as
-        // NewDialog targets in that template's event wiring. These were extracted from
-        // the builder DialogFlowContext chains in FeatureTreeDialogTemplate,
-        // InstallDirDialogTemplate, MondoDialogTemplate, AdvancedDialogTemplate, and
-        // MinimalDialogTemplate.
-        //
-        // Entry-point dialogs (Welcome) are also protected because they are referenced
-        // from the install sequence Execute action to start the UI sequence.
-        return new Dictionary<MsiDialogSet, FrozenSet<StockDialog>>
-        {
-            [MsiDialogSet.Minimal] = FrozenSet.Create(
-                StockDialog.Welcome,    // UI sequence entry point
-                StockDialog.Progress,   // target of Welcome→Next
-                StockDialog.Exit),      // target of Progress completion
-
-            [MsiDialogSet.InstallDir] = FrozenSet.Create(
-                StockDialog.Welcome,    // UI sequence entry point
-                StockDialog.InstallDir, // target of Welcome→Next
-                StockDialog.Progress,   // target of InstallDir→Next (Install)
-                StockDialog.Exit),      // target of Progress completion
-
-            [MsiDialogSet.FeatureTree] = FrozenSet.Create(
-                StockDialog.Welcome,    // UI sequence entry point
-                StockDialog.License,    // target of Welcome→Next
-                StockDialog.Features,   // target of License→Next
-                StockDialog.Progress,   // target of Customize→Next (Install)
-                StockDialog.Exit),      // target of Progress completion
-
-            [MsiDialogSet.Mondo] = FrozenSet.Create(
-                StockDialog.Welcome,    // UI sequence entry point
-                StockDialog.License,    // target of Welcome→Next
-                StockDialog.InstallDir, // target of SetupType→Next (one branch)
-                StockDialog.Features,   // target of SetupType→Next (another branch)
-                StockDialog.Progress,   // target of InstallDir/Features→Next (Install)
-                StockDialog.Exit),      // target of Progress completion
-
-            [MsiDialogSet.Advanced] = FrozenSet.Create(
-                StockDialog.Welcome,    // UI sequence entry point
-                StockDialog.License,    // target of Welcome→Next
-                StockDialog.InstallDir, // navigation target
-                StockDialog.Features,   // navigation target
-                StockDialog.Progress,   // target of install branch
-                StockDialog.Exit),      // target of Progress completion
-        }.ToFrozenDictionary();
     }
 }

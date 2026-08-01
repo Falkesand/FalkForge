@@ -239,7 +239,7 @@ raw file path. DLG003 fails the build if a key does not resolve to a registered 
 | `HeaderIcon(key)` | Same interior-wizard-page scope as `BannerBitmap`. If the dialog already has an `Icon`-typed control, its `Text` is replaced with `key`; otherwise a synthetic 16x16 `Icon` control (`HeaderIcon`) is inserted at the top-right of the `Banner` region, vertically aligned with `TitleRow` — "next to the dialog title" — drawn in front of any synthesized banner. No-op on exterior/modal dialogs. |
 | `WindowTitle(title)` | Overrides `MsiDialogModel.Title` on every composed dialog |
 | `OverrideButtonLabel(button, label)` | Rewrites matching `PushButton.Text` via `DialogButtonNames.Map` |
-| `SuppressDialog(dialog)` | Removes the stock dialog from the sequence (DLG002 validates navigation) |
+| `SuppressDialog(dialog)` | **Not implemented** (task #24 / task #44) — gated with `[Obsolete(error: true)]` so it does not compile; had no effect even before the gate, since nothing downstream consumed `SuppressedDialogs`. DLG002 also fails the build if `SuppressedDialogs` is populated directly via an object initializer, bypassing the obsoleted method entirely. |
 | `InsertStep(stepName, after)` | Splices an extension-contributed dialog step into the flow (DLG001 validates the name). When the named step resolves to an `IMsiDialogStepBuilder`, `DialogSetProducer` calls its `Build` and emits the dialog into the MSI UI tables. |
 
 ---
@@ -366,10 +366,13 @@ Two compile-time validators guard dialog customization correctness:
   no-ops where a typo in a step name produces a build that silently skips the intended
   dialog.
 
-- **DLG002** — fired when `DialogCustomization.SuppressDialog(dialog)` would break the
-  navigation chain. For example, suppressing the `License` dialog when `Welcome`'s `Next`
-  button wires a `NewDialog` event to `LicenseAgreementDlg` leaves a dangling navigation
-  target. DLG002 surfaces this at compile time rather than at install time.
+- **DLG002** — `SuppressDialog` is not implemented (task #24, real implementation tracked as
+  task #44): no dialog-set template or `DialogComposer` consumes `SuppressedDialogs`, so a
+  populated set used to compile silently into an MSI that showed every stock dialog anyway.
+  `SuppressDialog(dialog)` itself is now gated with `[Obsolete(error: true)]`, but
+  `DialogCustomizationModel.SuppressedDialogs` is a public `init` property, so DLG002 fails the
+  build whenever the set is non-empty regardless of how it was populated — that is the only
+  gate covering the object-initializer path around the obsoleted method.
 
 Both codes follow the same rules-as-data pattern as every other FalkForge validator.
 See `docs/rules-as-data-architecture.md` for how validation rules are authored, merged,
