@@ -3,6 +3,12 @@
 - Status: Accepted
 - Date: 2026-08-01
 - Deciders: Peter Falkesand
+- Amended: 2026-08-01 — see note at the end of the Decision section. `DetectUnsatisfiedProviders`
+  (install-side detection) now fails closed on an unreadable registry too, via
+  `IRegistry.TryGetStringValue`; the original text below asserting this "is not a concept that can occur"
+  described a gap in the initial implementation, not a considered decision, and is corrected in place
+  rather than superseded — the fail-closed-on-unknown-state principle this ADR records is unchanged, only
+  completed on the side that was missing it.
 
 ## Context
 
@@ -32,16 +38,24 @@ that `RegistryWriteCommand`'s existing allowlist deliberately closes by reservin
 change**, not a warn-only rollout — silently ignoring a still-depended-on provider is the exact defect
 being fixed, and half-measures reproduce it.
 
-**Uninstall fails closed; install-time detection failure is not a concept that can occur** (there is no
-Result-returning read on the install path — `DetectUnsatisfiedProviders` only reads string values, which
-cannot distinguish "missing" from "unreadable"). Concretely:
+**Both uninstall and install-time detection fail closed on an unreadable registry, worded distinctly from
+a genuinely-missing/unsatisfied provider.** Concretely:
 
 - `DependencyDetector.DetectBlockingDependencies` (uninstall side) returns `Result<IReadOnlyList
   <DependencyBlocker>>`. A registry read error on *either* `HKLM` or `HKCU` propagates as a `Failure`,
   which `PlanStep` turns into a hard refusal (`ErrorKind.PlanningError`). An unknown state must never be
   silently treated as "no dependants" — that collapse is the original defect class.
-- `DetectUnsatisfiedProviders` (install side) keeps its plain list return; a missing/unsatisfied
-  provider is a normal, expected detection outcome and hard-refuses the install the same way.
+- `DetectUnsatisfiedProviders` (install side) returns `Result<IReadOnlyList<UnsatisfiedProviderInfo>>`,
+  reading via `IRegistry.TryGetStringValue` (the `Result`-returning counterpart of `GetStringValue`,
+  added alongside `TryReadSubKeyNames` for this purpose). A registry read error on either root propagates
+  as a `Failure`, which `PlanStep` turns into a "Cannot verify dependency state safely" refusal — distinct
+  from the "required dependency provider(s) not satisfied" refusal a genuinely missing/unsatisfied
+  provider produces. This distinction matters: before `TryGetStringValue` existed, `GetStringValue` threw
+  an uncaught exception on an access-denied read, which the pipeline's top-level exception handler turned
+  into a generic, unworded `EngineError` crash — an accidental fail-closed outcome, not a deliberate one,
+  and not what the original text of this ADR described. The read error is now a first-class, correctly
+  worded refusal on both sides, not a caught-by-accident crash on one side and an assumed-impossible case
+  on the other.
 - The write side (`ApplyStep` registering/unregistering after a successful apply) is where "fail open"
   actually applies: a persistence failure there (registry access denied, elevated round-trip failure) is
   caught, logged as a Warning, and never turns an already-successful install/uninstall into a reported

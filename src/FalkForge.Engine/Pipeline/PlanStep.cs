@@ -247,7 +247,18 @@ internal sealed class PlanStep : IPlanStep
         }
         else if (action == InstallAction.Install)
         {
-            var unsatisfied = DependencyDetector.DetectUnsatisfiedProviders(manifest.DependencyRequirements, registry);
+            // Fail closed: a registry read error (access denied / unreadable) must never be silently
+            // folded into "provider genuinely absent" — that would refuse the install while misleadingly
+            // naming a provider that may well be present. Worded distinctly from the "not satisfied"
+            // refusal below so an operator is never told a provider is missing when the truth is that its
+            // state could not be determined (see ADR 0008).
+            var unsatisfiedResult = DependencyDetector.DetectUnsatisfiedProviders(manifest.DependencyRequirements, registry);
+            if (unsatisfiedResult.IsFailure)
+                return Result<Unit>.Failure(ErrorKind.PlanningError,
+                    $"Cannot verify dependency state safely, refusing to install: {unsatisfiedResult.Error.Message} " +
+                    "Use --ignore-dependencies to override.");
+
+            var unsatisfied = unsatisfiedResult.Value;
             if (unsatisfied.Count > 0)
             {
                 var missingKeys = string.Join(", ", unsatisfied.Select(u => u.ProviderKey));

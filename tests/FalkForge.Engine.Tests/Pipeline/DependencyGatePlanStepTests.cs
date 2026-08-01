@@ -200,6 +200,29 @@ public sealed class DependencyGatePlanStepTests
     }
 
     [Fact]
+    public async Task Install_RegistryReadFails_FailsClosed_NeverTreatsUnreadableAsMissing()
+    {
+        // Mirrors Uninstall_RegistryReadFails_FailsClosed: an unreadable registry must refuse the
+        // install with a distinct "could not verify" message, never a silent permit and never a
+        // misleading "provider not satisfied" message naming a provider that may well be present.
+        var registry = new MockRegistry();
+        registry.FailReadsUnder(@"SOFTWARE\Classes\Installer\Dependencies");
+
+        var manifest = ManifestWith(
+            requirements: [new ManifestDependencyRequirement("SharedLib", "1.0.0", null, true, false)]);
+        var ctx = CtxWith(manifest);
+        var channel = new FakeUiChannel();
+        var step = new PlanStep(new Planner(), channel, registry: registry);
+
+        var result = await step.ExecuteAsync(ctx, RequestFor(InstallAction.Install), CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.PlanningError, result.Error.Kind);
+        Assert.Contains("Cannot verify dependency state safely", result.Error.Message);
+        Assert.DoesNotContain("not satisfied", result.Error.Message);
+    }
+
+    [Fact]
     public async Task Install_IgnoreDependencies_ProceedsDespiteMissingProvider()
     {
         var registry = new MockRegistry();

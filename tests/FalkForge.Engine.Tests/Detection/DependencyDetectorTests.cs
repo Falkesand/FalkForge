@@ -219,7 +219,8 @@ public sealed class DependencyDetectorTests
 
         var result = DependencyDetector.DetectUnsatisfiedProviders([], registry);
 
-        Assert.Empty(result);
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
     }
 
     [Fact]
@@ -233,10 +234,10 @@ public sealed class DependencyDetectorTests
 
         var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
 
-        Assert.Single(result);
-        Assert.Equal("MissingLib", result[0].ProviderKey);
-        Assert.True(result[0].IsMissing);
-        Assert.Null(result[0].InstalledVersion);
+        Assert.Single(result.Value);
+        Assert.Equal("MissingLib", result.Value[0].ProviderKey);
+        Assert.True(result.Value[0].IsMissing);
+        Assert.Null(result.Value[0].InstalledVersion);
     }
 
     [Fact]
@@ -254,10 +255,10 @@ public sealed class DependencyDetectorTests
 
         var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
 
-        Assert.Single(result);
-        Assert.Equal("SharedLib", result[0].ProviderKey);
-        Assert.False(result[0].IsMissing);
-        Assert.Equal("1.0.0", result[0].InstalledVersion);
+        Assert.Single(result.Value);
+        Assert.Equal("SharedLib", result.Value[0].ProviderKey);
+        Assert.False(result.Value[0].IsMissing);
+        Assert.Equal("1.0.0", result.Value[0].InstalledVersion);
     }
 
     [Fact]
@@ -275,7 +276,8 @@ public sealed class DependencyDetectorTests
 
         var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
 
-        Assert.Empty(result);
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
     }
 
     [Fact]
@@ -293,7 +295,7 @@ public sealed class DependencyDetectorTests
 
         var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
 
-        Assert.Single(result);
+        Assert.Single(result.Value);
     }
 
     [Fact]
@@ -311,7 +313,8 @@ public sealed class DependencyDetectorTests
 
         var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
 
-        Assert.Empty(result);
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
     }
 
     [Fact]
@@ -331,7 +334,8 @@ public sealed class DependencyDetectorTests
 
         var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
 
-        Assert.Empty(result);
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value);
     }
 
     [Fact]
@@ -353,8 +357,8 @@ public sealed class DependencyDetectorTests
 
         var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
 
-        Assert.Single(result);
-        Assert.Equal("SharedLib", result[0].ProviderKey);
+        Assert.Single(result.Value);
+        Assert.Equal("SharedLib", result.Value[0].ProviderKey);
     }
 
     [Fact]
@@ -372,7 +376,27 @@ public sealed class DependencyDetectorTests
 
         var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
 
-        Assert.Single(result);
-        Assert.Equal("SharedLib", result[0].ProviderKey);
+        Assert.Single(result.Value);
+        Assert.Equal("SharedLib", result.Value[0].ProviderKey);
+    }
+
+    [Fact]
+    public void DetectUnsatisfiedProviders_ReadFailureOnEitherRoot_FailsClosed()
+    {
+        // Mirrors DetectBlockingDependencies_ReadFailureOnEitherRoot_FailsClosed: an unreadable
+        // registry (access denied / mid-write corruption) must never be silently folded into "provider
+        // genuinely absent" — that produces a misleading refusal naming a provider that may well be
+        // present. A read error propagates as a Result failure instead, same as the uninstall side.
+        var registry = new MockRegistry();
+        registry.FailReadsUnder(@"SOFTWARE\Classes\Installer\Dependencies");
+
+        var requirements = new[]
+        {
+            new ManifestDependencyRequirement("SharedLib", "1.0.0", null, true, false)
+        };
+
+        var result = DependencyDetector.DetectUnsatisfiedProviders(requirements, registry);
+
+        Assert.True(result.IsFailure);
     }
 }
