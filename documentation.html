@@ -5941,9 +5941,10 @@ dotnet.AddSearch(search.Value);</code></pre>
   <h3 id="ext-util">10.6 Util Extension</h3>
   <p>
     Provides utility actions: XML configuration editing, quiet command execution, user/group management,
-    file share creation, recursive folder removal, and internet shortcut creation.
+    file share creation, recursive folder removal, internet shortcut creation, and ODBC driver/data source
+    registration.
     Located in <code>src/FalkForge.Extensions.Util/</code>.
-    Validation error codes: XCF001-009, QEX001-004, FSH001-003, ISC001-004, RFX001-002, GRP001.
+    Validation error codes: XCF001-009, QEX001-004, FSH001-003, ISC001-004, RFX001-002, GRP001, ODB001.
   </p>
 
   <h4>UtilExtension</h4>
@@ -6081,6 +6082,80 @@ dotnet.AddSearch(search.Value);</code></pre>
       <tr><td><code>OnBoth()</code></td><td><code>RemoveFolderExBuilder</code></td><td>Removes the folder during both install and uninstall.</td></tr>
     </tbody>
   </table>
+
+  <h4>OdbcDriverBuilder</h4>
+  <p>
+    Registers an ODBC driver (<code>ODBCDriver</code> table row) so the ODBC driver manager knows about it
+    at install time. Unlike the other Util builders above, its file reference is not free text:
+    <code>FileName</code> must name a file the package already declares via <code>Files(...)</code>, because
+    the compiler derives the row's <code>File_</code> and <code>Component_</code> external keys from that
+    file instead of asking the author to supply generated MSI identifiers directly. There is no
+    <code>ComponentRef</code> here for that reason &mdash; component IDs are compiler-generated and no
+    author could ever supply a valid one up front.
+  </p>
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>Return Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>DriverName(string name)</code></td><td><code>OdbcDriverBuilder</code></td><td>Sets the driver's display name (<code>ODBCDriver.Description</code>).</td></tr>
+      <tr><td><code>FileName(string fileName)</code></td><td><code>OdbcDriverBuilder</code></td><td>References the driver DLL &mdash; either the bare file name (<code>mydriver.dll</code>), or a trailing path segment (<code>x64/mydriver.dll</code>) when two declared files share that name. Must match exactly one file the package already declares; an unresolvable or ambiguous reference fails the build (<code>ODB001</code>) rather than being guessed.</td></tr>
+      <tr><td><code>SetupFileName(string fileName)</code></td><td><code>OdbcDriverBuilder</code></td><td>Optional reference to the driver's setup DLL, resolved identically to <code>FileName</code> and emitted as <code>ODBCDriver.File_Setup</code>. Authored but unresolvable also fails the build (<code>ODB001</code>) instead of silently dropping the column.</td></tr>
+    </tbody>
+  </table>
+
+  <h4>OdbcDataSourceBuilder</h4>
+  <p>
+    Registers an ODBC data source (<code>ODBCDataSource</code> table row, plus one
+    <code>ODBCSourceAttribute</code> row per <code>Property</code> call). When <code>DriverName</code>
+    matches an <code>AddOdbcDriver</code> entry's own driver name in the same package, the compiler attaches
+    the data source to that driver's owning component so the two install and uninstall together; a DSN
+    naming a driver the target machine already has falls back to the package's first component instead
+    (the same fallback the built-in <code>CreateFolder</code> producer uses).
+  </p>
+  <table class="api-table">
+    <thead>
+      <tr><th>Method</th><th>Return Type</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>Name(string name)</code></td><td><code>OdbcDataSourceBuilder</code></td><td>Sets the data source's display name (<code>ODBCDataSource.Description</code>).</td></tr>
+      <tr><td><code>DriverName(string driver)</code></td><td><code>OdbcDataSourceBuilder</code></td><td>Names the driver this data source uses (<code>ODBCDataSource.DriverDescription</code>).</td></tr>
+      <tr><td><code>Registration(OdbcRegistration reg)</code></td><td><code>OdbcDataSourceBuilder</code></td><td>Sets <code>PerMachine</code> (default) or <code>PerUser</code> registration.</td></tr>
+      <tr><td><code>Property(string key, string value)</code></td><td><code>OdbcDataSourceBuilder</code></td><td>Adds a connection attribute (e.g. <code>Server</code>, <code>Database</code>). Each call emits one <code>ODBCSourceAttribute</code> row.</td></tr>
+    </tbody>
+  </table>
+
+<pre><code class="language-csharp">// The driver DLL must already be declared as a package file -- FileName below references it
+// by name, it is not a free-form path.
+package.Files(files =&gt; files
+    .Add("payload/mydriver.dll")
+    .To(KnownFolder.ProgramFiles / "Contoso" / "Drivers"));
+
+var util = new UtilExtension();
+
+util.AddOdbcDriver("ContosoDriver", d =&gt; d
+    .DriverName("Contoso ODBC Driver")
+    .FileName("mydriver.dll"));
+
+util.AddOdbcDataSource("ContosoDsn", ds =&gt; ds
+    .Name("Contoso Data Source")
+    .DriverName("Contoso ODBC Driver")
+    .Registration(OdbcRegistration.PerMachine)
+    .Property("Server", "localhost")
+    .Property("Database", "ContosoDb"));
+
+// Wire the extension into the compiler, same as any other extension:
+Installer.Build(args, package =&gt; { /* ... */ }, new MsiCompiler().Use(util));</code></pre>
+<div class="note">
+    <code>AddOdbcDriver</code>/<code>AddOdbcDataSource</code> return <code>void</code>, not
+    <code>Result&lt;Unit&gt;</code> &mdash; there is no author-time validation to fail up front. An
+    unresolvable <code>FileName</code>/<code>SetupFileName</code>/<code>DriverName</code> reference is only
+    caught at compile time, as a build failure carrying <code>ODB001</code> guidance. Two gaps worth knowing
+    before relying on this in production: <code>forge build --dry-run</code> does not yet preview ODBC
+    actions (<code>UtilExtension.GetDryRunActions</code> has no ODBC entry), and <code>forge migrate</code>
+    does not round-trip ODBC configuration back out of an existing MSI (neither ODBC contributor implements
+    <code>ReadSchema</code>) &mdash; both are open follow-up work, not implemented today.
+</div>
 
   <pre><code class="language-csharp">// XML configuration modification
 var xmlConfig = new XmlConfigBuilder()
@@ -6989,7 +7064,14 @@ Installer.Build(args, package =&gt;
       (<code>String</code>/<code>Int16</code>/<code>Int32</code>/<code>Binary</code>) and
       <code>Nullable</code>/<code>PrimaryKey</code> flags for anything the factories don't cover.
       Column order is authoritative and drives deterministic, reproducible-build column layout.
-      Firewall's <code>WixFirewallException</code> table is the reference example.
+      Firewall's <code>WixFirewallException</code> table is the reference example. A column can also
+      carry a <code>MissingValueHint</code> string, appended (with a leading space) to the compiler's
+      generic &ldquo;missing value for non-nullable column&rdquo; error when that column's value is absent
+      for a given row; a <code>null</code> or whitespace-only hint is treated the same as no hint and has
+      no effect. It exists for contributors that <em>derive</em> an external key from other declared model
+      data instead of asking the author for it directly, so the failure explains what to fix instead of
+      just naming the column &mdash; the Util extension's ODBC driver/data-source tables use it to point
+      at an unresolved <code>FileName</code>/<code>SetupFileName</code> reference (<code>ODB001</code>).
     </li>
   </ul>
   <p>
@@ -7147,7 +7229,10 @@ Installer.Build(args, package =&gt;
     A row whose field doesn't match any declared column, or that omits a value for a non-nullable
     column, also fails the build with a descriptive <code>CompilationError</code> &mdash; those don't
     currently carry a dedicated <code>EXT&hellip;</code> code, just a precise message naming the table,
-    row index, and column.
+    row index, and column. A contributor can still give <em>its own</em> failures a stable identity inside
+    that generic message via <code>ContributedColumn.MissingValueHint</code> (see 10.10.1) &mdash; the Util
+    extension's ODBC tables prefix their hint text with <code>ODB001</code> &mdash; but that's a convention
+    the contributor opts into, not a code the compiler itself assigns or validates.
   </p>
 
   <h4>Attaching an extension to a build</h4>

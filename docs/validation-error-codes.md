@@ -4,7 +4,7 @@ Reference for every diagnostic code emitted by validators, builders, decompilers
 
 Historically auto-generated; the extraction script has been retired — this file is now hand-maintained. Keep entries in sync with the validation rule sources (`src/FalkForge.Core/Validation/...` and the other `Source` columns below).
 
-**Total codes:** 239 across 53 categories.
+**Total codes:** 239 across 54 categories.
 
 ## Categories at a Glance
 
@@ -41,6 +41,7 @@ Historically auto-generated; the extraction script has been retired — this fil
 | MUP | MajorUpgrade | `src/FalkForge.Core/Validation` |
 | MVF | MoveFile | `src/FalkForge.Core/Validation` |
 | NET | .NET search | `src/FalkForge.Extensions.DotNet` |
+| ODB | ODBC extension (Util) | `src/FalkForge.Extensions.Util/Odbc` |
 | PKG | Package model | `src/FalkForge.Core/Validation` |
 | PRM | Permissions | `src/FalkForge.Core/Validation` |
 | PRP | Property | `src/FalkForge.Core/Validation` |
@@ -361,6 +362,12 @@ Historically auto-generated; the extraction script has been retired — this fil
 | NET001 | VariableName is required | `src/FalkForge.Extensions.DotNet/DotNetSearchValidator.cs` |
 | NET002 | MinimumVersion is required | `src/FalkForge.Extensions.DotNet/DotNetSearchValidator.cs` |
 | NET003 | Duplicate VariableName '<x>' | `src/FalkForge.Extensions.DotNet/DotNetSearchValidator.cs` |
+
+## ODB — ODBC extension (Util)
+
+| Code | Message | Source |
+|------|---------|--------|
+| ODB001 | ODBCDriver.File_/Component_ and ODBCDataSource.Component_ are derived from a file the package already declares; an unresolvable or ambiguous `FileName`/`SetupFileName` reference fails the build instead of shipping a dangling key | `src/FalkForge.Extensions.Util/Odbc/OdbcDriverTableContributor.cs`, `src/FalkForge.Extensions.Util/Odbc/OdbcDataSourceTableContributor.cs` |
 
 ## PKG — Package model
 
