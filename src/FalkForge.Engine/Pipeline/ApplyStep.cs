@@ -10,6 +10,7 @@ using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Dependencies;
 using FalkForge.Engine.Protocol.Integrity;
+using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.RestartManager;
 using FalkForge.Platform;
 using FalkForge.Platform.Dependencies;
@@ -362,9 +363,18 @@ internal sealed class ApplyStep : IApplyStep
     /// through <paramref name="ctx"/>'s injected <see cref="IRegistry"/> to <c>HKCU</c> — no elevation
     /// needed. <see cref="InstallScope.PerMachine"/> forwards the same intent to the elevated companion's
     /// <c>DependencyRegistration</c> command, which writes <c>HKLM</c>; when no elevation gateway is
-    /// available this run, the write is skipped with a warning rather than failing the install. Any
-    /// exception (registry access denied, elevated round-trip failure) is caught and logged as a warning —
-    /// this method must never turn an already-successful apply into a failure.
+    /// available this run, the write is skipped rather than failing the install. Any exception (registry
+    /// access denied, elevated round-trip failure) is caught — this method must never turn an already-
+    /// successful apply into a failure.
+    ///
+    /// <para>
+    /// A write-side failure is logged asymmetrically by direction (see ADR 0008 amendment): an
+    /// INSTALL-direction failure is contained — nothing was relying on the registration yet, so it stays
+    /// a Warning. An UNINSTALL-direction failure is NOT contained — this bundle's own consumer entry
+    /// survives, potentially forever, which can permanently block a THIRD product's future uninstall of
+    /// the shared provider it referenced. That case is logged at Error, naming the exact registry
+    /// path(s) so an operator can clear the stale entry by hand.
+    /// </para>
     /// </summary>
     private async Task RegisterOrUnregisterDependenciesAsync(PipelineContext ctx, CancellationToken ct)
     {
@@ -375,9 +385,11 @@ internal sealed class ApplyStep : IApplyStep
         if (manifest.DependencyProviders.Length == 0 && manifest.DependencyConsumers.Length == 0)
             return;
 
-        var action = ctx.PlanRequest?.Action;
-        if (action is not (InstallAction.Install or InstallAction.Uninstall))
+        var actionOrNull = ctx.PlanRequest?.Action;
+        if (actionOrNull is not (InstallAction.Install or InstallAction.Uninstall))
             return;
+
+        var action = actionOrNull.Value;
 
         try
         {
@@ -393,7 +405,8 @@ internal sealed class ApplyStep : IApplyStep
                         var providerResult = registrar.RegisterProvider(
                             root, provider.Key, provider.Version, provider.DisplayName);
                         if (providerResult.IsFailure)
-                            await LogDependencyWriteFailureAsync(providerResult.Error.Message, ct);
+                            await LogDependencyWriteOutcomeFailureAsync(
+                                action, manifest.Scope, [], providerResult.Error.Message, ct);
                     }
 
                     foreach (var consumer in manifest.DependencyConsumers)
@@ -401,7 +414,8 @@ internal sealed class ApplyStep : IApplyStep
                         var consumerResult = registrar.RegisterConsumer(
                             root, consumer.ProviderKey, consumer.ConsumerKey, manifest.BundleId);
                         if (consumerResult.IsFailure)
-                            await LogDependencyWriteFailureAsync(consumerResult.Error.Message, ct);
+                            await LogDependencyWriteOutcomeFailureAsync(
+                                action, manifest.Scope, [], consumerResult.Error.Message, ct);
                     }
                 }
                 else
@@ -411,7 +425,8 @@ internal sealed class ApplyStep : IApplyStep
                         var unregisterResult = registrar.UnregisterConsumer(
                             root, consumer.ProviderKey, consumer.ConsumerKey);
                         if (unregisterResult.IsFailure)
-                            await LogDependencyWriteFailureAsync(unregisterResult.Error.Message, ct);
+                            await LogDependencyWriteOutcomeFailureAsync(
+                                action, manifest.Scope, [consumer], unregisterResult.Error.Message, ct);
                     }
                 }
 
@@ -421,10 +436,9 @@ internal sealed class ApplyStep : IApplyStep
             // PerMachine: forward to the elevated companion.
             if (ctx.ElevationGateway is null)
             {
-                await _uiChannel.SendAsync(
-                    new PipelineEvent.Log(LogLevel.Warning,
-                        "Dependency registration skipped: no elevation available for this per-machine " +
-                        "install. Provider/consumer registration state was NOT updated."),
+                await LogDependencyWriteOutcomeFailureAsync(
+                    action, manifest.Scope, manifest.DependencyConsumers,
+                    "no elevation available for this per-machine operation; registration state was not updated",
                     ct);
                 return;
             }
@@ -442,33 +456,49 @@ internal sealed class ApplyStep : IApplyStep
                 "DependencyRegistration", payload, null, ct);
             if (sendResult.IsFailure)
             {
-                await _uiChannel.SendAsync(
-                    new PipelineEvent.Log(LogLevel.Warning,
-                        $"Dependency registration failed (install result unaffected): {sendResult.Error.Message}"),
-                    ct);
+                await LogDependencyWriteOutcomeFailureAsync(
+                    action, manifest.Scope, manifest.DependencyConsumers, sendResult.Error.Message, ct);
             }
         }
         catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {
-            await _uiChannel.SendAsync(
-                new PipelineEvent.Log(LogLevel.Warning,
-                    $"Dependency registration failed (install result unaffected): {ex.Message}"),
-                ct);
+            await LogDependencyWriteOutcomeFailureAsync(
+                action, manifest.Scope, manifest.DependencyConsumers, ex.Message, ct);
         }
     }
 
     /// <summary>
-    /// Logs a <see cref="DependencyRegistrar"/> write-side failure on the PerUser path (a rejected unsafe
-    /// key segment, or a registry access-denied condition surfaced as a <see cref="Result{T}"/> failure
-    /// rather than a thrown exception). Never fails the apply — see
-    /// <see cref="RegisterOrUnregisterDependenciesAsync"/> remarks.
+    /// Logs a dependency-registration write-side failure (a rejected unsafe key segment, an elevated
+    /// round-trip failure, an unavailable elevation companion, or a registry access-denied condition).
+    /// Never fails the apply — see <see cref="RegisterOrUnregisterDependenciesAsync"/> remarks for the
+    /// INSTALL-vs-UNINSTALL severity asymmetry this method implements.
     /// </summary>
-    private async Task LogDependencyWriteFailureAsync(string message, CancellationToken ct)
+    private async Task LogDependencyWriteOutcomeFailureAsync(
+        InstallAction action,
+        InstallScope scope,
+        IReadOnlyList<ManifestDependencyConsumer> affectedConsumers,
+        string detail,
+        CancellationToken ct)
     {
-        await _uiChannel.SendAsync(
-            new PipelineEvent.Log(LogLevel.Warning,
-                $"Dependency registration failed (install result unaffected): {message}"),
-            ct);
+        if (action == InstallAction.Uninstall)
+        {
+            var rootLabel = scope == InstallScope.PerMachine ? "HKLM" : "HKCU";
+            var paths = string.Join(", ", affectedConsumers.Select(c =>
+                $@"{rootLabel}\{DependencyRegistrationPaths.ConsumerKeyPath(c.ProviderKey, c.ConsumerKey)}"));
+            await _uiChannel.SendAsync(
+                new PipelineEvent.Log(LogLevel.Error,
+                    $"Dependency unregistration failed on uninstall ({detail}) — this bundle's own " +
+                    "consumer registration was NOT removed and may permanently block a future uninstall " +
+                    $"of the shared provider(s) it depends on. Clear manually if this becomes a problem: {paths}"),
+                ct);
+        }
+        else
+        {
+            await _uiChannel.SendAsync(
+                new PipelineEvent.Log(LogLevel.Warning,
+                    $"Dependency registration failed (install result unaffected): {detail}"),
+                ct);
+        }
     }
 
     private static JournalEntry? BuildJournalEntry(PlanAction action)

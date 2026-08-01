@@ -57,10 +57,18 @@ a genuinely-missing/unsatisfied provider.** Concretely:
   worded refusal on both sides, not a caught-by-accident crash on one side and an assumed-impossible case
   on the other.
 - The write side (`ApplyStep` registering/unregistering after a successful apply) is where "fail open"
-  actually applies: a persistence failure there (registry access denied, elevated round-trip failure) is
-  caught, logged as a Warning, and never turns an already-successful install/uninstall into a reported
-  failure — the damage is contained to the dependency bookkeeping for the thing just installed, and a
-  genuinely broken machine will fail loudly on its own at the next relevant operation.
+  actually applies: a persistence failure there (registry access denied, elevated round-trip failure, no
+  elevation companion available) is caught and never turns an already-successful install/uninstall into
+  a reported failure. **The containment claim is direction-dependent, not universal — amended 2026-08-01
+  after review found the original wording overstated it.** On INSTALL, a write failure is genuinely
+  contained: nothing else was relying on the registration yet, a genuinely broken machine will fail
+  loudly on its own at the next relevant operation, and this direction is logged as a Warning. On
+  UNINSTALL, a write failure is NOT contained: this bundle's own consumer entry survives the failed
+  unregister, potentially forever (nothing currently collects orphaned consumer entries — see the
+  Consequences section), which can permanently strand a hard block on a completely unrelated THIRD
+  product's future uninstall of the shared provider it referenced. Because that failure mode is
+  materially worse and easy to miss, the uninstall direction is logged at Error and names the exact
+  registry path(s) that need manual clearing, rather than being folded into the same Warning as install.
 
 **Scope-mirrored write, union read.** A `PerUser` bundle writes its own provider/consumer registrations
 directly to `HKCU` (no elevation). A `PerMachine` bundle writes to `HKLM` through the elevated
