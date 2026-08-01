@@ -28,6 +28,7 @@ public sealed class ElevatedHostCommandSurfaceTests
         // Expanding this set expands the SYSTEM attack surface — review required.
         string[] expected =
         [
+            "DependencyRegistration",
             "FileWrite",
             "MsiInstall",
             "MsiUninstall",

@@ -14,6 +14,10 @@ public sealed class RegistryWriteCommandTests
     [InlineData(@"SOFTWARE\Classes\.exe")]
     [InlineData(@"SOFTWARE\Classes\CLSID\{00000000-0000-0000-0000-000000000000}")]
     [InlineData(@"SOFTWARE\Policies\Microsoft\Windows")]
+    // Dependency-enforcement (Classes\Installer\Dependencies) writes go through the separate
+    // DependencyRegistrationCommand, which has its own narrow allowlist — RegistryWriteCommand's
+    // blanket "Classes" reservation must still reject this path, never carve out an exception for it.
+    [InlineData(@"SOFTWARE\Classes\Installer\Dependencies\MyApp")]
     public void Execute_RejectsSystemReservedSubKeyPrefix(string subKey)
     {
         var payload = BuildPayload("HKLM", subKey, "TestValue", "REG_SZ", "data");
