@@ -3,11 +3,13 @@ namespace FalkForge.Engine.Pipeline;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using FalkForge.Diagnostics;
+using FalkForge.Engine.Detection;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Variables;
+using FalkForge.Platform;
 
 /// <summary>
 /// Plan phase step. Invokes <see cref="Planner.CreatePlan"/> using the detection
@@ -35,18 +37,21 @@ internal sealed class PlanStep : IPlanStep
     private readonly IUiChannel _uiChannel;
     private readonly VariableStore? _variableStore;
     private readonly Architecture _hostArchitecture;
+    private readonly IRegistry? _registry;
 
     public PlanStep(
         Planner planner,
         IUiChannel uiChannel,
         VariableStore? variableStore = null,
-        Architecture? hostArchitecture = null)
+        Architecture? hostArchitecture = null,
+        IRegistry? registry = null)
     {
         _planner = planner;
         _uiChannel = uiChannel;
         _variableStore = variableStore;
         // Default to the current process OS architecture (production). Tests inject a fake.
         _hostArchitecture = hostArchitecture ?? RuntimeInformation.OSArchitecture;
+        _registry = registry;
     }
 
     /// <inheritdoc/>
@@ -85,6 +90,19 @@ internal sealed class PlanStep : IPlanStep
         var archCheck = CheckArchitectureCompatibility(ctx.Manifest.Packages, _hostArchitecture);
         if (archCheck.IsFailure)
             return archCheck;
+
+        // Dependency-enforcement gate: refuse an uninstall while other installed packages still depend
+        // on a shared component this bundle provides, and refuse an install when a required provider is
+        // missing or out of range. Machine-state refusals before the consent (license) gate below.
+        // Skipped entirely when no registry was injected (backward compatible — e.g. ordering-only
+        // tests) or when the caller passed --ignore-dependencies. Deliberately NOT skipped by
+        // ctx.SilentMode: silent uninstall is automation, exactly where silent breakage hurts most.
+        if (_registry is not null && !ctx.IgnoreDependencies)
+        {
+            var depCheck = CheckDependencyConstraints(ctx.Manifest, request.Action, _registry);
+            if (depCheck.IsFailure)
+                return depCheck;
+        }
 
         // License gate: when manifest requires a license, the UI must have accepted it.
         // Silent mode auto-accepts (headless/CLI installs). When the manifest has no
@@ -190,6 +208,52 @@ internal sealed class PlanStep : IPlanStep
                     ErrorKind.ArchitectureMismatch,
                     $"Package '{pkg.Id}' requires {pkgArch} but the host OS is {host}. " +
                     $"This package cannot be installed on this machine.");
+            }
+        }
+
+        return Unit.Value;
+    }
+
+    /// <summary>
+    /// Runtime dependency enforcement: refuses an uninstall while a provider this bundle declares still
+    /// has active dependents on the machine, and refuses an install when a required provider is missing
+    /// or version-unsatisfied. Uses the same refusal mechanism as every other plan-time gate —
+    /// <see cref="ErrorKind.PlanningError"/>, which <see cref="PipelineRunner"/> turns into
+    /// <see cref="PipelineEvent.Failed"/> and process exit code 1.
+    /// </summary>
+    private static Result<Unit> CheckDependencyConstraints(
+        InstallerManifest manifest, InstallAction action, IRegistry registry)
+    {
+        if (action == InstallAction.Uninstall)
+        {
+            // Fail closed: a registry read error (access denied / unreadable) must never be silently
+            // treated as "no dependants" — that would let a blocked uninstall through.
+            var blockingResult = DependencyDetector.DetectBlockingDependencies(manifest.DependencyProviders, registry);
+            if (blockingResult.IsFailure)
+                return Result<Unit>.Failure(ErrorKind.PlanningError,
+                    $"Cannot verify dependency state safely, refusing to uninstall: {blockingResult.Error.Message} " +
+                    "Use --ignore-dependencies to override.");
+
+            var blockers = blockingResult.Value;
+            if (blockers.Count > 0)
+            {
+                var providerKeys = string.Join(", ", blockers.Select(b => b.ProviderKey));
+                var dependentKeys = string.Join(", ", blockers.SelectMany(b => b.DependentKeys));
+                return Result<Unit>.Failure(ErrorKind.PlanningError,
+                    $"Cannot uninstall: the following component(s) are still required by other installed " +
+                    $"products: provider(s) [{providerKeys}] have dependent(s) [{dependentKeys}]. " +
+                    "Use --ignore-dependencies to override.");
+            }
+        }
+        else if (action == InstallAction.Install)
+        {
+            var unsatisfied = DependencyDetector.DetectUnsatisfiedProviders(manifest.DependencyRequirements, registry);
+            if (unsatisfied.Count > 0)
+            {
+                var missingKeys = string.Join(", ", unsatisfied.Select(u => u.ProviderKey));
+                return Result<Unit>.Failure(ErrorKind.PlanningError,
+                    $"Cannot install: required dependency provider(s) not satisfied: [{missingKeys}]. " +
+                    "Use --ignore-dependencies to override.");
             }
         }
 

@@ -97,6 +97,14 @@ public sealed record EngineSessionOptions
     public bool AdvanceTrustStoreOnVerifiedApply { get; init; }
 
     /// <summary>
+    /// Escape hatch for the runtime dependency-enforcement gate (<c>--ignore-dependencies</c>): when
+    /// <c>true</c>, bypasses both the uninstall-blocking-dependents check and the install-missing-provider
+    /// check in <see cref="Pipeline.PlanStep"/>. Defaults to <c>false</c>. Not implied by silent mode —
+    /// silent uninstall is automation, exactly where silent breakage hurts most.
+    /// </summary>
+    public bool IgnoreDependencies { get; init; }
+
+    /// <summary>
     /// Full path to a VERIFIED elevation companion executable
     /// (<c>FalkForge.Engine.Elevation.exe</c>) the session should launch for elevated commands,
     /// taking precedence over the default probe beside the engine

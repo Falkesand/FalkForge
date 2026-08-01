@@ -37,7 +37,7 @@ internal static class BootstrapperRunner
     /// </param>
     internal static async Task<int> RunAsync(
         ProgramArgs? programArgs = null, BootstrapperArgs? bootstrapperArgs = null, string? baseBundlePath = null,
-        bool requireSigned = false, string? exePathOverride = null)
+        bool requireSigned = false, string? exePathOverride = null, bool ignoreDependencies = false)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -327,6 +327,7 @@ internal static class BootstrapperRunner
                 // writes it directly here. Advancing after success (not before) prevents an attacker priming
                 // a forged epoch (which would have failed the require-signed gate — the epoch is signed).
                 AdvanceTrustStoreOnVerifiedApply = requireSigned,
+                IgnoreDependencies = ignoreDependencies,
                 // C19 quorum uniformity: hand the pipeline the ACL-validated stored epoch so the apply-time
                 // integrity gate resolves Update vs KeyChange exactly as the staged-update verifier does —
                 // the store must never advance under a weaker rule than the auto-update path enforces.

@@ -28,7 +28,8 @@ internal sealed record EngineInvocationArgs(
     bool ExtractList,
     IReadOnlyList<string> ExtractPackages,
     string? BaseBundlePath,
-    bool RequireSigned)
+    bool RequireSigned,
+    bool IgnoreDependencies)
 {
     /// <summary>
     /// Parses the engine's own invocation flags from <paramref name="args"/>. Unknown flags are
@@ -52,6 +53,11 @@ internal sealed record EngineInvocationArgs(
         // untrusted-signed update is rejected before any payload is extracted or executed. A fresh
         // install never receives this flag, so an unsigned bundle the user chose to run still installs.
         var requireSigned = false;
+        // Escape hatch for the runtime dependency-enforcement gate (PlanStep): bypasses both the
+        // uninstall-blocking-dependents check and the install-missing-provider check. Deliberately a
+        // separate, explicit flag — silent mode must not auto-imply it (silent uninstall is automation,
+        // exactly where silent breakage from an unexpectedly-removed shared component hurts most).
+        var ignoreDependencies = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -102,6 +108,9 @@ internal sealed record EngineInvocationArgs(
                 case "--require-signed":
                     requireSigned = true;
                     break;
+                case "--ignore-dependencies":
+                    ignoreDependencies = true;
+                    break;
                 // Logging flags are parsed by ProgramArgs.Parse above. Consume their
                 // values here so the inline parser does not mistake the value for a
                 // standalone flag on the next iteration.
@@ -117,6 +126,6 @@ internal sealed record EngineInvocationArgs(
 
         return new EngineInvocationArgs(
             pipeName, secretPipeName, manifestPath, planOnly, planOutputPath, sbomOutputPath,
-            extractDir, extractList, extractPackages, baseBundlePath, requireSigned);
+            extractDir, extractList, extractPackages, baseBundlePath, requireSigned, ignoreDependencies);
     }
 }

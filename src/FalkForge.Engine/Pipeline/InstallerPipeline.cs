@@ -59,7 +59,8 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         bool advanceTrustStoreOnVerifiedApply = false,
         FalkForge.Engine.Integrity.TrustPolicy? integrityTrustPolicy = null,
         string? payloadRoot = null,
-        VariableStore? variableStore = null)
+        VariableStore? variableStore = null,
+        bool ignoreDependencies = false)
     {
         _detectStep = detectStep;
         _planStep = planStep;
@@ -69,6 +70,7 @@ internal sealed class InstallerPipeline : IInstallerPipeline
         _updateService = updateService;
         _variableStore = variableStore;
         _ctx.AdvanceTrustStoreOnVerifiedApply = advanceTrustStoreOnVerifiedApply;
+        _ctx.IgnoreDependencies = ignoreDependencies;
 
         // Payload extraction root forwarded by the self-extract bootstrapper. When present, ApplyStep
         // resolves each package's install path to its extracted location under this root (distributed

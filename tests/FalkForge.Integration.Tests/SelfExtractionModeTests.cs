@@ -51,7 +51,8 @@ public sealed class SelfExtractionModeTests : IDisposable
             ExtractList: extractList,
             ExtractPackages: extractPackages ?? Array.Empty<string>(),
             BaseBundlePath: null,
-            RequireSigned: false);
+            RequireSigned: false,
+            IgnoreDependencies: false);
 
     private string BuildUnsignedBundle(byte[] payloadBytes, string packageId)
     {

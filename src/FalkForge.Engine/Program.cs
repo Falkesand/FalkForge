@@ -60,6 +60,7 @@ internal static partial class Program
         var sbomOutputPath = inv.SbomOutputPath;
         var baseBundlePath = inv.BaseBundlePath;
         var requireSigned = inv.RequireSigned;
+        var ignoreDependencies = inv.IgnoreDependencies;
 
         // Self-extraction mode: list or extract payloads and exit
         if (inv.ExtractList || inv.ExtractDir is not null)
@@ -71,7 +72,9 @@ internal static partial class Program
         if (manifestPath is null && EngineProgramHelpers.HasEmbeddedBundle())
         {
             var bootstrapperArgs = BootstrapperArgs.Parse(args);
-            return await BootstrapperRunner.RunAsync(programArgs, bootstrapperArgs, baseBundlePath, requireSigned);
+            return await BootstrapperRunner.RunAsync(
+                programArgs, bootstrapperArgs, baseBundlePath, requireSigned,
+                ignoreDependencies: ignoreDependencies);
         }
 
         if (manifestPath is null)
@@ -154,7 +157,8 @@ internal static partial class Program
                 LogPath = programArgs.LogPath,
                 MinimumLogLevel = programArgs.MinimumLogLevel,
                 IsPlanOnly = planOnly,
-                PlanOnlyOutputPath = planOutputPath
+                PlanOnlyOutputPath = planOutputPath,
+                IgnoreDependencies = ignoreDependencies
             });
 
         // Print the session correlation id so operators can grep all three log files

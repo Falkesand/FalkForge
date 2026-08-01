@@ -71,6 +71,16 @@ internal sealed class PipelineContext
     /// </summary>
     public bool SilentMode { get; set; }
 
+    /// <summary>
+    /// Escape hatch for the dependency-enforcement gate in <see cref="PlanStep"/>
+    /// (<c>--ignore-dependencies</c>). When <c>true</c>, both the uninstall-blocking-dependents check and
+    /// the install-missing-provider check are bypassed. Defaults to <c>false</c> — and, deliberately,
+    /// <see cref="SilentMode"/> does NOT imply it: silent uninstall is automation, exactly where silent
+    /// breakage from an unexpectedly-removed shared component hurts most. Only an explicit override
+    /// bypasses the gate.
+    /// </summary>
+    public bool IgnoreDependencies { get; set; }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Apply options — set at construction, consumed by ApplyStep
     // ──────────────────────────────────────────────────────────────────────────

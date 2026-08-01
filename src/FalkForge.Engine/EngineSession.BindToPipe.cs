@@ -297,7 +297,8 @@ public sealed partial class EngineSession
             // via this companion even when the process itself is not elevated (see the Populate
             // remarks in BuiltInVariables). companionExePath is resolved above from the
             // bootstrapper-verified path or the ambient probe, whichever policy applies.
-            .WithElevationCompanionAvailable(companionExePath is not null);
+            .WithElevationCompanionAvailable(companionExePath is not null)
+            .WithIgnoreDependencies(options.IgnoreDependencies);
 
         if (journalStore is not null)
             pipelineBuilder = pipelineBuilder
