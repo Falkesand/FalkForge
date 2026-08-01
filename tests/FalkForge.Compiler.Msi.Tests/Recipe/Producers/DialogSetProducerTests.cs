@@ -456,7 +456,6 @@ public sealed class DialogSetProducerTests
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
             [],
-            new MsiRecipeBuildOptions(),
             [new DialogSetProducer()]);
 
         Assert.True(result.IsSuccess);
@@ -494,7 +493,6 @@ public sealed class DialogSetProducerTests
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
             [],
-            new MsiRecipeBuildOptions(),
             [new DialogSetProducer()]);
 
         Assert.True(result.IsSuccess);
@@ -515,7 +513,6 @@ public sealed class DialogSetProducerTests
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
             [],
-            new MsiRecipeBuildOptions(),
             [new DialogSetProducer()]);
 
         Assert.True(result.IsSuccess);

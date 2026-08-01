@@ -257,7 +257,6 @@ public static partial class MsiAuthoring
         Result<MsiDatabaseRecipe> recipeResult = MsiRecipeBuilder.Build(
             resolved,
             contributors: extensionRegistry.TableContributors,
-            options: new MsiRecipeBuildOptions(),
             multiProducers: [new CustomTablesProducer(), new DialogSetProducer(msiDialogStepBuilders, options.DefaultCultureOverride)],
             extensionContext: extensionContext,
             logger: logger,

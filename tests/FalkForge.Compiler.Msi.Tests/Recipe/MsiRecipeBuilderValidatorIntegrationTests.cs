@@ -48,8 +48,7 @@ public sealed class MsiRecipeBuilderValidatorIntegrationTests
 
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);
@@ -97,8 +96,7 @@ public sealed class MsiRecipeBuilderValidatorIntegrationTests
 
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);

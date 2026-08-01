@@ -42,7 +42,6 @@ public static partial class MsiRecipeBuilder
     internal static Result<MsiDatabaseRecipe> Build(
         ResolvedPackage resolved,
         IReadOnlyList<IMsiTableContributor> contributors,
-        MsiRecipeBuildOptions options,
         IReadOnlyList<IMultiTableProducer> multiProducers,
         ExtensionContext? extensionContext = null,
         IFalkLogger? logger = null,
@@ -55,25 +54,23 @@ public static partial class MsiRecipeBuilder
                 "Multi-table producers list cannot be null.");
         }
 
-        return BuildCore(resolved, contributors, options, multiProducers, extensionContext, logger, executionContributors);
+        return BuildCore(resolved, contributors, multiProducers, extensionContext, logger, executionContributors);
     }
 
     /// <summary>
-    /// Build a recipe from the resolved package, extension contributors, and
-    /// build options. Returns <see cref="ErrorKind.Validation"/> failure for
-    /// any null argument; otherwise runs the built-in producer pipeline in a
-    /// fixed order and aggregates the resulting tables.
+    /// Build a recipe from the resolved package and extension contributors.
+    /// Returns <see cref="ErrorKind.Validation"/> failure for any null
+    /// argument; otherwise runs the built-in producer pipeline in a fixed
+    /// order and aggregates the resulting tables.
     /// </summary>
     public static Result<MsiDatabaseRecipe> Build(
         ResolvedPackage resolved,
-        IReadOnlyList<IMsiTableContributor> contributors,
-        MsiRecipeBuildOptions options)
-        => BuildCore(resolved, contributors, options, [], null, null);
+        IReadOnlyList<IMsiTableContributor> contributors)
+        => BuildCore(resolved, contributors, [], null, null);
 
     private static Result<MsiDatabaseRecipe> BuildCore(
         ResolvedPackage resolved,
         IReadOnlyList<IMsiTableContributor> contributors,
-        MsiRecipeBuildOptions options,
         IReadOnlyList<IMultiTableProducer> multiProducers,
         ExtensionContext? extensionContext,
         IFalkLogger? logger,
@@ -91,13 +88,6 @@ public static partial class MsiRecipeBuilder
             return Result<MsiDatabaseRecipe>.Failure(
                 ErrorKind.Validation,
                 "Contributors cannot be null.");
-        }
-
-        if (options is null)
-        {
-            return Result<MsiDatabaseRecipe>.Failure(
-                ErrorKind.Validation,
-                "Options cannot be null.");
         }
 
         RecipeBuildContext context = new(

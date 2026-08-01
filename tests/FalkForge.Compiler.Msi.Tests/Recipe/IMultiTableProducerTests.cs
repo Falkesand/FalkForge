@@ -70,7 +70,6 @@ public sealed class IMultiTableProducerTests
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
             [],
-            new MsiRecipeBuildOptions(),
             multiProducers);
 
         Assert.True(result.IsSuccess);
@@ -88,7 +87,6 @@ public sealed class IMultiTableProducerTests
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
             [],
-            new MsiRecipeBuildOptions(),
             []);
 
         Assert.True(result.IsSuccess);
@@ -104,7 +102,6 @@ public sealed class IMultiTableProducerTests
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
             [],
-            new MsiRecipeBuildOptions(),
             multiProducers);
 
         Assert.True(result.IsFailure);
@@ -121,7 +118,6 @@ public sealed class IMultiTableProducerTests
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
             [],
-            new MsiRecipeBuildOptions(),
             multiProducers);
 
         Assert.True(result.IsSuccess);
@@ -137,8 +133,7 @@ public sealed class IMultiTableProducerTests
 
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             resolved,
-            [],
-            new MsiRecipeBuildOptions());
+            []);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(35, result.Value.Tables.Length);

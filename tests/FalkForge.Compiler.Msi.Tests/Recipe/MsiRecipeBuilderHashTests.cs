@@ -23,8 +23,7 @@ public sealed class MsiRecipeBuilderHashTests
     {
         Result<MsiDatabaseRecipe> result = MsiRecipeBuilder.Build(
             MakeResolvedPackage("Test", "M"),
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(result.IsSuccess);
         Assert.False(result.Value.ContentHash.IsEmpty);
@@ -38,13 +37,11 @@ public sealed class MsiRecipeBuilderHashTests
 
         Result<MsiDatabaseRecipe> r1 = MsiRecipeBuilder.Build(
             resolved,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Result<MsiDatabaseRecipe> r2 = MsiRecipeBuilder.Build(
             resolved,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(r1.IsSuccess);
         Assert.True(r2.IsSuccess);
@@ -59,13 +56,11 @@ public sealed class MsiRecipeBuilderHashTests
 
         Result<MsiDatabaseRecipe> r1 = MsiRecipeBuilder.Build(
             a,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Result<MsiDatabaseRecipe> r2 = MsiRecipeBuilder.Build(
             b,
-            new List<IMsiTableContributor>(),
-            new MsiRecipeBuildOptions());
+            new List<IMsiTableContributor>());
 
         Assert.True(r1.IsSuccess);
         Assert.True(r2.IsSuccess);
@@ -101,10 +96,10 @@ public sealed class MsiRecipeBuilderHashTests
         Assert.NotEqual(instance1.InstanceId, instance2.InstanceId);
 
         Result<MsiDatabaseRecipe> r1 = MsiRecipeBuilder.Build(
-            instance1, new List<IMsiTableContributor>(), new MsiRecipeBuildOptions());
+            instance1, new List<IMsiTableContributor>());
 
         Result<MsiDatabaseRecipe> r2 = MsiRecipeBuilder.Build(
-            instance2, new List<IMsiTableContributor>(), new MsiRecipeBuildOptions());
+            instance2, new List<IMsiTableContributor>());
 
         Assert.True(r1.IsSuccess);
         Assert.True(r2.IsSuccess);
