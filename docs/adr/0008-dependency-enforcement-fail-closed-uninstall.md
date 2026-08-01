@@ -1,6 +1,6 @@
 # 8. Runtime dependency enforcement: fail-closed uninstall, fail-open install-write, narrow companion allowlist
 
-- Status: Accepted
+- Status: Superseded by ADR-0009
 - Date: 2026-08-01
 - Deciders: Peter Falkesand
 - Amended: 2026-08-01 — see note at the end of the Decision section. `DetectUnsatisfiedProviders`
