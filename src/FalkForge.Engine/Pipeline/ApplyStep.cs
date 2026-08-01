@@ -8,8 +8,11 @@ using FalkForge.Engine.Journal;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
+using FalkForge.Engine.Protocol.Dependencies;
 using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Engine.RestartManager;
+using FalkForge.Platform;
+using FalkForge.Platform.Dependencies;
 
 /// <summary>
 /// Apply phase step. Executes each <see cref="PlanAction"/> in the current plan
@@ -23,15 +26,18 @@ internal sealed class ApplyStep : IApplyStep
     private readonly PackageExecutor _executor;
     private readonly IRollbackJournalStore _journalStore;
     private readonly IUiChannel _uiChannel;
+    private readonly IRegistry? _registry;
 
     public ApplyStep(
         PackageExecutor executor,
         IRollbackJournalStore journalStore,
-        IUiChannel uiChannel)
+        IUiChannel uiChannel,
+        IRegistry? registry = null)
     {
         _executor = executor;
         _journalStore = journalStore;
         _uiChannel = uiChannel;
+        _registry = registry;
     }
 
     /// <inheritdoc/>
@@ -207,6 +213,17 @@ internal sealed class ApplyStep : IApplyStep
 
         await _uiChannel.SendAsync(new PipelineEvent.Progress(100, null), ct);
 
+        // Dependency enforcement write side: after every action has actually run (never in dry-run, and
+        // never reached at all if any action above failed and returned early), register this bundle's
+        // declared providers/consumers on install or unregister its own consumer entries on uninstall.
+        // Best-effort — a persistence failure here must never fail an otherwise-successful install/
+        // uninstall (Apply already ran; failing now would report a broken outcome for work that
+        // genuinely succeeded).
+        if (!ctx.IsDryRun && _registry is not null)
+        {
+            await RegisterOrUnregisterDependenciesAsync(ctx, ct);
+        }
+
         // C16: on the require-signed update path, advance the anti-downgrade/revocation store now that the
         // apply is verified AND completed (advancing after success, never before, prevents an attacker
         // priming the epoch — a forged epoch fails signature verification before apply). The write is
@@ -336,6 +353,93 @@ internal sealed class ApplyStep : IApplyStep
         }
 
         return paths;
+    }
+
+    /// <summary>
+    /// Registers this bundle's declared dependency providers/consumers on install, or unregisters ONLY
+    /// its own consumer entries on uninstall (Repair/Modify leave dependency registrations untouched — no
+    /// package is being newly installed or removed). <see cref="InstallScope.PerUser"/> writes directly
+    /// through <paramref name="ctx"/>'s injected <see cref="IRegistry"/> to <c>HKCU</c> — no elevation
+    /// needed. <see cref="InstallScope.PerMachine"/> forwards the same intent to the elevated companion's
+    /// <c>DependencyRegistration</c> command, which writes <c>HKLM</c>; when no elevation gateway is
+    /// available this run, the write is skipped with a warning rather than failing the install. Any
+    /// exception (registry access denied, elevated round-trip failure) is caught and logged as a warning —
+    /// this method must never turn an already-successful apply into a failure.
+    /// </summary>
+    private async Task RegisterOrUnregisterDependenciesAsync(PipelineContext ctx, CancellationToken ct)
+    {
+        var manifest = ctx.Manifest;
+        if (manifest is null)
+            return;
+
+        if (manifest.DependencyProviders.Length == 0 && manifest.DependencyConsumers.Length == 0)
+            return;
+
+        var action = ctx.PlanRequest?.Action;
+        if (action is not (InstallAction.Install or InstallAction.Uninstall))
+            return;
+
+        try
+        {
+            if (manifest.Scope == InstallScope.PerUser)
+            {
+                var registrar = new DependencyRegistrar(_registry!);
+                var root = DependencyRegistrationPaths.WriteRootForScope(InstallScope.PerUser);
+
+                if (action == InstallAction.Install)
+                {
+                    foreach (var provider in manifest.DependencyProviders)
+                        registrar.RegisterProvider(root, provider.Key, provider.Version, provider.DisplayName);
+
+                    foreach (var consumer in manifest.DependencyConsumers)
+                        registrar.RegisterConsumer(root, consumer.ProviderKey, consumer.ConsumerKey, manifest.BundleId);
+                }
+                else
+                {
+                    foreach (var consumer in manifest.DependencyConsumers)
+                        registrar.UnregisterConsumer(root, consumer.ProviderKey, consumer.ConsumerKey);
+                }
+
+                return;
+            }
+
+            // PerMachine: forward to the elevated companion.
+            if (ctx.ElevationGateway is null)
+            {
+                await _uiChannel.SendAsync(
+                    new PipelineEvent.Log(LogLevel.Warning,
+                        "Dependency registration skipped: no elevation available for this per-machine " +
+                        "install. Provider/consumer registration state was NOT updated."),
+                    ct);
+                return;
+            }
+
+            var opcode = action == InstallAction.Install
+                ? DependencyRegistrationOpcode.Register
+                : DependencyRegistrationOpcode.Unregister;
+            var providers = action == InstallAction.Install
+                ? manifest.DependencyProviders
+                : [];
+            var payload = DependencyRegistrationPayload.Serialize(
+                opcode, manifest.BundleId, providers, manifest.DependencyConsumers);
+
+            var sendResult = await ctx.ElevationGateway.SendCommandAsync(
+                "DependencyRegistration", payload, null, ct);
+            if (sendResult.IsFailure)
+            {
+                await _uiChannel.SendAsync(
+                    new PipelineEvent.Log(LogLevel.Warning,
+                        $"Dependency registration failed (install result unaffected): {sendResult.Error.Message}"),
+                    ct);
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+        {
+            await _uiChannel.SendAsync(
+                new PipelineEvent.Log(LogLevel.Warning,
+                    $"Dependency registration failed (install result unaffected): {ex.Message}"),
+                ct);
+        }
     }
 
     private static JournalEntry? BuildJournalEntry(PlanAction action)
