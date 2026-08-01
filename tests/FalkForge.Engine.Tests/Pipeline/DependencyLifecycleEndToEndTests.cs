@@ -230,6 +230,26 @@ public sealed class DependencyLifecycleEndToEndTests
         Assert.True(uninstallProvider.IsFailure);
         Assert.Equal(ErrorKind.PlanningError, uninstallProvider.Error.Kind);
         Assert.Contains("ConsumerB", uninstallProvider.Error.Message);
+        // D3: the surviving dependent was asserted present, but nothing ever asserted the REMOVED one
+        // is gone — a regression that re-listed every consumer ever registered (not just the still-
+        // active ones) would have passed this test forever without this line.
+        Assert.DoesNotContain("ConsumerA", uninstallProvider.Error.Message);
+    }
+
+    [Fact]
+    public async Task RefusedUninstall_MessageNames_IgnoreDependenciesEscapeHatch()
+    {
+        // D3: --ignore-dependencies is the user's ONLY escape hatch when a refusal is a false positive
+        // (or a deliberately accepted risk) — nothing previously pinned that the refusal message actually
+        // names it, so a future refactor of the message text could silently drop the mention.
+        var registry = new MockRegistry();
+        await RunLifecycleAsync(ProviderManifest("SharedLib"), InstallAction.Install, registry);
+        await RunLifecycleAsync(ConsumerManifest("SharedLib", "ConsumerApp"), InstallAction.Install, registry);
+
+        var uninstallProvider = await RunLifecycleAsync(ProviderManifest("SharedLib"), InstallAction.Uninstall, registry);
+
+        Assert.True(uninstallProvider.IsFailure);
+        Assert.Contains("--ignore-dependencies", uninstallProvider.Error.Message);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

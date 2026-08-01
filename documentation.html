@@ -5015,6 +5015,24 @@ Installer.BuildBundle(args, bundle =&gt;
     means other than its own uninstaller) — delete the stale subkey by hand, or pass
     <code>--ignore-dependencies</code> for that one run.
   </div>
+  <div class="note">
+    <strong>A stale provider row can also make a MISSING dependency look satisfied.</strong> The note
+    above covers the stale-refusal case (uninstall blocked by a leftover dependent); the opposite failure
+    mode is the reverse and is NOT covered by <code>--ignore-dependencies</code> or any manual cleanup
+    step above. A provider's own uninstall removes only its <em>consumer</em> registrations — the
+    provider's own row (which carries the <code>Version</code> value the install-time check reads) is
+    never removed, because the same key can legitimately be written by more than one product (an
+    MSI-authored dependency and a bundle-authored one sharing the same provider key, or multiple products
+    from the same vendor) and there is no reliable way to tell "the last one just uninstalled" from
+    "another provider of the same key is still present." So the row is deliberately left in place rather
+    than guessed away. The consequence: after the actual provider is gone, a stale row can make
+    <code>DetectUnsatisfiedProviders</code> read a leftover <code>Version</code> value and report the
+    requirement SATISFIED, letting a dependent install proceed against a shared component that is no
+    longer actually present. Earlier release notes describing "install refusal on missing dependency" as
+    an unconditional guarantee are stronger than what this mechanism actually provides once a provider has
+    been uninstalled and re-uninstalled without a corresponding orphan-collection pass (not built yet —
+    see ADR 0008).
+  </div>
 
   <!-- 9.4 MsuPackageBuilder -->
   <h3 id="bundle-msu-package-builder">9.4 MsuPackageBuilder</h3>

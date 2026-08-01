@@ -67,6 +67,58 @@ public sealed class DependencyRegistrationCommandTests
     }
 
     [Fact]
+    public void Execute_Unregister_BundleIdMismatch_RefusesWithSecurityError_LeavesEntryIntact()
+    {
+        // D2: Unregister previously matched by provider+consumer key ONLY, never checking that the
+        // requesting bundle actually owns the entry — even though RegisterConsumer already stamps a
+        // BundleId value for exactly this purpose. Without this check, an elevated (SYSTEM) command run
+        // on behalf of bundle A could delete bundle B's own consumer registration, then freely uninstall
+        // a shared provider out from under bundle B.
+        var registry = new MockRegistry();
+        var command = new DependencyRegistrationCommand(registry);
+        var ownerBundleId = BundleId;
+        var attackerBundleId = Guid.Parse("99999999-8888-7777-6666-555555555555");
+
+        var registerPayload = DependencyRegistrationPayload.Serialize(
+            DependencyRegistrationOpcode.Register, ownerBundleId,
+            [], [new ManifestDependencyConsumer("SharedLib", "AppA")]);
+        command.Execute(registerPayload);
+
+        var unregisterPayload = DependencyRegistrationPayload.Serialize(
+            DependencyRegistrationOpcode.Unregister, attackerBundleId,
+            [], [new ManifestDependencyConsumer("SharedLib", "AppA")]);
+
+        var result = command.Execute(unregisterPayload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.True(registry.KeyExists(
+            RegistryRoot.LocalMachine, DependencyRegistrationPaths.ConsumerKeyPath("SharedLib", "AppA")));
+    }
+
+    [Fact]
+    public void Execute_Unregister_MatchingBundleId_Succeeds()
+    {
+        var registry = new MockRegistry();
+        var command = new DependencyRegistrationCommand(registry);
+
+        var registerPayload = DependencyRegistrationPayload.Serialize(
+            DependencyRegistrationOpcode.Register, BundleId,
+            [], [new ManifestDependencyConsumer("SharedLib", "AppA")]);
+        command.Execute(registerPayload);
+
+        var unregisterPayload = DependencyRegistrationPayload.Serialize(
+            DependencyRegistrationOpcode.Unregister, BundleId,
+            [], [new ManifestDependencyConsumer("SharedLib", "AppA")]);
+
+        var result = command.Execute(unregisterPayload);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(registry.KeyExists(
+            RegistryRoot.LocalMachine, DependencyRegistrationPaths.ConsumerKeyPath("SharedLib", "AppA")));
+    }
+
+    [Fact]
     public void Execute_MalformedPayload_ReturnsSecurityErrorAndTouchesNothing()
     {
         var registry = new MockRegistry();
@@ -79,7 +131,9 @@ public sealed class DependencyRegistrationCommandTests
     }
 
     [Theory]
-    [InlineData(@"Foo\..\..\Classes")]
+    [InlineData(@"Foo\..\..\Classes")] // rejected by the BACKSLASH rule, not a dots-specific rule — see
+                                        // Execute_BareDotsWithoutBackslash_IsAllowed below for what the
+                                        // validator actually does with dots alone (no backslash/slash).
     [InlineData("Foo\\Bar")]
     [InlineData("")]
     [InlineData("SharedLib\n")] // proves the ^/$ -> \A/\z anchor fix: a bare `$` matches before a
@@ -116,6 +170,29 @@ public sealed class DependencyRegistrationCommandTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
+    [Fact]
+    public void Execute_BareDotsWithoutBackslash_IsAllowed()
+    {
+        // D4: bare dots with NO backslash/slash (e.g. "Foo..Classes") are ACCEPTED by the validator — dots
+        // are in the allowed character class, and Win32 registry key paths have no ".." parent-navigation
+        // semantic (see ADR 0008: "Win32 has no '..' relative-path escape"), so a dotted segment is just a
+        // literal key name, not a traversal vector. This documents that real behavior explicitly, since
+        // Execute_UnsafeConsumerKeySegment_RejectsWithSecurityError's `Foo\..\..\Classes` case is rejected
+        // by the BACKSLASH rule and proves nothing about dots on their own.
+        var registry = new MockRegistry();
+        var command = new DependencyRegistrationCommand(registry);
+        var payload = DependencyRegistrationPayload.Serialize(
+            DependencyRegistrationOpcode.Register, BundleId,
+            [],
+            [new ManifestDependencyConsumer("SharedLib", "Foo..Classes")]);
+
+        var result = command.Execute(payload);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(registry.KeyExists(
+            RegistryRoot.LocalMachine, DependencyRegistrationPaths.ConsumerKeyPath("SharedLib", "Foo..Classes")));
     }
 
     [Fact]
