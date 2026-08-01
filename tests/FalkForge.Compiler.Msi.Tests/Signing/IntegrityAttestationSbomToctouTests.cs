@@ -56,7 +56,8 @@ public sealed class IntegrityAttestationSbomToctouTests : IDisposable
         SigilDetector.Reset();
         if (Directory.Exists(_tempDir))
         {
-            try { Directory.Delete(_tempDir, recursive: true); } catch (IOException) { }
+            try { Directory.Delete(_tempDir, recursive: true); }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
         }
     }
 

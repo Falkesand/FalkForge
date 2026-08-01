@@ -110,6 +110,10 @@ public sealed class MajorUpgradeEmissionTests
             return;
         var parent = Path.GetDirectoryName(dir);
         if (parent is not null && Directory.Exists(parent))
-            Directory.Delete(parent, recursive: true);
+        {
+            // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
+            try { Directory.Delete(parent, recursive: true); }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+        }
     }
 }

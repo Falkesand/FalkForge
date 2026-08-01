@@ -35,7 +35,17 @@ public sealed class BuildCommandSigningTests : IDisposable
         foreach (var name in _envVarsToClear)
             Environment.SetEnvironmentVariable(name, null);
         if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, recursive: true);
+        {
+            try
+            {
+                Directory.Delete(_tempDir, recursive: true);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+            {
+                // Best-effort cleanup; a locked file or transient I/O error here must not
+                // masquerade as a test failure via an escaping teardown exception.
+            }
+        }
     }
 
     private static CommandContext CreateContext() =>

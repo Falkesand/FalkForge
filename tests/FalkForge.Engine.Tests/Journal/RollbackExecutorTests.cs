@@ -26,7 +26,7 @@ public sealed class RollbackExecutorTests : IDisposable
             if (Directory.Exists(_tempDir))
                 Directory.Delete(_tempDir, recursive: true);
         }
-        catch (IOException) { }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
     }
 
     [Fact]

@@ -28,8 +28,15 @@ public sealed class CabinetBuilderSbomToctouTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, recursive: true);
+        // Cleanup is best-effort; a locked handle or transient I/O error must not fail the test.
+        try
+        {
+            if (Directory.Exists(_tempDir))
+                Directory.Delete(_tempDir, recursive: true);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+        {
+        }
     }
 
     [Fact]

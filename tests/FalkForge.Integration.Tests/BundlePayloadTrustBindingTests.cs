@@ -131,7 +131,8 @@ public sealed class BundlePayloadTrustBindingTests
         }
         finally
         {
-            Directory.Delete(dir, recursive: true);
+            try { Directory.Delete(dir, recursive: true); }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
         }
     }
 
@@ -189,7 +190,8 @@ public sealed class BundlePayloadTrustBindingTests
         }
         finally
         {
-            Directory.Delete(dir, recursive: true);
+            try { Directory.Delete(dir, recursive: true); }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
         }
     }
 }

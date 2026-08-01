@@ -173,7 +173,8 @@ public sealed class EngineSessionTests
         finally
         {
             var dir = Path.GetDirectoryName(logPath)!;
-            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+            try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
         }
 
         // At least one log entry must have been emitted with a non-empty correlation id.
@@ -212,7 +213,8 @@ public sealed class EngineSessionTests
         finally
         {
             var dir = Path.GetDirectoryName(logPath)!;
-            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+            try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
         }
     }
 }

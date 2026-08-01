@@ -34,7 +34,7 @@ public sealed class MsiAuthoringTests : IDisposable
             {
                 Directory.Delete(_tempDir, recursive: true);
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
             {
                 // Best-effort cleanup; msi.dll occasionally retains a brief
                 // handle on the file even after Dispose.

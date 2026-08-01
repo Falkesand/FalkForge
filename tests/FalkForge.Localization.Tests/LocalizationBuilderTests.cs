@@ -16,8 +16,16 @@ public sealed class LocalizationBuilderTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, recursive: true);
+        try
+        {
+            if (Directory.Exists(_tempDir))
+                Directory.Delete(_tempDir, recursive: true);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+        {
+            // Best effort cleanup — a locked handle or transient I/O error here must not
+            // masquerade as a test failure via an escaping Dispose exception.
+        }
     }
 
     private string WriteJsonFile(string fileName, string content)

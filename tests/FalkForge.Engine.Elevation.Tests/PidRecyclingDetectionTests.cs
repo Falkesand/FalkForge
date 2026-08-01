@@ -192,7 +192,7 @@ public sealed class PidRecyclingDetectionTests
             writerField.SetValue(null, null);
             initializedField.SetValue(null, false);
 
-            try { Directory.Delete(tempDir, recursive: true); } catch { /* best-effort */ }
+            try { Directory.Delete(tempDir, recursive: true); } catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best-effort */ }
         }
     }
 }

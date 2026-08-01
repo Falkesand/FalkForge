@@ -338,7 +338,7 @@ public sealed class DialogSetTests
         if (parentDir is not null && Directory.Exists(parentDir))
         {
             try { Directory.Delete(parentDir, true); }
-            catch { /* Best effort cleanup */ }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* Best effort cleanup */ }
         }
     }
 }

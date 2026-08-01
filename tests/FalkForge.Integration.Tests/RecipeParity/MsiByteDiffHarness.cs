@@ -330,13 +330,9 @@ internal static class MsiByteDiffHarness
             if (Directory.Exists(path))
                 Directory.Delete(path, recursive: true);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {
             // Best-effort; OS will reclaim on next boot.
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Same — best-effort only.
         }
     }
 }

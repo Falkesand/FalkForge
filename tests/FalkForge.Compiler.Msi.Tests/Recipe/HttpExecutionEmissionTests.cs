@@ -329,7 +329,10 @@ public sealed class HttpExecutionEmissionTests
         public void Dispose()
         {
             if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
+            {
+                try { Directory.Delete(_root, recursive: true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            }
         }
     }
 }

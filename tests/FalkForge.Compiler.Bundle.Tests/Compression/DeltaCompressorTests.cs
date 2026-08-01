@@ -196,7 +196,14 @@ public sealed class DeltaCompressorTests
         }
         finally
         {
-            Directory.Delete(tempDir, recursive: true);
+            // Cleanup is best-effort; a locked handle or transient I/O error must not fail the test.
+            try
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+            {
+            }
         }
     }
 }

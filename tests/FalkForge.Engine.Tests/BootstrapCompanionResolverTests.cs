@@ -26,8 +26,12 @@ public sealed class BootstrapCompanionResolverTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_cacheDir))
-            Directory.Delete(_cacheDir, recursive: true);
+        try
+        {
+            if (Directory.Exists(_cacheDir))
+                Directory.Delete(_cacheDir, recursive: true);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
     }
 
     private static InstallerManifest Manifest(string? companionSha256) => new()

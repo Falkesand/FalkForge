@@ -294,7 +294,7 @@ public sealed class FileWriteCommandTests : IDisposable
             if (Directory.Exists(_tempDir))
                 Directory.Delete(_tempDir, recursive: true);
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {
             // Best-effort cleanup
         }

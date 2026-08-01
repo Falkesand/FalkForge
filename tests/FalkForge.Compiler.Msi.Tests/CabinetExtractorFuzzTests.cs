@@ -43,7 +43,10 @@ public sealed class CabinetExtractorFuzzTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_tempDir))
-            try { Directory.Delete(_tempDir, recursive: true); } catch { /* best-effort */ }
+        {
+            // Cleanup is best-effort; a locked handle or transient I/O error must not fail the test.
+            try { Directory.Delete(_tempDir, recursive: true); } catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+        }
     }
 
     /// <summary>

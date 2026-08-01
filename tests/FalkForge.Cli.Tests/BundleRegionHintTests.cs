@@ -129,7 +129,15 @@ public sealed class BundleRegionHintTests
         }
         finally
         {
-            Directory.Delete(dir, recursive: true);
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+            {
+                // Best-effort cleanup; a locked file or transient I/O error here must not
+                // masquerade as a test failure via an escaping teardown exception.
+            }
         }
     }
 }

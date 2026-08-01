@@ -36,7 +36,11 @@ public sealed class BundleReaderContainmentTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_sandboxRoot))
-            Directory.Delete(_sandboxRoot, true);
+        {
+            // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
+            try { Directory.Delete(_sandboxRoot, true); }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+        }
     }
 
     /// <summary>

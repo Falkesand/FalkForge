@@ -125,7 +125,7 @@ public sealed class ExtractedPayloadInstallPathRegressionTests
         }
         finally
         {
-            try { Directory.Delete(cacheDir, recursive: true); } catch (IOException) { /* best effort */ }
+            try { Directory.Delete(cacheDir, recursive: true); } catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
         }
     }
 
