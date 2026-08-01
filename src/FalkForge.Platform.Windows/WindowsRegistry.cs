@@ -31,6 +31,21 @@ public sealed class WindowsRegistry : IRegistry
         return key?.GetSubKeyNames() ?? [];
     }
 
+    public Result<IReadOnlyList<string>> TryReadSubKeyNames(RegistryRoot rootKey, string subKey)
+    {
+        try
+        {
+            using var key = GetRootKey(rootKey).OpenSubKey(subKey);
+            IReadOnlyList<string> names = key?.GetSubKeyNames() ?? [];
+            return Result<IReadOnlyList<string>>.Success(names);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        {
+            return Result<IReadOnlyList<string>>.Failure(ErrorKind.SecurityError,
+                $"Failed to read registry subkeys under '{rootKey}\\{subKey}': {ex.Message}");
+        }
+    }
+
     public void SetStringValue(RegistryRoot rootKey, string subKey, string valueName, string value)
     {
         using var key = GetRootKey(rootKey).CreateSubKey(subKey, writable: true);
