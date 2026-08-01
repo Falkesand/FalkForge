@@ -19,7 +19,8 @@ public sealed class SbomIntegrationTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_tempDir, recursive: true); } catch { }
+        try { Directory.Delete(_tempDir, recursive: true); }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
     }
 
     [Fact]

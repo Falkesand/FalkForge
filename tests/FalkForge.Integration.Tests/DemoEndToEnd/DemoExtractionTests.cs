@@ -108,6 +108,7 @@ public sealed class DemoExtractionTests : IDisposable
 
     public void Dispose()
     {
-        try { Directory.Delete(_extractRoot, true); } catch { }
+        try { Directory.Delete(_extractRoot, true); }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
     }
 }

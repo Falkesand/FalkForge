@@ -307,7 +307,7 @@ public sealed class PackageCodeDerivationTests
             if (System.IO.Directory.Exists(path))
                 System.IO.Directory.Delete(path, recursive: true);
         }
-        catch (System.IO.IOException)
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {
             // Best-effort cleanup — test isolation is not affected.
         }

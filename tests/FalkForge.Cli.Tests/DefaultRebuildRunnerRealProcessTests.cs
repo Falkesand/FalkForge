@@ -116,12 +116,10 @@ public sealed class DefaultRebuildRunnerRealProcessTests
                     Directory.Delete(tempDir, recursive: true);
                 return;
             }
-            catch (IOException)
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
             {
-                Thread.Sleep(200);
-            }
-            catch (UnauthorizedAccessException)
-            {
+                // Best-effort cleanup; a locked file or transient I/O error here must not
+                // masquerade as a test failure via an escaping teardown exception.
                 Thread.Sleep(200);
             }
         }

@@ -51,13 +51,9 @@ public sealed class NuGetConsumerEndToEndTests : IDisposable
             if (Directory.Exists(_tempDir))
                 Directory.Delete(_tempDir, recursive: true);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {
             // Best-effort cleanup: a straggling tool process may still hold a handle briefly.
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // Same best-effort rationale as above.
         }
     }
 

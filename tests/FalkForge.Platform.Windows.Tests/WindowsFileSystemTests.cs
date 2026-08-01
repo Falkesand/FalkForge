@@ -31,7 +31,7 @@ public sealed class WindowsFileSystemTests : IDisposable
         catch { /* best-effort */ }
 
         try { Directory.Delete(_tempDir, recursive: true); }
-        catch (IOException) { /* best-effort */ }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best-effort */ }
     }
 
     private string MakeFile(string name, string content = "x")

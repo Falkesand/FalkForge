@@ -69,7 +69,11 @@ public sealed class FileVitalRoundTripTests
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+            }
         }
     }
 }

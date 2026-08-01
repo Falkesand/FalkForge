@@ -322,7 +322,11 @@ public sealed class FeatureComponentRefsRoundTripTests
         public void Dispose()
         {
             if (Directory.Exists(_root))
-                Directory.Delete(_root, true);
+            {
+                // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
+                try { Directory.Delete(_root, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+            }
         }
     }
 }

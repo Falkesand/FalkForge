@@ -323,8 +323,12 @@ public sealed class UndoOperationTests
         }
         finally
         {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, recursive: true);
+            try
+            {
+                if (Directory.Exists(tempDir))
+                    Directory.Delete(tempDir, recursive: true);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
         }
     }
 
@@ -345,8 +349,12 @@ public sealed class UndoOperationTests
         }
         finally
         {
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, recursive: true);
+            try
+            {
+                if (Directory.Exists(tempDir))
+                    Directory.Delete(tempDir, recursive: true);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
         }
     }
 

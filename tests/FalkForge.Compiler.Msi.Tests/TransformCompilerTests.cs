@@ -28,7 +28,8 @@ public sealed class TransformCompilerTests : IDisposable
     {
         if (Directory.Exists(_tempDir))
         {
-            try { Directory.Delete(_tempDir, recursive: true); } catch (IOException) { }
+            // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
+            try { Directory.Delete(_tempDir, recursive: true); } catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
         }
     }
 

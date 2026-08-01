@@ -158,8 +158,12 @@ public sealed class PackageFeatureAdvertiseStepTests
         }
         finally
         {
-            if (Directory.Exists(workDir))
-                Directory.Delete(workDir, recursive: true);
+            try
+            {
+                if (Directory.Exists(workDir))
+                    Directory.Delete(workDir, recursive: true);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
         }
     }
 
@@ -209,8 +213,12 @@ public sealed class PackageFeatureAdvertiseStepTests
         }
         finally
         {
-            if (Directory.Exists(workDir))
-                Directory.Delete(workDir, recursive: true);
+            try
+            {
+                if (Directory.Exists(workDir))
+                    Directory.Delete(workDir, recursive: true);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
         }
     }
 
@@ -244,8 +252,12 @@ public sealed class PackageFeatureAdvertiseStepTests
         }
         finally
         {
-            if (Directory.Exists(workDir))
-                Directory.Delete(workDir, recursive: true);
+            try
+            {
+                if (Directory.Exists(workDir))
+                    Directory.Delete(workDir, recursive: true);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
         }
     }
 }

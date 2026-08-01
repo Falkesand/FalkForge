@@ -42,7 +42,7 @@ public sealed class ElevationSecurityLogCorrelationTests : IDisposable
             if (Directory.Exists(_tempDir))
                 Directory.Delete(_tempDir, recursive: true);
         }
-        catch { /* best-effort */ }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best-effort */ }
     }
 
     private string InjectFreshWriter()

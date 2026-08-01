@@ -21,7 +21,7 @@ public sealed class PayloadDownloaderTests : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(_tempDir, recursive: true); }
-        catch (IOException) { /* best effort cleanup */ }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort cleanup */ }
     }
 
     [Fact]

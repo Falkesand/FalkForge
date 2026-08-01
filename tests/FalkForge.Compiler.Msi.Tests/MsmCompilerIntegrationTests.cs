@@ -60,7 +60,10 @@ public sealed class MsmCompilerIntegrationTests
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            }
         }
     }
 
@@ -95,7 +98,10 @@ public sealed class MsmCompilerIntegrationTests
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            }
         }
     }
 
@@ -127,7 +133,10 @@ public sealed class MsmCompilerIntegrationTests
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            }
         }
     }
 
@@ -163,7 +172,10 @@ public sealed class MsmCompilerIntegrationTests
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            }
         }
     }
 
@@ -209,7 +221,10 @@ public sealed class MsmCompilerIntegrationTests
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            }
         }
     }
 
@@ -238,7 +253,10 @@ public sealed class MsmCompilerIntegrationTests
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            }
         }
     }
 
@@ -274,7 +292,10 @@ public sealed class MsmCompilerIntegrationTests
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            }
         }
     }
 }

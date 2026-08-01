@@ -281,7 +281,10 @@ public sealed class UtilExecutionEmissionTests
         finally
         {
             if (Directory.Exists(targetDir))
-                Directory.Delete(targetDir, recursive: true);
+            {
+                try { Directory.Delete(targetDir, recursive: true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            }
         }
     }
 
@@ -402,7 +405,10 @@ public sealed class UtilExecutionEmissionTests
         public void Dispose()
         {
             if (Directory.Exists(_root))
-                Directory.Delete(_root, recursive: true);
+            {
+                try { Directory.Delete(_root, recursive: true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            }
         }
     }
 }

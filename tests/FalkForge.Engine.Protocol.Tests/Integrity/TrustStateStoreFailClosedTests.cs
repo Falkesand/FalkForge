@@ -170,6 +170,6 @@ public sealed class TrustStateStoreFailClosedTests
             if (dir is not null && Directory.Exists(dir))
                 Directory.Delete(dir, recursive: true);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* best effort */ }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
     }
 }

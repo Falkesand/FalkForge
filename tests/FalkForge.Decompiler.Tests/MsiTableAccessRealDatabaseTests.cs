@@ -93,7 +93,7 @@ public sealed class MsiTableAccessRealDatabaseTests : IClassFixture<MsiTableAcce
             if (Directory.Exists(_tempDir))
             {
                 try { Directory.Delete(_tempDir, recursive: true); }
-                catch { /* best effort */ }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
             }
         }
     }
@@ -120,7 +120,11 @@ public sealed class MsiTableAccessRealDatabaseTests : IClassFixture<MsiTableAcce
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+            }
         }
     }
 
@@ -142,7 +146,11 @@ public sealed class MsiTableAccessRealDatabaseTests : IClassFixture<MsiTableAcce
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+            }
         }
     }
 
@@ -167,7 +175,11 @@ public sealed class MsiTableAccessRealDatabaseTests : IClassFixture<MsiTableAcce
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+            }
         }
     }
 
@@ -207,7 +219,11 @@ public sealed class MsiTableAccessRealDatabaseTests : IClassFixture<MsiTableAcce
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+            }
         }
     }
 
@@ -247,7 +263,11 @@ public sealed class MsiTableAccessRealDatabaseTests : IClassFixture<MsiTableAcce
         finally
         {
             if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
+            {
+                // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
+                try { Directory.Delete(tempDir, true); }
+                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+            }
         }
     }
 
