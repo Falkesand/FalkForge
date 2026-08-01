@@ -4,6 +4,7 @@ using FalkForge.Engine.Execution;
 using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Planning;
 using FalkForge.Engine.Protocol;
+using FalkForge.Engine.Protocol.Dependencies;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Tests.Mocks;
 using FalkForge.Platform.Dependencies;
@@ -269,6 +270,75 @@ public sealed class ApplyStepDependencyRegistrationTests
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         Assert.Contains(gateway.SentCommands, c => c.CommandName == "DependencyRegistration");
+    }
+
+    [Fact]
+    public async Task Install_PerMachine_SendsRegisterOpcode_WithProviderAndConsumerContent()
+    {
+        // Commit B: every prior PerMachine assertion in this suite stopped at "a command named
+        // DependencyRegistration was sent" — nothing ever decoded the payload. A mutant that swaps
+        // Install<->Uninstall opcode mapping (see ApplyStep.RegisterOrUnregisterDependenciesAsync)
+        // would pass every test that only checks the command name; this one actually decodes the wire
+        // payload and pins the opcode + provider/consumer content.
+        var registry = new MockRegistry();
+        var gateway = InProcessElevationGateway.AlwaysSucceeds();
+        await gateway.StartAsync(CancellationToken.None);
+
+        var pkg = ExePackage();
+        var ctx = new PipelineContext
+        {
+            Manifest = ManifestWithDependencies(InstallScope.PerMachine, pkg),
+            Plan = PlanFor(pkg, PlanActionType.Install),
+            PlanRequest = RequestFor(InstallAction.Install),
+            ElevationGateway = gateway
+        };
+
+        var step = new ApplyStep(SucceedingExecutor(), new InMemoryJournalStore(), new FakeUiChannel(), registry);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var sent = Assert.Single(gateway.SentCommands, c => c.CommandName == "DependencyRegistration");
+        Assert.True(DependencyRegistrationPayload.TryDeserialize(
+            sent.Payload, out var opcode, out var bundleId, out var providers, out var consumers));
+        Assert.Equal(DependencyRegistrationOpcode.Register, opcode);
+        Assert.Equal(BundleId, bundleId);
+        var provider = Assert.Single(providers);
+        Assert.Equal("SharedLib", provider.Key);
+        Assert.Equal("1.0.0", provider.Version);
+        var consumer = Assert.Single(consumers);
+        Assert.Equal("SharedLib", consumer.ProviderKey);
+        Assert.Equal("AppA", consumer.ConsumerKey);
+    }
+
+    [Fact]
+    public async Task Uninstall_PerMachine_SendsUnregisterOpcode_WithConsumerContent_NoProviders()
+    {
+        var registry = new MockRegistry();
+        var gateway = InProcessElevationGateway.AlwaysSucceeds();
+        await gateway.StartAsync(CancellationToken.None);
+
+        var pkg = ExePackage();
+        var ctx = new PipelineContext
+        {
+            Manifest = ManifestWithDependencies(InstallScope.PerMachine, pkg),
+            Plan = PlanFor(pkg, PlanActionType.Uninstall),
+            PlanRequest = RequestFor(InstallAction.Uninstall),
+            ElevationGateway = gateway
+        };
+
+        var step = new ApplyStep(SucceedingExecutor(), new InMemoryJournalStore(), new FakeUiChannel(), registry);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var sent = Assert.Single(gateway.SentCommands, c => c.CommandName == "DependencyRegistration");
+        Assert.True(DependencyRegistrationPayload.TryDeserialize(
+            sent.Payload, out var opcode, out var bundleId, out var providers, out var consumers));
+        Assert.Equal(DependencyRegistrationOpcode.Unregister, opcode);
+        Assert.Equal(BundleId, bundleId);
+        Assert.Empty(providers);
+        var consumer = Assert.Single(consumers);
+        Assert.Equal("SharedLib", consumer.ProviderKey);
+        Assert.Equal("AppA", consumer.ConsumerKey);
     }
 
     [Fact]
