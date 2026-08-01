@@ -36,7 +36,6 @@ public sealed class OdbcSourceAttributeTableContributorTests
             Name = "My Data Source",
             DriverName = "My ODBC Driver",
             Registration = OdbcRegistration.PerMachine,
-            ComponentRef = "MainComponent",
             Properties = new Dictionary<string, string>
             {
                 ["Server"] = "localhost",
@@ -63,8 +62,7 @@ public sealed class OdbcSourceAttributeTableContributorTests
             Id = "MyDSN",
             Name = "My Data Source",
             DriverName = "My ODBC Driver",
-            Registration = OdbcRegistration.PerMachine,
-            ComponentRef = "MainComponent"
+            Registration = OdbcRegistration.PerMachine
         });
 
         var contributor = new OdbcSourceAttributeTableContributor(dataSources);

@@ -52,6 +52,15 @@ public sealed class ContributedColumn
     /// <summary>Whether this column participates in the table's primary key.</summary>
     public bool PrimaryKey { get; init; }
 
+    /// <summary>
+    /// Optional guidance appended to the compiler's "missing value for non-nullable column"
+    /// error. A non-nullable column is the mechanism by which a contributor turns an
+    /// unresolvable reference into a build failure rather than a silently dropped cell, but
+    /// the generic message names only the table and column. This carries the contributor's own
+    /// explanation — which builder call feeds the column, and what to fix — into that error.
+    /// </summary>
+    public string? MissingValueHint { get; init; }
+
     /// <summary>Creates a non-nullable primary-key string column (MSI identifier width by default).</summary>
     public static ContributedColumn Key(string name, int width = 72)
         => new() { Name = name, Type = ContributedColumnType.String, Width = width, PrimaryKey = true };

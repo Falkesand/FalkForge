@@ -181,12 +181,14 @@ EXE format: [PE stub][Magic:"FALKBUNDLE"][Manifest][Compressed payloads][TOC][Fo
 Known gap: `Reproducible()` + `Integrity()` on bundles is not byte-identical yet (signature embedded in-band; MSI moves it to a sidecar). Post-beta task.
 
 ## Extensibility (`src/FalkForge.Extensibility/`)
-IFalkForgeExtension (Name + Register), IComponentContributor, IMsiTableContributor, IExtensionValidator, ExtensionContext, MsiTableRow. Extensions attach via `new MsiCompiler().Use(extension)` — no auto-discovery (NativeAOT, explicit by design).
+IFalkForgeExtension (Name + Register), IComponentContributor, IMsiTableContributor, IExtensionValidator, ExtensionContext, MsiTableRow, ContributedColumn, ResolvedFileRef. Extensions attach via `new MsiCompiler().Use(extension)` — no auto-discovery (NativeAOT, explicit by design).
+
+`ExtensionContext.ResolvedFiles` / `.ResolvedComponentIds` publish the compiler-generated `File` / `Component` table keys, so a contributor whose table carries external keys into those tables **derives** them from a file the author declared rather than asking for a value no author can know. Extension custom tables are exempt from the recipe foreign-key validator (see `MsiRecipeBuilder.ValidateBuiltInTables`), so a guessed key would build clean and install nothing; declare such a column non-nullable and give it a `ContributedColumn.MissingValueHint` so an unresolved reference fails the build with actionable text.
 
 ## Extensions
 | Extension | Key Types | Error Codes |
 |-----------|-----------|-------------|
-| Util | XmlConfig, UserMgmt, FileShare, QuietExec, RemoveFolderEx, InternetShortcut | XCF001-009 |
+| Util | XmlConfig, UserMgmt, FileShare, QuietExec, RemoveFolderEx, InternetShortcut, Odbc (driver/data-source/source-attribute + InstallODBC/RemoveODBC sequencing; File_/Component_ derived from the declared driver DLL) | XCF001-009, ODB001 |
 | Dependency | DependencyProvider/ConsumerModel, Provider/ConsumerBuilder, DependencyExtension (Provides/Requires), DependencyValidator, DependencyTableContributor (HKLM registry) | DEP001-007 |
 | Firewall | Firewall rule definitions | FWL001-004 |
 | DotNet | Registry + filesystem probing | NET001-003 |

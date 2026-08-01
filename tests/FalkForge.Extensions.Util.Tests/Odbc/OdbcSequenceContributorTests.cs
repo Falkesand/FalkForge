@@ -46,8 +46,7 @@ public sealed class OdbcSequenceContributorTests
         {
             Id = "Drv1",
             DriverName = "Driver One",
-            FileName = "drv1.dll",
-            ComponentRef = "MainComponent"
+            FileName = "drv1.dll"
         });
 
         var contributor = new OdbcSequenceContributor(drivers, new OdbcDataSourceTableContributor());
@@ -68,8 +67,7 @@ public sealed class OdbcSequenceContributorTests
             Id = "DSN1",
             Name = "Source One",
             DriverName = "Driver One",
-            Registration = OdbcRegistration.PerMachine,
-            ComponentRef = "MainComponent"
+            Registration = OdbcRegistration.PerMachine
         });
 
         var contributor = new OdbcSequenceContributor(new OdbcDriverTableContributor(), dataSources);
