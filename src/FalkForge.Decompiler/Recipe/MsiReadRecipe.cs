@@ -35,4 +35,12 @@ public sealed record MsiReadRecipe
     /// </summary>
     public IReadOnlyDictionary<string, IReadOnlyList<object>> ExtensionRows { get; init; }
         = ImmutableDictionary<string, IReadOnlyList<object>>.Empty;
+
+    /// <summary>
+    /// Every table name present in the source MSI database (from <see cref="IMsiTableAccess.GetTableNames"/>),
+    /// including MSI-internal catalog tables (e.g. <c>_Tables</c>). Used by the migration report to
+    /// name tables the migrator read nothing from, so a dropped table can never be silently reported
+    /// as "all mapped". Empty only when the table-name query itself could not be run (defensive default).
+    /// </summary>
+    public IReadOnlyList<string> AllTableNames { get; init; } = [];
 }

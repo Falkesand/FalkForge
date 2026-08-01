@@ -1,4 +1,6 @@
+using System.Collections.Frozen;
 using System.Text;
+using FalkForge.Decompiler.Recipe.Schemas;
 using FalkForge.Models;
 
 namespace FalkForge.Decompiler;
@@ -91,7 +93,8 @@ internal static class MigrationMsiEmitter
                 """;
     }
 
-    internal static string BuildReport(string inputPath, MigrationOptions options, PackageModel model)
+    internal static string BuildReport(
+        string inputPath, MigrationOptions options, PackageModel model, IReadOnlyList<string> unmappedTableNames)
     {
         var fileName = Path.GetFileName(inputPath);
         var ext      = Path.GetExtension(inputPath).ToUpperInvariant().TrimStart('.');
@@ -114,17 +117,63 @@ internal static class MigrationMsiEmitter
 
                 No unmapped WiX features (this is an MSI source, not a WiX bundle).
 
-                {BuildNotMigratedSection(model)}
+                {BuildNotMigratedSection(model, unmappedTableNames)}
                 """;
     }
 
     /// <summary>
-    /// Honestly lists model feature categories that are present in the decompiled
-    /// <paramref name="model"/> but are NOT yet emitted by <see cref="CSharpEmitter"/>,
-    /// so the migrator knows exactly what to re-add by hand. Returns a positive
-    /// "all mapped" note when nothing is dropped.
+    /// MSI tables the migrator demonstrably reads: every core <see cref="TableReadSchema{TRow}.TableName"/>
+    /// this assembly's <see cref="MsiDecompiler"/> queries, built from the schema objects themselves so
+    /// this set cannot silently drift from the code that actually does the reading. Extension-contributed
+    /// tables (<see cref="Recipe.MsiReadRecipe.ExtensionRows"/>) are unioned in per-call, since which
+    /// extensions are registered varies by caller.
     /// </summary>
-    internal static string BuildNotMigratedSection(PackageModel model)
+    private static readonly FrozenSet<string> CoreMappedTableNames = new[]
+    {
+        PropertySchema.Schema.TableName,
+        DirectorySchema.Schema.TableName,
+        ComponentSchema.Schema.TableName,
+        FileSchema.Schema.TableName,
+        FeatureSchema.Schema.TableName,
+        FeatureComponentsSchema.Schema.TableName,
+        RegistrySchema.Schema.TableName,
+        ServiceSchema.Schema.TableName,
+        ShortcutSchema.Schema.TableName,
+        UpgradeSchema.Schema.TableName,
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Computes the MSI tables present in the source database that neither a core schema
+    /// nor a registered extension contributor reads. Deliberately NOT a hardcoded deny-list
+    /// of "known extension tables" — that would still silently drop a table nobody thought
+    /// of. Instead this is "present minus demonstrably read", so an unknown table is loud by
+    /// construction. MSI-internal catalog tables (leading underscore, e.g. <c>_Tables</c>,
+    /// <c>_Columns</c>, <c>_Validation</c>) are excluded — those were never migratable data.
+    /// Result is sorted for deterministic report output.
+    /// </summary>
+    internal static IReadOnlyList<string> ComputeUnmappedTableNames(
+        IReadOnlyList<string> allTableNames,
+        IReadOnlyDictionary<string, IReadOnlyList<object>> extensionRows)
+    {
+        var mapped = extensionRows.Count == 0
+            ? CoreMappedTableNames
+            : CoreMappedTableNames.Union(extensionRows.Keys).ToFrozenSet(StringComparer.Ordinal);
+
+        return allTableNames
+            .Where(name => !name.StartsWith('_') && !mapped.Contains(name))
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Honestly lists model feature categories that are present in the decompiled
+    /// <paramref name="model"/> but are NOT yet emitted by <see cref="CSharpEmitter"/>, and
+    /// MSI tables present in the source (<paramref name="unmappedTableNames"/>) that no core
+    /// schema or extension contributor reads at all — so the migrator knows exactly what was
+    /// dropped and cannot be recovered from the generated project. Returns a positive
+    /// "all mapped" note only when BOTH lists are empty.
+    /// </summary>
+    internal static string BuildNotMigratedSection(PackageModel model, IReadOnlyList<string> unmappedTableNames)
     {
         var dropped = new List<string>();
 
@@ -138,16 +187,34 @@ internal static class MigrationMsiEmitter
         if (model.Fonts.Count > 0)                 dropped.Add("fonts");
         if (model.Permissions.Count > 0)           dropped.Add("permissions");
 
-        if (dropped.Count == 0)
+        if (dropped.Count == 0 && unmappedTableNames.Count == 0)
             return "## Not yet migrated\n\nAll present features were mapped.";
 
         var sb = new StringBuilder("## Not yet migrated\n\n");
-        sb.AppendLine(
-            "The following features are present in the source installer but are NOT yet emitted "
-            + "by the migrator. Re-add them manually in `Program.cs`:");
-        sb.AppendLine();
-        foreach (var item in dropped)
-            sb.Append("- ").AppendLine(item);
+
+        if (dropped.Count > 0)
+        {
+            sb.AppendLine(
+                "The following features are present in the source installer but are NOT yet emitted "
+                + "by the migrator. Re-add them manually in `Program.cs`:");
+            sb.AppendLine();
+            foreach (var item in dropped)
+                sb.Append("- ").AppendLine(item);
+        }
+
+        if (unmappedTableNames.Count > 0)
+        {
+            if (dropped.Count > 0)
+                sb.AppendLine();
+
+            sb.AppendLine(
+                "The following MSI tables are present in the source database but are not read by the "
+                + "migrator at all. Their rows were dropped before ever reaching the decompiled model "
+                + "and cannot be recovered from the generated project:");
+            sb.AppendLine();
+            foreach (var table in unmappedTableNames)
+                sb.Append("- ").AppendLine(table);
+        }
 
         return sb.ToString().TrimEnd();
     }

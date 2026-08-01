@@ -70,6 +70,21 @@ public sealed class MsiTableAccess : IMsiTableAccess
                 string.Equals(row[0], tableName, StringComparison.OrdinalIgnoreCase)));
     }
 
+    public Result<IReadOnlyList<string>> GetTableNames()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var result = _database.QueryRows("SELECT `Name` FROM `_Tables`", 1);
+        if (result.IsFailure)
+            return Result<IReadOnlyList<string>>.Failure(result.Error);
+
+        IReadOnlyList<string> names = result.Value
+            .Where(row => row.Length > 0 && row[0] is not null)
+            .Select(row => row[0]!)
+            .ToList();
+        return Result<IReadOnlyList<string>>.Success(names);
+    }
+
     // Delegates to the canonical, shared READ-side MSI-SQL identifier grammar in
     // FalkForge.MsiIdentifierGrammar (Core) -- the same grammar FalkForge.Studio.Inspect.
     // MsiTableReader uses for the other call site that carries genuinely untrusted identifiers
