@@ -53,31 +53,12 @@ internal sealed class PipelineContext
     public InstallPlan? Plan { get; set; }
 
     /// <summary>
-    /// When true, <see cref="PipelineRunner"/> exits after the Plan phase without
-    /// invoking Apply. Set via <see cref="InstallerPipelineBuilder.WithPlanOnlyMode"/>.
-    /// </summary>
-    public bool IsPlanOnly { get; set; }
-
-    /// <summary>
-    /// Optional path for plan JSON output in plan-only mode.
-    /// When null, the plan JSON is written to stdout.
-    /// </summary>
-    public string? PlanOnlyOutputPath { get; set; }
-
-    /// <summary>
-    /// When true the engine runs without UI interaction. License acceptance is
-    /// automatic and no prompts are shown. Set via
-    /// <see cref="InstallerPipelineBuilder.WithSilentMode"/>.
-    /// </summary>
-    public bool SilentMode { get; set; }
-
-    /// <summary>
     /// Escape hatch for the dependency-enforcement gate in <see cref="PlanStep"/>
     /// (<c>--ignore-dependencies</c>). When <c>true</c>, both the uninstall-blocking-dependents check and
-    /// the install-missing-provider check are bypassed. Defaults to <c>false</c> — and, deliberately,
-    /// <see cref="SilentMode"/> does NOT imply it: silent uninstall is automation, exactly where silent
-    /// breakage from an unexpectedly-removed shared component hurts most. Only an explicit override
-    /// bypasses the gate.
+    /// the install-missing-provider check are bypassed. Defaults to <c>false</c>. Only an explicit
+    /// override bypasses the gate — no other mode or flag implicitly bypasses it, deliberately: a silent
+    /// uninstall is automation, exactly where silent breakage from an unexpectedly-removed shared
+    /// component hurts most.
     /// </summary>
     public bool IgnoreDependencies { get; set; }
 

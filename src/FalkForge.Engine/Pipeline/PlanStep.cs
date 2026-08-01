@@ -95,8 +95,8 @@ internal sealed class PlanStep : IPlanStep
         // on a shared component this bundle provides, and refuse an install when a required provider is
         // missing or out of range. Machine-state refusals before the consent (license) gate below.
         // Skipped entirely when no registry was injected (backward compatible — e.g. ordering-only
-        // tests) or when the caller passed --ignore-dependencies. Deliberately NOT skipped by
-        // ctx.SilentMode: silent uninstall is automation, exactly where silent breakage hurts most.
+        // tests) or when the caller passed --ignore-dependencies. No other mode implicitly skips this
+        // gate — a silent uninstall is automation, exactly where silent breakage hurts most.
         if (_registry is not null && !ctx.IgnoreDependencies)
         {
             var depCheck = CheckDependencyConstraints(ctx.Manifest, request.Action, _registry);
@@ -104,25 +104,13 @@ internal sealed class PlanStep : IPlanStep
                 return depCheck;
         }
 
-        // License gate: when manifest requires a license, the UI must have accepted it.
-        // Silent mode auto-accepts (headless/CLI installs). When the manifest has no
-        // LicenseFile the gate is skipped entirely.
-        if (ctx.Manifest.LicenseFile is not null)
+        // License gate: when manifest requires a license, the UI must have accepted it. When the
+        // manifest has no LicenseFile the gate is skipped entirely.
+        if (ctx.Manifest.LicenseFile is not null && request.LicenseAccepted is not true)
         {
-            if (!ctx.SilentMode && request.LicenseAccepted is not true)
-            {
-                return Result<Unit>.Failure(ErrorKind.EngineError,
-                    "License agreement has not been accepted. " +
-                    "Set LicenseAccepted = true in the plan request to proceed.");
-            }
-
-            if (ctx.SilentMode)
-            {
-                await _uiChannel.SendAsync(
-                    new PipelineEvent.Log(LogLevel.Info,
-                        "Silent mode: license auto-accepted"),
-                    ct);
-            }
+            return Result<Unit>.Failure(ErrorKind.EngineError,
+                "License agreement has not been accepted. " +
+                "Set LicenseAccepted = true in the plan request to proceed.");
         }
 
         ctx.PlanRequest = request;

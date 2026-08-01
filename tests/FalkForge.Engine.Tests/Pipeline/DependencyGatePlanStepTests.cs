@@ -12,9 +12,9 @@ using Xunit;
 /// Step 7: <see cref="PlanStep"/>'s dependency-enforcement gate, inserted between the architecture gate
 /// and the license gate — machine-state refusals before the consent gate. Uninstall fails closed on a
 /// registry read error; install fails when a required provider is missing/unsatisfied. Both are
-/// bypassable with <c>--ignore-dependencies</c> (<see cref="PipelineContext.IgnoreDependencies"/>), except
-/// silent mode must NOT auto-imply that override (silent uninstall is automation — exactly where silent
-/// breakage hurts most).
+/// bypassable only with the explicit <c>--ignore-dependencies</c> override
+/// (<see cref="PipelineContext.IgnoreDependencies"/>) — no other mode implicitly bypasses the gate,
+/// deliberately: a silent uninstall is automation, exactly where silent breakage hurts most.
 /// </summary>
 public sealed class DependencyGatePlanStepTests
 {
@@ -52,12 +52,11 @@ public sealed class DependencyGatePlanStepTests
             DependencyRequirements = requirements ?? []
         };
 
-    private static PipelineContext CtxWith(InstallerManifest manifest, bool silentMode = false) =>
+    private static PipelineContext CtxWith(InstallerManifest manifest) =>
         new()
         {
             Manifest = manifest,
-            Detection = new DetectionResult(InstallState.NotInstalled, null, []),
-            SilentMode = silentMode
+            Detection = new DetectionResult(InstallState.NotInstalled, null, [])
         };
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -135,29 +134,6 @@ public sealed class DependencyGatePlanStepTests
         var result = await step.ExecuteAsync(ctx, RequestFor(InstallAction.Uninstall), CancellationToken.None);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
-    }
-
-    [Fact]
-    public async Task Uninstall_SilentMode_DoesNotAutoImplyIgnoreDependencies()
-    {
-        // Silent uninstall is automation — exactly where silent breakage hurts most. Silent mode must
-        // NOT bypass the dependency gate on its own; only the explicit override does.
-        var registry = new MockRegistry();
-        registry.AddKey(RegistryRoot.LocalMachine,
-            @"SOFTWARE\Classes\Installer\Dependencies\SharedLib\Dependents");
-        registry.AddKey(RegistryRoot.LocalMachine,
-            @"SOFTWARE\Classes\Installer\Dependencies\SharedLib\Dependents\OtherApp");
-
-        var manifest = ManifestWith(providers: [new ManifestDependencyProvider("SharedLib", "1.0.0", null)]);
-        var ctx = CtxWith(manifest, silentMode: true);
-        // IgnoreDependencies intentionally left false.
-        var channel = new FakeUiChannel();
-        var step = new PlanStep(new Planner(), channel, registry: registry);
-
-        var result = await step.ExecuteAsync(ctx, RequestFor(InstallAction.Uninstall), CancellationToken.None);
-
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.PlanningError, result.Error.Kind);
     }
 
     // ──────────────────────────────────────────────────────────────────────────

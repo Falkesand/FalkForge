@@ -428,26 +428,6 @@ public sealed class PipelinePhaseStepTests
     }
 
     [Fact]
-    public async Task PlanStep_LicenseRequired_SilentMode_AutoAccepts()
-    {
-        var manifest = ManifestWithLicense();
-        await using var channel = new FakeUiChannel();
-        var ctx = new PipelineContext
-        {
-            Manifest = manifest,
-            Detection = new FalkForge.Engine.Detection.DetectionResult(
-                InstallState.NotInstalled, null, []),
-            SilentMode = true   // ← silent: no UI needed
-        };
-
-        // LicenseAccepted not explicitly set — silent mode auto-accepts
-        var step = new PlanStep(new FalkForge.Engine.Planning.Planner(), channel);
-        var result = await step.ExecuteAsync(ctx, InstallRequest(), CancellationToken.None);
-
-        Assert.True(result.IsSuccess);
-    }
-
-    [Fact]
     public async Task PlanStep_NoLicenseFile_SkipsGate()
     {
         // Manifest with no LicenseFile — gate must be skipped regardless of LicenseAccepted
