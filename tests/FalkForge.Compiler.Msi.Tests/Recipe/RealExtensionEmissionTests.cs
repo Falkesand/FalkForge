@@ -140,6 +140,29 @@ public sealed class RealExtensionEmissionTests
     }
 
     [Fact]
+    public void UtilExtension_SchedulesInstallOdbcAndRemoveOdbc()
+    {
+        using var scratch = new Scratch();
+
+        var util = new UtilExtension();
+        util.AddOdbcDriver("MyDriver", d => d
+            .DriverName("My ODBC Driver").FileName("mydriver.dll").ComponentRef("MainComponent"));
+
+        using var db = Compile(scratch, "OdbcSeqApp", c => c.Use(util));
+
+        // The two standard actions must be scheduled in InstallExecuteSequence, or the MSI engine
+        // never invokes the ODBC driver manager and the (correctly-emitted) ODBCDriver row is a
+        // dead entry: the build succeeds and installs nothing.
+        var seqRows = db.QueryRows(
+            "SELECT `Action`, `Sequence` FROM `InstallExecuteSequence` WHERE `Action`='InstallODBC' OR `Action`='RemoveODBC'",
+            2);
+        Assert.True(seqRows.IsSuccess, seqRows.IsFailure ? seqRows.Error.Message : "");
+        Assert.Equal(2, seqRows.Value.Count);
+        Assert.Contains(seqRows.Value, r => r[0] == "InstallODBC" && r[1] == "5400");
+        Assert.Contains(seqRows.Value, r => r[0] == "RemoveODBC" && r[1] == "2400");
+    }
+
+    [Fact]
     public void IisExtension_EmitsAppPoolWebSiteTablesAndLiveScheduledCustomActions()
     {
         using var scratch = new Scratch();
