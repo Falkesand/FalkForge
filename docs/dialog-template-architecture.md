@@ -16,7 +16,8 @@ in exactly one place — `Layouts.Standard370x270`. Per-dialog builders express 
 declaratively ("put Next and Cancel in ButtonRow") and never mention DLU coordinates. Five
 dialog templates were rewritten from 60–150 LOC each to 46–89 LOC composers. A public
 `DialogCustomization` fluent builder exposes the 5% caller surface (banner swap, button
-relabelling, dialog suppression, extension step insertion). A `RegisterDialogStep` path on
+relabelling, extension step insertion — dialog suppression is gated, not implemented, see
+DLG002 below). A `RegisterDialogStep` path on
 `IExtensionRegistry` lets extensions contribute behaviour-carrying dialog steps.
 
 ---
@@ -74,7 +75,7 @@ sequence before calling `Compose`.
 | `CustomDialogTranslator` | `Compiler.Msi/UI/CustomDialogTranslator.cs` | Internal bridge that translates a public `CustomDialogModel` (from `FalkForge.Core`) into an internal `MsiDialogModel`. The real "build" path for the public `AddCustomDialog` API. |
 | `DialogBuildContext` | `Compiler.Msi/UI/Layout/DialogBuildContext.cs` | Immutable context passed to each `IMsiDialogStepBuilder.Build` call: `Customization` + `StepRegistry`. `ForTest(customization)` factory for unit tests. |
 | `DialogFlowContext` | `Compiler.Msi/UI/Layout/DialogFlowContext.cs` | Navigation targets for a builder: `NextDialog`, `BackDialog`, `CancelDialog`. Passed into builder `Build` overloads so templates wire the chain. |
-| `DialogCustomization` | `Core/Models/DialogCustomization.cs` | Public fluent builder. Methods: `BannerBitmap`, `DialogBitmap`, `HeaderIcon`, `WindowTitle`, `OverrideButtonLabel`, `SuppressDialog`, `InsertStep`. Freezes to `DialogCustomizationModel` via internal `ToModel()`. |
+| `DialogCustomization` | `Core/Models/DialogCustomization.cs` | Public fluent builder. Methods: `BannerBitmap`, `DialogBitmap`, `HeaderIcon`, `WindowTitle`, `OverrideButtonLabel`, `InsertStep`. Also declares `SuppressDialog`, gated `[Obsolete(error: true)]` — not implemented, see DLG002 below. Freezes to `DialogCustomizationModel` via internal `ToModel()`. |
 
 ---
 
