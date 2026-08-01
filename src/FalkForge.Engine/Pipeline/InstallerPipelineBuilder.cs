@@ -39,6 +39,7 @@ public sealed class InstallerPipelineBuilder
     private FalkForge.Engine.Integrity.TrustPolicy? _integrityTrustPolicy;
     private string? _payloadRoot;
     private bool _elevationCompanionAvailable;
+    private bool _ignoreDependencies;
 
     // ──────────────────────────────────────────────────────────────────────────
     // Infrastructure port registration
@@ -226,6 +227,18 @@ public sealed class InstallerPipelineBuilder
         return this;
     }
 
+    /// <summary>
+    /// Escape hatch for the dependency-enforcement gate (<c>--ignore-dependencies</c>): bypasses both the
+    /// uninstall-blocking-dependents check and the install-missing-provider check in <see cref="PlanStep"/>.
+    /// Not implied by silent mode — silent uninstall is automation, exactly where silent breakage from an
+    /// unexpectedly-removed shared component hurts most.
+    /// </summary>
+    public InstallerPipelineBuilder WithIgnoreDependencies(bool enabled = true)
+    {
+        _ignoreDependencies = enabled;
+        return this;
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Build
     // ──────────────────────────────────────────────────────────────────────────
@@ -247,7 +260,7 @@ public sealed class InstallerPipelineBuilder
             : null;
 
         IPlanStep? planStep = (_manifest is not null)
-            ? new PlanStep(new Planner(), uiChannel, _variableStore)
+            ? new PlanStep(new Planner(), uiChannel, _variableStore, registry: _registry)
             : null;
 
         // Pass the session correlation id from the logger (if any) so the ElevateStep
@@ -271,6 +284,7 @@ public sealed class InstallerPipelineBuilder
 
         return new InstallerPipeline(
             detectStep, planStep, elevateStep, applyStep, rollbackStep, _updateService, _manifest,
-            _advanceTrustStoreOnVerifiedApply, _integrityTrustPolicy, _payloadRoot, _variableStore);
+            _advanceTrustStoreOnVerifiedApply, _integrityTrustPolicy, _payloadRoot, _variableStore,
+            _ignoreDependencies);
     }
 }

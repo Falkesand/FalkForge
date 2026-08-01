@@ -31,7 +31,8 @@ public sealed class EngineInvocationArgsTests
             "--package", "PkgA",
             "--package", "PkgB",
             "--base-bundle", @"C:\base.bundle",
-            "--require-signed"
+            "--require-signed",
+            "--ignore-dependencies"
         };
 
         var result = EngineInvocationArgs.Parse(args);
@@ -47,6 +48,7 @@ public sealed class EngineInvocationArgsTests
         Assert.Equal(new[] { "PkgA", "PkgB" }, result.ExtractPackages);
         Assert.Equal(@"C:\base.bundle", result.BaseBundlePath);
         Assert.True(result.RequireSigned);
+        Assert.True(result.IgnoreDependencies);
     }
 
     [Fact]
@@ -65,6 +67,7 @@ public sealed class EngineInvocationArgsTests
         Assert.Empty(result.ExtractPackages);
         Assert.Null(result.BaseBundlePath);
         Assert.False(result.RequireSigned);
+        Assert.False(result.IgnoreDependencies);
     }
 
     [Fact]
