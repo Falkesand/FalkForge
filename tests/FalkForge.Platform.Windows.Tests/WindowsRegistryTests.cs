@@ -5,6 +5,16 @@ using Xunit;
 
 namespace FalkForge.Platform.Windows.Tests;
 
+/// <summary>
+/// This project uses the default (non-Windows) TFM, so these tests can run on any agent. Most methods
+/// genuinely invoke <c>Microsoft.Win32.Registry</c> and self-skip at runtime via
+/// <see cref="Assert.SkipUnless"/> when not on Windows — <see cref="SupportedOSPlatformAttribute"/> alone
+/// is only an analyzer advisory, not an xUnit skip. The <c>*_InvalidEnum_ThrowsArgumentOutOfRange</c>
+/// tests are the exception: <see cref="WindowsRegistry"/>'s private <c>GetRootKey</c> switch throws for
+/// an unmapped <see cref="RegistryRoot"/> before ever touching the real registry, so those cases are
+/// platform-invariant pure C# logic and deliberately have no skip guard, same reasoning as
+/// <c>MsiExtractorTests</c>.
+/// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class WindowsRegistryTests : IDisposable
 {
@@ -22,24 +32,34 @@ public sealed class WindowsRegistryTests : IDisposable
         catch { /* best-effort */ }
     }
 
+    private const string WindowsOnlyReason = "WindowsRegistry wraps Microsoft.Win32.Registry — Windows only";
+
     [Fact]
     public void KeyExists_BeforeWrite_ReturnsFalse()
-        => Assert.False(_registry.KeyExists(RegistryRoot.CurrentUser, _subKey));
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        Assert.False(_registry.KeyExists(RegistryRoot.CurrentUser, _subKey));
+    }
 
     [Fact]
     public void KeyExists_AfterSetStringValue_ReturnsTrue()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
         _registry.SetStringValue(RegistryRoot.CurrentUser, _subKey, "V", "x");
         Assert.True(_registry.KeyExists(RegistryRoot.CurrentUser, _subKey));
     }
 
     [Fact]
     public void GetStringValue_MissingKey_ReturnsNull()
-        => Assert.Null(_registry.GetStringValue(RegistryRoot.CurrentUser, _subKey, "X"));
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        Assert.Null(_registry.GetStringValue(RegistryRoot.CurrentUser, _subKey, "X"));
+    }
 
     [Fact]
     public void GetStringValue_AfterWrite_ReturnsValue()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
         _registry.SetStringValue(RegistryRoot.CurrentUser, _subKey, "Name", "hello");
         Assert.Equal("hello", _registry.GetStringValue(RegistryRoot.CurrentUser, _subKey, "Name"));
     }
@@ -47,6 +67,8 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void SetStringValue_WritesToRegistry_VerifiedDirectly()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+
         // Kills "key.SetValue() statement removed" mutant
         _registry.SetStringValue(RegistryRoot.CurrentUser, _subKey, "Direct", "written");
 
@@ -58,6 +80,7 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void DeleteKey_ExistingKey_RemovesIt()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
         _registry.SetStringValue(RegistryRoot.CurrentUser, _subKey, "V", "data");
         Assert.True(_registry.KeyExists(RegistryRoot.CurrentUser, _subKey));
 
@@ -69,6 +92,8 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void DeleteKey_NonExistentKey_DoesNotThrow()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+
         // throwOnMissingSubKey: false -- must not throw
         var ex = Record.Exception(() => _registry.DeleteKey(RegistryRoot.CurrentUser, _subKey + @"\NoSuchKey"));
         Assert.Null(ex);
@@ -77,6 +102,7 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void DeleteKey_DeletesEntireSubtree()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
         Registry.CurrentUser.CreateSubKey($@"{_subKey}\Deep\Deeper").Dispose();
         Assert.True(_registry.KeyExists(RegistryRoot.CurrentUser, $@"{_subKey}\Deep\Deeper"));
 
@@ -88,6 +114,7 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void KeyExists_CurrentUser_ResolvesCorrectly()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
         _registry.SetStringValue(RegistryRoot.CurrentUser, _subKey, "V", "x");
         Assert.True(_registry.KeyExists(RegistryRoot.CurrentUser, _subKey));
     }
@@ -95,18 +122,21 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void KeyExists_LocalMachine_ResolvesCorrectly()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
         Assert.True(_registry.KeyExists(RegistryRoot.LocalMachine, @"SOFTWARE\Microsoft"));
     }
 
     [Fact]
     public void KeyExists_ClassesRoot_ResolvesCorrectly()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
         Assert.True(_registry.KeyExists(RegistryRoot.ClassesRoot, @".txt"));
     }
 
     [Fact]
     public void KeyExists_Users_ResolvesCorrectly()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
         Assert.True(_registry.KeyExists(RegistryRoot.Users, @".DEFAULT"));
     }
 
@@ -121,11 +151,16 @@ public sealed class WindowsRegistryTests : IDisposable
 
     [Fact]
     public void GetDWordValue_MissingKey_ReturnsNull()
-        => Assert.Null(_registry.GetDWordValue(RegistryRoot.CurrentUser, _subKey, "NoSuch"));
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        Assert.Null(_registry.GetDWordValue(RegistryRoot.CurrentUser, _subKey, "NoSuch"));
+    }
 
     [Fact]
     public void GetDWordValue_ExistingKeyWrongType_ReturnsNull()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+
         // Write a string; reading it as DWORD must yield null (cast fails gracefully).
         _registry.SetStringValue(RegistryRoot.CurrentUser, _subKey, "Str", "notanint");
         var result = _registry.GetDWordValue(RegistryRoot.CurrentUser, _subKey, "Str");
@@ -135,6 +170,8 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void GetStringValue_MissingValue_ReturnsNull()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+
         // Key exists but value does not.
         _registry.SetStringValue(RegistryRoot.CurrentUser, _subKey, "Present", "v");
         var result = _registry.GetStringValue(RegistryRoot.CurrentUser, _subKey, "Absent");
@@ -144,6 +181,7 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void GetSubKeyNames_MissingKey_ReturnsEmptyList()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
         var result = _registry.GetSubKeyNames(RegistryRoot.CurrentUser, _subKey + @"\NoSuch");
         Assert.Empty(result);
     }
@@ -151,6 +189,7 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void GetSubKeyNames_ExistingKey_ReturnsChildNames()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
         Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"{_subKey}\ChildA").Dispose();
         Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"{_subKey}\ChildB").Dispose();
 
@@ -165,6 +204,8 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void SetStringValue_LocalMachineReadOnly_ThrowsUnauthorizedOrSecurityException()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+
         // Writing to HKLM without elevation is denied on standard accounts.
         // On elevated (admin) builds this may succeed — skip rather than fail.
         bool handled = false;
@@ -235,6 +276,7 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void TryReadSubKeyNames_MissingKey_ReturnsSuccessWithEmptyList()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
         var result = _registry.TryReadSubKeyNames(RegistryRoot.CurrentUser, _subKey + @"\NoSuch");
 
         Assert.True(result.IsSuccess);
@@ -244,6 +286,7 @@ public sealed class WindowsRegistryTests : IDisposable
     [Fact]
     public void TryReadSubKeyNames_ExistingKey_ReturnsSuccessWithChildNames()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
         Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"{_subKey}\ChildA").Dispose();
         Microsoft.Win32.Registry.CurrentUser.CreateSubKey($@"{_subKey}\ChildB").Dispose();
 
