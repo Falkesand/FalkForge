@@ -32,7 +32,11 @@ public sealed class ElevatedHost : IAsyncDisposable
             new FileWriteCommand(),
             // C16: advance the ACL-protected anti-downgrade/revocation store elevated (the non-elevated
             // engine cannot write under the restrictive store ACL).
-            new TrustStateAdvanceCommand()
+            new TrustStateAdvanceCommand(),
+            // Dependency enforcement: per-machine provider/consumer registration writes under
+            // SOFTWARE\Classes\Installer\Dependencies\ — RegistryWriteCommand's allowlist permanently
+            // reserves Classes, so this is a separate command with its own narrow allowlist.
+            new DependencyRegistrationCommand()
         });
     }
 
