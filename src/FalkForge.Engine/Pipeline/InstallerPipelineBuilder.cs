@@ -258,7 +258,7 @@ public sealed class InstallerPipelineBuilder
             : null;
 
         IApplyStep? applyStep = (_packageExecutor is not null && _journalStore is not null)
-            ? new ApplyStep(_packageExecutor, _journalStore, uiChannel)
+            ? new ApplyStep(_packageExecutor, _journalStore, uiChannel, _registry)
             : null;
 
         IRollbackStep? rollbackStep = (_journalStore is not null)
