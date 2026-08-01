@@ -10142,6 +10142,17 @@ if (csharpResult.IsSuccess)
     <a href="#cli">CLI Reference &sect; migrate</a> and
     <a href="#demos">Demo 54 &mdash; forge migrate</a> for the full round-trip workflow.
 </p>
+<p>
+    <strong>MIGRATION-REPORT.md honesty contract:</strong> the report's "Not yet migrated" section now
+    also names every MSI table present in the source database that no core schema or extension
+    contributor demonstrably reads (see <code>IMsiTableAccess.GetTableNames</code> and
+    <code>MsiReadRecipe.AllTableNames</code> below), in addition to the model feature categories it
+    already listed. The positive <code>All present features were mapped.</code> line is only emitted
+    when <em>both</em> lists are empty &mdash; a nonzero unmapped-table list on its own is now enough
+    to suppress the all-clear. This is stage 1 of task #34: the migrator still <strong>drops</strong>
+    extension configuration during migration (it always did); this change only stops the report from
+    claiming otherwise for tables nothing reads. It does not make migrate preserve that data.
+</p>
 
 <h3 id="decompiler-msi">MsiDecompiler</h3>
 <p><code>src/FalkForge.Decompiler/MsiDecompiler.cs</code></p>
@@ -10176,6 +10187,12 @@ public sealed class MsiDecompiler
 <pre><code class="language-csharp">public interface IMsiTableAccess : IDisposable, ITableQuery
 {
     Result&lt;string?&gt; GetSummaryProperty(int propertyId);
+
+    // Every table name present in the database (from the _Tables system catalog), including
+    // MSI-internal catalog tables. Feeds MsiReadRecipe.AllTableNames so the migration report
+    // can name tables nothing above reads &mdash; see the honesty contract note above.
+    Result&lt;IReadOnlyList&lt;string&gt;&gt; GetTableNames();
+
     // Inherited from ITableQuery:
     //   Result&lt;bool&gt;              TableExists(string tableName);
     //   Result&lt;List&lt;string?[]&gt;&gt;  QueryTable(string tableName, string[] columns);
@@ -10196,6 +10213,17 @@ public sealed class MsiTableAccess : IMsiTableAccess
     <code>MsiReadRecipe</code> snapshot, which the internal <code>MsiPackageReconstructor</code> turns into
     a <code>PackageModel</code>. <code>MsiDecompiler.DecompileToRecipe</code> exposes the snapshot stage so
     callers can inspect the raw rows.
+</p>
+<p>
+    Alongside the typed row collections, the recipe also carries <code>AllTableNames</code> &mdash;
+    every table name actually present in the source database, from <code>IMsiTableAccess.GetTableNames</code>.
+    <code>MigrationProjectGenerator</code> diffs this against the tables the core schemas and any
+    registered extension contributors demonstrably read to compute the unmapped-table list that
+    <code>MIGRATION-REPORT.md</code> now names by table &mdash; see the honesty contract note in
+    <em>Quick Start</em> above. If the underlying table-name query fails, <code>DecompileToRecipe</code>
+    returns a <code>Result</code> failure instead of a recipe with an empty <code>AllTableNames</code>.
+    A database that FalkForge cannot even enumerate must surface as a failure, never silently
+    degrade into a false "all mapped" claim.
 </p>
 
 <pre><code class="language-csharp">// Recipe/TableReadEngine.cs
@@ -10228,6 +10256,12 @@ public sealed record MsiReadRecipe
     public required IReadOnlyList&lt;ShortcutRow&gt;           Shortcuts         { get; init; }
     public required IReadOnlyList&lt;UpgradeRow&gt;            Upgrades          { get; init; }
     public IReadOnlyDictionary&lt;string, IReadOnlyList&lt;object&gt;&gt; ExtensionRows { get; init; }
+
+    // Every table name present in the source MSI (from IMsiTableAccess.GetTableNames),
+    // including MSI-internal catalog tables. Required: MsiDecompiler short-circuits as a
+    // Result failure before ever constructing a recipe if the table-name query fails, so a
+    // hand-built recipe must state its intent explicitly rather than defaulting to empty.
+    public required IReadOnlyList&lt;string&gt; AllTableNames { get; init; }
 }</code></pre>
 
 <p>Schemas shipped in <code>Recipe/Schemas/</code>:</p>
