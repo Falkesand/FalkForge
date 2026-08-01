@@ -166,7 +166,7 @@ Historically auto-generated; the extraction script has been retired — this fil
 | Code | Message | Source |
 |------|---------|--------|
 | DLG001 | every InsertedStep name must be registered.         foreach (var step in customization.InsertedSteps) | `src/FalkForge.Compiler.Msi/UI/DialogCustomizationValidator.cs` |
-| DLG002 | Cannot suppress '<x>' dialog in the <x> template: | `src/FalkForge.Compiler.Msi/UI/DialogCustomizationValidator.cs` |
+| DLG002 | SuppressDialog is not implemented (see task #44); fails the build whenever SuppressedDialogs is non-empty | `src/FalkForge.Compiler.Msi/UI/DialogCustomizationValidator.cs` |
 
 ## DNG — Downgrade
 

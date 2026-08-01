@@ -33,18 +33,13 @@ public sealed class DialogCustomizationTests
         Assert.Single(model.ButtonLabelOverrides);
     }
 
-    [Fact]
-    public void SuppressDialog_is_idempotent()
-    {
-        var c = new DialogCustomization()
-            .SuppressDialog(StockDialog.License)
-            .SuppressDialog(StockDialog.License);
-
-        var model = c.ToModel();
-
-        Assert.Single(model.SuppressedDialogs);
-        Assert.Contains(StockDialog.License, model.SuppressedDialogs);
-    }
+    // SuppressDialog is gated with [Obsolete(error: true)] (task #24 — see task #44 for the real
+    // implementation), so it can no longer be exercised from a fluent chain in this assembly; the
+    // former SuppressDialog_is_idempotent coverage of _suppressed/ToModel plumbing is superseded
+    // by DialogCustomizationSuppressDialogGateTests, which proves the call site itself refuses to
+    // compile. SuppressedDialogs itself is still covered directly (object-initializer / with-expr)
+    // by DialogCustomizationModelTests, since that path deliberately stays open for #44 and is
+    // rejected at the validator layer (DLG002), not at the model layer.
 
     [Fact]
     public void ToModel_freezes_into_immutable_with_all_fields_preserved()
@@ -55,9 +50,7 @@ public sealed class DialogCustomizationTests
             .HeaderIcon("icon.ico")
             .WindowTitle("My Setup")
             .OverrideButtonLabel(DialogButton.Install, "Begin")
-            .OverrideButtonLabel(DialogButton.Cancel, "Abort")
-            .SuppressDialog(StockDialog.Maintenance)
-            .SuppressDialog(StockDialog.Extension);
+            .OverrideButtonLabel(DialogButton.Cancel, "Abort");
 
         var model = c.ToModel();
 
@@ -67,8 +60,6 @@ public sealed class DialogCustomizationTests
         Assert.Equal("My Setup", model.WindowTitle);
         Assert.Equal("Begin", model.ButtonLabelOverrides[DialogButton.Install]);
         Assert.Equal("Abort", model.ButtonLabelOverrides[DialogButton.Cancel]);
-        Assert.Contains(StockDialog.Maintenance, model.SuppressedDialogs);
-        Assert.Contains(StockDialog.Extension, model.SuppressedDialogs);
     }
 
     [Fact]
@@ -76,29 +67,23 @@ public sealed class DialogCustomizationTests
     {
         var c = new DialogCustomization()
             .BannerBitmap("banner.bmp")
-            .OverrideButtonLabel(DialogButton.Next, "Continue")
-            .SuppressDialog(StockDialog.License);
+            .OverrideButtonLabel(DialogButton.Next, "Continue");
 
         var first = c.ToModel();
 
         // Mutate builder afterwards.
         c.BannerBitmap("new-banner.bmp")
-            .OverrideButtonLabel(DialogButton.Next, "Forward")
-            .SuppressDialog(StockDialog.Welcome);
+            .OverrideButtonLabel(DialogButton.Next, "Forward");
 
         var second = c.ToModel();
 
         // First snapshot must be unaffected.
         Assert.Equal("banner.bmp", first.BannerBitmap);
         Assert.Equal("Continue", first.ButtonLabelOverrides[DialogButton.Next]);
-        Assert.Single(first.SuppressedDialogs);
-        Assert.Contains(StockDialog.License, first.SuppressedDialogs);
-        Assert.DoesNotContain(StockDialog.Welcome, first.SuppressedDialogs);
 
         // Second reflects the mutation.
         Assert.Equal("new-banner.bmp", second.BannerBitmap);
         Assert.Equal("Forward", second.ButtonLabelOverrides[DialogButton.Next]);
-        Assert.Equal(2, second.SuppressedDialogs.Count);
     }
 
     [Fact]

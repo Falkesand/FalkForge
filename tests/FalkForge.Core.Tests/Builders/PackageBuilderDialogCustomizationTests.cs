@@ -32,6 +32,13 @@ public sealed class PackageBuilderDialogCustomizationTests
             builder.UseDialogSet(MsiDialogSet.InstallDir, configure: null!));
     }
 
+    // This test used to also call c.SuppressDialog(StockDialog.Welcome) and assert it landed in
+    // PackageModel.DialogCustomization.SuppressedDialogs. SuppressDialog is now gated with
+    // [Obsolete(error: true)] (task #24 — real implementation tracked as task #44), so that call
+    // no longer compiles in this assembly. The plumbing-through-the-builder intent it covered is
+    // superseded by DialogCustomizationSuppressDialogGateTests (proves the call site itself fails
+    // to compile) and DialogCustomizationValidatorTests' DLG002 cases (proves a populated
+    // SuppressedDialogs — however it got populated — fails the build).
     [Fact]
     public void Build_produces_PackageModel_with_dialog_customization_when_set()
     {
@@ -41,7 +48,6 @@ public sealed class PackageBuilderDialogCustomizationTests
                 c.BannerBitmap("banner.bmp");
                 c.WindowTitle("Setup");
                 c.OverrideButtonLabel(DialogButton.Next, "Continue");
-                c.SuppressDialog(StockDialog.Welcome);
             });
 
         PackageModel model = builder.Build();
@@ -50,7 +56,6 @@ public sealed class PackageBuilderDialogCustomizationTests
         Assert.Equal("banner.bmp", model.DialogCustomization.BannerBitmap);
         Assert.Equal("Setup", model.DialogCustomization.WindowTitle);
         Assert.Equal("Continue", model.DialogCustomization.ButtonLabelOverrides[DialogButton.Next]);
-        Assert.Contains(StockDialog.Welcome, model.DialogCustomization.SuppressedDialogs);
     }
 
     [Fact]

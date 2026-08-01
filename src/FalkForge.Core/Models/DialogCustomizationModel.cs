@@ -40,7 +40,17 @@ public sealed record DialogCustomizationModel
     public ImmutableDictionary<DialogButton, string> ButtonLabelOverrides { get; init; }
         = ImmutableDictionary<DialogButton, string>.Empty;
 
-    /// <summary>Set of stock dialogs to suppress entirely.</summary>
+    /// <summary>
+    /// NOT IMPLEMENTED (task #44) — no dialog-set emitter or <c>DialogComposer</c> consumes this
+    /// set, so a populated entry compiles into an MSI that shows the dialog anyway.
+    /// <see cref="DialogCustomization.SuppressDialog"/> is gated with
+    /// <c>[Obsolete(error: true)]</c>, but this is a public <c>init</c> property: an author can
+    /// still populate it directly via an object initializer without ever calling that method.
+    /// DLG002 (<see cref="FalkForge.Compiler.Msi.UI.DialogCustomizationValidator"/>) closes that
+    /// second path by failing the build whenever this set is non-empty, regardless of how it was
+    /// populated. Kept non-empty-capable (rather than removed) so the field, and everything that
+    /// reads it, remain available for task #44's real implementation.
+    /// </summary>
     public ImmutableHashSet<StockDialog> SuppressedDialogs { get; init; }
         = ImmutableHashSet<StockDialog>.Empty;
 
@@ -48,8 +58,8 @@ public sealed record DialogCustomizationModel
     /// Ordered list of extension-contributed dialog steps to insert into the flow.
     /// Each entry names a registered <c>IDialogStepBuilder</c> and the stock dialog
     /// after which the step should be inserted.
-    /// Validated at compile time: DLG001 rejects unknown step names; DLG002 rejects
-    /// suppressions that break the navigation chain.
+    /// Validated at compile time: DLG001 rejects unknown step names; DLG002 rejects any
+    /// non-empty <see cref="SuppressedDialogs"/> (the feature is not implemented — see task #44).
     /// </summary>
     public ImmutableArray<InsertedDialogStep> InsertedSteps { get; init; }
         = ImmutableArray<InsertedDialogStep>.Empty;

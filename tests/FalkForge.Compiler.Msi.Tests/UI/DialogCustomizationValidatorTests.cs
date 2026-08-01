@@ -7,7 +7,8 @@ using Xunit;
 namespace FalkForge.Compiler.Msi.Tests.UI;
 
 /// <summary>
-/// Tests for DLG001 (unknown insert step) and DLG002 (suppression breaks navigation).
+/// Tests for DLG001 (unknown insert step) and DLG002 (SuppressDialog is not implemented —
+/// task #24/#44 — so any non-empty SuppressedDialogs fails the build).
 /// RFC Cycle 6 — step 17.
 /// </summary>
 public sealed class DialogCustomizationValidatorTests
@@ -102,13 +103,37 @@ public sealed class DialogCustomizationValidatorTests
         Assert.Contains("Unknown", errors[0].Message);
     }
 
-    // ── DLG002 — suppression breaks navigation ────────────────────────────────
+    // ── DLG002 — SuppressDialog is not implemented (task #24 / task #44) ──────
+    //
+    // SuppressDialog used to be validated against a per-template "protected dialog"
+    // navigation-target table (ProtectedDialogs/BuildProtectedDialogs). That table was itself
+    // wrong — DialogCustomizationValidator's InstallDir entry omitted License even though
+    // InstallDirDialogTemplate wires Welcome->License->InstallDir — and, worse, nothing
+    // downstream ever consumed SuppressedDialogs at all: DialogComposer explicitly declines to
+    // apply it, and every dialog-set template composes every stock dialog unconditionally. So
+    // the old DLG002 let some suppressions through as "safe" when in truth *every* suppression
+    // was a no-op the author had no way to detect. DLG002 now rejects any non-empty
+    // SuppressedDialogs outright, regardless of which dialog or template.
 
     [Fact]
-    public void DLG002_suppressing_non_navigated_dialog_returns_no_errors()
+    public void DLG002_empty_suppressed_dialogs_returns_no_errors()
     {
-        // Maintenance dialog is not part of the standard wizard sequence
-        // for Minimal — suppressing it is safe.
+        var customization = new DialogCustomizationModel();
+        var registry = new DialogStepRegistry();
+
+        var errors = DialogCustomizationValidator.Validate(
+            customization, MsiDialogSet.Minimal, registry, []);
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void DLG002_any_suppressed_dialog_returns_error()
+    {
+        // Maintenance was NOT in the old ProtectedDialogs table for any template — it used to be
+        // reported as "safe" to suppress even though suppression was never actually implemented.
+        // This is the regression case: if DLG002 goes back to consulting a protected-dialog table
+        // instead of rejecting unconditionally, this test goes red.
         var customization = new DialogCustomizationModel
         {
             SuppressedDialogs = ImmutableHashSet.Create(StockDialog.Maintenance),
@@ -119,32 +144,50 @@ public sealed class DialogCustomizationValidatorTests
         var errors = DialogCustomizationValidator.Validate(
             customization, MsiDialogSet.Minimal, registry, []);
 
-        Assert.Empty(errors);
+        Assert.Single(errors);
+        Assert.Equal("DLG002", errors[0].Code);
     }
 
     [Fact]
-    public void DLG002_suppressing_welcome_dialog_returns_error()
+    public void DLG002_object_initializer_populated_SuppressedDialogs_is_rejected_without_the_builder()
     {
-        // Welcome is the entry point for every template — suppressing it breaks
-        // the Install sequence entry.
+        // DialogCustomization.SuppressDialog() is gated with [Obsolete(error: true)], but
+        // DialogCustomizationModel.SuppressedDialogs is a public init property on the model
+        // itself — an author can populate it directly, never calling the obsoleted method at
+        // all. This DLG002 check is the ONLY gate covering that path. Mutation check: delete the
+        // "foreach (var suppressed in customization.SuppressedDialogs)" loop in
+        // DialogCustomizationValidator.Validate and this test goes red.
         var customization = new DialogCustomizationModel
         {
-            SuppressedDialogs = ImmutableHashSet.Create(StockDialog.Welcome),
+            SuppressedDialogs = ImmutableHashSet.Create(StockDialog.License),
+        };
+
+        var errors = DialogCustomizationValidator.Validate(
+            customization, MsiDialogSet.FeatureTree, new DialogStepRegistry(), []);
+
+        Assert.Contains(errors, e => e.Code == "DLG002");
+    }
+
+    [Fact]
+    public void DLG002_multiple_suppressed_dialogs_returns_error_per_dialog()
+    {
+        var customization = new DialogCustomizationModel
+        {
+            SuppressedDialogs = ImmutableHashSet.Create(StockDialog.Welcome, StockDialog.Progress),
         };
 
         var registry = new DialogStepRegistry();
 
         var errors = DialogCustomizationValidator.Validate(
-            customization, MsiDialogSet.InstallDir, registry, []);
+            customization, MsiDialogSet.Minimal, registry, []);
 
-        Assert.True(errors.Count > 0);
-        Assert.Contains(errors, e => e.Code.Contains("DLG002"));
+        Assert.Equal(2, errors.Count);
+        Assert.All(errors, e => Assert.Equal("DLG002", e.Code));
     }
 
     [Fact]
-    public void DLG002_suppressing_progress_dialog_returns_error()
+    public void DLG002_error_message_names_the_suppressed_dialog_and_task_44()
     {
-        // Progress is the target of the "Install" button click in every template.
         var customization = new DialogCustomizationModel
         {
             SuppressedDialogs = ImmutableHashSet.Create(StockDialog.Progress),
@@ -155,25 +198,10 @@ public sealed class DialogCustomizationValidatorTests
         var errors = DialogCustomizationValidator.Validate(
             customization, MsiDialogSet.Minimal, registry, []);
 
-        Assert.True(errors.Count > 0);
-        Assert.Contains(errors, e => e.Code.Contains("DLG002"));
-    }
-
-    [Fact]
-    public void DLG002_error_message_names_both_suppressed_dialog_and_referencing_dialog()
-    {
-        var customization = new DialogCustomizationModel
-        {
-            SuppressedDialogs = ImmutableHashSet.Create(StockDialog.Progress),
-        };
-
-        var registry = new DialogStepRegistry();
-
-        var errors = DialogCustomizationValidator.Validate(
-            customization, MsiDialogSet.Minimal, registry, []);
-
-        var dlg002 = errors.First(e => e.Code.Contains("DLG002"));
+        var dlg002 = errors.First(e => e.Code == "DLG002");
         Assert.Contains("Progress", dlg002.Message);
+        Assert.Contains("#44", dlg002.Message);
+        Assert.Contains("SuppressDialog", dlg002.Message);
     }
 
     // ── DLG003 — bitmap/icon customization key must be a registered Binary ────

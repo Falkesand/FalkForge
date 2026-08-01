@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 
 namespace FalkForge.Models;
 
@@ -76,7 +77,27 @@ public sealed class DialogCustomization
         return this;
     }
 
-    /// <summary>Suppresses a stock dialog from the generated dialog set. Idempotent.</summary>
+    /// <summary>
+    /// NOT IMPLEMENTED. Nothing downstream consumes <see cref="DialogCustomizationModel.SuppressedDialogs"/>:
+    /// <see cref="FalkForge.Compiler.Msi.UI.Layout.DialogComposer"/> explicitly declines to apply
+    /// suppression (see its remarks), and no dialog-set template skips composing a suppressed
+    /// <see cref="StockDialog"/> — every stock dialog is always emitted regardless of this call.
+    /// Gated with <c>error: true</c> rather than deleted, or implemented, so the reusable
+    /// machinery (the model field, the builder plumbing, the compile-time validation) survives
+    /// for the real implementation tracked as task #44. Populating
+    /// <see cref="DialogCustomizationModel.SuppressedDialogs"/> directly via an object initializer
+    /// bypasses this method entirely; that path is closed separately by DLG002
+    /// (<see cref="FalkForge.Compiler.Msi.UI.DialogCustomizationValidator"/>), which fails the
+    /// build on any non-empty set.
+    /// </summary>
+    [Obsolete(
+        "SuppressDialog is not implemented — it has no effect on the compiled MSI (see task #44). " +
+        "This call is rejected at compile time so it cannot be mistaken for a working feature.",
+        error: true)]
+    [SuppressMessage("Sonar", "S1133",
+        Justification = "Deliberate permanent gate, not a deprecation in progress — see task #24 " +
+            "(gate the inert API without deleting it) and task #44 (the real implementation this " +
+            "waits for). Removing the reminder is correct only once #44 lands.")]
     public DialogCustomization SuppressDialog(StockDialog dialog)
     {
         _suppressed.Add(dialog);
