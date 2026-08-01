@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Tests.Pipeline;
 
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Planning;
@@ -225,6 +226,81 @@ public sealed class ApplyStepDependencyRegistrationTests
             RegistryRoot.CurrentUser, DependencyRegistrationPaths.ProviderKeyPath("SharedLib")));
         Assert.False(registry.KeyExists(
             RegistryRoot.CurrentUser, DependencyRegistrationPaths.ConsumerKeyPath("SharedLib", "AppA")));
+    }
+
+    [Fact]
+    public async Task Uninstall_PerUser_WriteFailure_LogsError_WithRegistryPath()
+    {
+        // Commit C: unlike an install-direction write failure (contained — nothing was relying on the
+        // registration yet), an uninstall-direction write failure strands THIS bundle's own consumer
+        // entry, potentially forever, which can permanently block a THIRD product's future uninstall of
+        // the shared provider (see ADR 0008 amendment). Must be logged at Error, naming the exact
+        // registry path, not buried as a Warning like the contained install-direction case.
+        var registry = new MockRegistry();
+        var pkg = ExePackage();
+        var manifest = new InstallerManifest
+        {
+            Name = "BrokenUninstaller",
+            Manufacturer = "Acme",
+            Version = "1.0.0",
+            BundleId = BundleId,
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerUser,
+            Packages = [pkg],
+            // Empty ConsumerKey is refused by DependencyRegistrar's safe-segment guard (Commit A) —
+            // the write never happens, exactly the failure mode this test pins the logging for.
+            DependencyConsumers = [new ManifestDependencyConsumer("SharedLib", "")]
+        };
+        var ctx = new PipelineContext
+        {
+            Manifest = manifest,
+            Plan = PlanFor(pkg, PlanActionType.Uninstall),
+            PlanRequest = RequestFor(InstallAction.Uninstall)
+        };
+        var channel = new FakeUiChannel();
+
+        var step = new ApplyStep(SucceedingExecutor(), new InMemoryJournalStore(), channel, registry);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var errorLogs = channel.SentEvents.OfType<PipelineEvent.Log>()
+            .Where(e => e.Level == LogLevel.Error).ToList();
+        var logged = Assert.Single(errorLogs);
+        Assert.Contains(DependencyRegistrationPaths.ConsumerKeyPath("SharedLib", ""), logged.Message);
+    }
+
+    [Fact]
+    public async Task Install_PerUser_WriteFailure_StillLogsWarning_NotError()
+    {
+        // Regression pin: the asymmetry cuts ONE way. Install-direction stays Warning/contained — must
+        // not accidentally get "fixed" back to symmetric Error treatment alongside the uninstall fix.
+        var registry = new MockRegistry();
+        var pkg = ExePackage();
+        var manifest = new InstallerManifest
+        {
+            Name = "BrokenInstaller",
+            Manufacturer = "Acme",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerUser,
+            Packages = [pkg],
+            DependencyConsumers = [new ManifestDependencyConsumer("SharedLib", "")]
+        };
+        var ctx = new PipelineContext
+        {
+            Manifest = manifest,
+            Plan = PlanFor(pkg, PlanActionType.Install),
+            PlanRequest = RequestFor(InstallAction.Install)
+        };
+        var channel = new FakeUiChannel();
+
+        var step = new ApplyStep(SucceedingExecutor(), new InMemoryJournalStore(), channel, registry);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.DoesNotContain(channel.SentEvents.OfType<PipelineEvent.Log>(), e => e.Level == LogLevel.Error);
+        Assert.Contains(channel.SentEvents.OfType<PipelineEvent.Log>(), e => e.Level == LogLevel.Warning);
     }
 
     [Fact]
