@@ -102,7 +102,6 @@ public static partial class MsiRecipeBuilder
 
         RecipeBuildContext context = new(
             resolved,
-            options,
             new DictionaryStreamRegistry());
 
         // Level-guarded: with 36 producers running on every compile, skip the interpolated

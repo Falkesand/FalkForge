@@ -418,7 +418,6 @@ public sealed class PropertyTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         PropertyTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

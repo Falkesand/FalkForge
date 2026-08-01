@@ -80,7 +80,6 @@ public sealed class FeatureComponentsTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         FeatureComponentsTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

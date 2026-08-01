@@ -602,7 +602,6 @@ public sealed class DialogSetProducerTests
 
         RecipeBuildContext context = new(
             new ResolvedPackage { Package = package, Components = [], Files = [] },
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
 
         Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer().Produce(context);
@@ -670,7 +669,6 @@ public sealed class DialogSetProducerTests
                 Components = [],
                 Files = [],
             },
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
 
         Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer().Produce(context);
@@ -957,7 +955,6 @@ public sealed class DialogSetProducerTests
 
         RecipeBuildContext context = new(
             new ResolvedPackage { Package = package, Components = [], Files = [] },
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
 
         Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer().Produce(context);
@@ -991,7 +988,6 @@ public sealed class DialogSetProducerTests
 
         RecipeBuildContext context = new(
             new ResolvedPackage { Package = package, Components = [], Files = [] },
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
 
         Result<ImmutableArray<RecipeTable>> result =
@@ -1082,7 +1078,6 @@ public sealed class DialogSetProducerTests
                 Components = [],
                 Files = [],
             },
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
 
         Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer().Produce(context);
@@ -1100,7 +1095,6 @@ public sealed class DialogSetProducerTests
     private static RecipeBuildContext MakeContext(MsiDialogSet dialogSet)
         => new(
             MakeResolvedPackage(dialogSet),
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
 
     private static ResolvedPackage MakeResolvedPackage(MsiDialogSet dialogSet)

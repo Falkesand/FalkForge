@@ -59,7 +59,6 @@ public sealed class DialogSetProducerCustomDialogTests
     {
         var ctx = new RecipeBuildContext(
             new ResolvedPackage { Package = package, Components = [], Files = [] },
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer().Produce(ctx);
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
@@ -180,7 +179,6 @@ public sealed class DialogSetProducerCustomDialogTests
 
         var ctx = new RecipeBuildContext(
             new ResolvedPackage { Package = package, Components = [], Files = [] },
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
 
         Result<ImmutableArray<RecipeTable>> result =

@@ -152,7 +152,6 @@ public sealed class FontTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         FontTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

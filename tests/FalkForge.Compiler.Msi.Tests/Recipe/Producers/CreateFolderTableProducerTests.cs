@@ -154,7 +154,6 @@ public sealed class CreateFolderTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         CreateFolderTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

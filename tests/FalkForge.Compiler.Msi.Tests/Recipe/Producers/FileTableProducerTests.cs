@@ -70,7 +70,6 @@ public sealed class FileTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         FileTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

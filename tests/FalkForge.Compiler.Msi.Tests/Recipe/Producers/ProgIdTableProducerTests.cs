@@ -167,7 +167,6 @@ public sealed class ProgIdTableProducerTests
     {
         RecipeBuildContext context = new(
             resolved,
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
         ProgIdTableProducer producer = new();
         Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);

@@ -149,7 +149,6 @@ public sealed class IMultiTableProducerTests
     private static RecipeBuildContext MakeContext()
         => new(
             MakeResolvedPackage(),
-            new MsiRecipeBuildOptions(),
             new DictionaryStreamRegistry());
 
     private static ResolvedPackage MakeResolvedPackage()
