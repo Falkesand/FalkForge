@@ -389,15 +389,30 @@ internal sealed class ApplyStep : IApplyStep
                 if (action == InstallAction.Install)
                 {
                     foreach (var provider in manifest.DependencyProviders)
-                        registrar.RegisterProvider(root, provider.Key, provider.Version, provider.DisplayName);
+                    {
+                        var providerResult = registrar.RegisterProvider(
+                            root, provider.Key, provider.Version, provider.DisplayName);
+                        if (providerResult.IsFailure)
+                            await LogDependencyWriteFailureAsync(providerResult.Error.Message, ct);
+                    }
 
                     foreach (var consumer in manifest.DependencyConsumers)
-                        registrar.RegisterConsumer(root, consumer.ProviderKey, consumer.ConsumerKey, manifest.BundleId);
+                    {
+                        var consumerResult = registrar.RegisterConsumer(
+                            root, consumer.ProviderKey, consumer.ConsumerKey, manifest.BundleId);
+                        if (consumerResult.IsFailure)
+                            await LogDependencyWriteFailureAsync(consumerResult.Error.Message, ct);
+                    }
                 }
                 else
                 {
                     foreach (var consumer in manifest.DependencyConsumers)
-                        registrar.UnregisterConsumer(root, consumer.ProviderKey, consumer.ConsumerKey);
+                    {
+                        var unregisterResult = registrar.UnregisterConsumer(
+                            root, consumer.ProviderKey, consumer.ConsumerKey);
+                        if (unregisterResult.IsFailure)
+                            await LogDependencyWriteFailureAsync(unregisterResult.Error.Message, ct);
+                    }
                 }
 
                 return;
@@ -440,6 +455,20 @@ internal sealed class ApplyStep : IApplyStep
                     $"Dependency registration failed (install result unaffected): {ex.Message}"),
                 ct);
         }
+    }
+
+    /// <summary>
+    /// Logs a <see cref="DependencyRegistrar"/> write-side failure on the PerUser path (a rejected unsafe
+    /// key segment, or a registry access-denied condition surfaced as a <see cref="Result{T}"/> failure
+    /// rather than a thrown exception). Never fails the apply — see
+    /// <see cref="RegisterOrUnregisterDependenciesAsync"/> remarks.
+    /// </summary>
+    private async Task LogDependencyWriteFailureAsync(string message, CancellationToken ct)
+    {
+        await _uiChannel.SendAsync(
+            new PipelineEvent.Log(LogLevel.Warning,
+                $"Dependency registration failed (install result unaffected): {message}"),
+            ct);
     }
 
     private static JournalEntry? BuildJournalEntry(PlanAction action)

@@ -82,6 +82,9 @@ public sealed class DependencyRegistrationCommandTests
     [InlineData(@"Foo\..\..\Classes")]
     [InlineData("Foo\\Bar")]
     [InlineData("")]
+    [InlineData("SharedLib\n")] // proves the ^/$ -> \A/\z anchor fix: a bare `$` matches before a
+                                // trailing newline in .NET, so this used to PASS validation and land
+                                // verbatim (with the embedded newline) in operator-facing refusal text.
     public void Execute_UnsafeConsumerKeySegment_RejectsWithSecurityError(string unsafeConsumerKey)
     {
         var registry = new MockRegistry();
