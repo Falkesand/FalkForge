@@ -40,7 +40,11 @@ public sealed record MsiReadRecipe
     /// Every table name present in the source MSI database (from <see cref="IMsiTableAccess.GetTableNames"/>),
     /// including MSI-internal catalog tables (e.g. <c>_Tables</c>). Used by the migration report to
     /// name tables the migrator read nothing from, so a dropped table can never be silently reported
-    /// as "all mapped". Empty only when the table-name query itself could not be run (defensive default).
+    /// as "all mapped". Required: in <see cref="MsiDecompiler"/>, a failed table-name query returns
+    /// a <c>Result</c> failure and short-circuits before an <see cref="MsiReadRecipe"/> is ever
+    /// constructed, so there is no real code path that reaches this property empty by default;
+    /// making it required forces every caller that hand-builds a recipe to state its intent
+    /// explicitly instead of silently re-enabling the "all tables read" claim via an unset default.
     /// </summary>
-    public IReadOnlyList<string> AllTableNames { get; init; } = [];
+    public required IReadOnlyList<string> AllTableNames { get; init; }
 }

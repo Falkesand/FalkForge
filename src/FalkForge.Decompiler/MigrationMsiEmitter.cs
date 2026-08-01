@@ -122,11 +122,26 @@ internal static class MigrationMsiEmitter
     }
 
     /// <summary>
-    /// MSI tables the migrator demonstrably reads: every core <see cref="TableReadSchema{TRow}.TableName"/>
-    /// this assembly's <see cref="MsiDecompiler"/> queries, built from the schema objects themselves so
-    /// this set cannot silently drift from the code that actually does the reading. Extension-contributed
-    /// tables (<see cref="Recipe.MsiReadRecipe.ExtensionRows"/>) are unioned in per-call, since which
-    /// extensions are registered varies by caller.
+    /// MSI tables the migrator demonstrably reads on the MSI migration path: the 10 core
+    /// <see cref="TableReadSchema{TRow}.TableName"/> values <see cref="MsiDecompiler"/>'s
+    /// <c>ReadRecipeFromAccess</c> queries via <c>TableReadEngine.ReadOne</c>, referenced from the
+    /// schema objects themselves (rather than restated as literal strings) so a typo cannot cause a
+    /// mismatch — plus <c>Media</c>, read directly by <see cref="MsiPayloadExtractor"/>
+    /// (<c>SELECT DiskId, LastSequence, Cabinet FROM Media</c>, MsiPayloadExtractor.cs:93) to locate
+    /// the embedded cabinets extracted into the generated project's <c>payload/</c> directory.
+    /// <c>Media</c> has no <see cref="TableReadSchema{TRow}"/> of its own (the read is raw SQL, not
+    /// routed through <c>TableReadEngine</c>), so it is listed as a literal here.
+    /// <para>
+    /// This is still a second, hand-maintained list mirroring two independent call sites — it
+    /// reduces one failure mode (a table-name typo) but not the other: adding a new
+    /// <c>TableReadEngine.ReadOne</c> call without adding its schema here makes a mapped table
+    /// falsely reported as unmapped (noisy but safe), while removing a read and leaving its entry
+    /// here would silently mark a now-dropped table as mapped (the dangerous direction). Keep this
+    /// set in sync with <see cref="MsiDecompiler"/> and <see cref="MsiPayloadExtractor"/> by
+    /// inspection whenever either changes.
+    /// </para>
+    /// Extension-contributed tables (<see cref="Recipe.MsiReadRecipe.ExtensionRows"/>) are unioned
+    /// in per-call, since which extensions are registered varies by caller.
     /// </summary>
     private static readonly FrozenSet<string> CoreMappedTableNames = new[]
     {
@@ -140,6 +155,7 @@ internal static class MigrationMsiEmitter
         ServiceSchema.Schema.TableName,
         ShortcutSchema.Schema.TableName,
         UpgradeSchema.Schema.TableName,
+        "Media", // MsiPayloadExtractor.cs:93 — no TableReadSchema exists for Media.
     }.ToFrozenSet(StringComparer.Ordinal);
 
     /// <summary>

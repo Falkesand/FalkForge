@@ -251,6 +251,33 @@ public sealed class MsiTableAccessRealDatabaseTests : IClassFixture<MsiTableAcce
         }
     }
 
+    // ── GetTableNames: real database ──────────────────────────────────────────────
+
+    [Fact]
+    public void GetTableNames_RealDatabase_ReturnsActualTableNames()
+    {
+        // WHY: every other GetTableNames() call in this test project goes through
+        // MockMsiTableAccess, which just hands back its own _tables.Keys — that never
+        // exercises the REAL MsiTableAccess.GetTableNames() SQL query
+        // (`SELECT Name FROM _Tables`) at all. A production regression here (e.g. the method
+        // silently returning an empty list) would leave the migration report's "all tables
+        // read" honesty check (MsiReadRecipe.AllTableNames) permanently vacuous — no test
+        // would go red even though every real MSI would then be falsely reported as fully
+        // mapped. Assert against the known-present tables of the probe MSI built by
+        // GuardMsiFixture (Property, Directory, Component, File, Feature — all populated by
+        // BuildRealMsi via a Feature+Files call).
+        using var access = MsiTableAccess.Open(_guardFixture.MsiPath).Value;
+
+        var result = access.GetTableNames();
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        Assert.NotEmpty(result.Value);
+        Assert.Contains("Property", result.Value);
+        Assert.Contains("Directory", result.Value);
+        Assert.Contains("Component", result.Value);
+        Assert.Contains("File", result.Value);
+    }
+
     // ── ValidateIdentifier: hostile table/column names ───────────────────────────
     //
     // ValidateIdentifier is the only guard between an untrusted MSI's table/column names and

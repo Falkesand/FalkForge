@@ -27,6 +27,7 @@ public sealed class MsiPlanDiffTests
         Services          = [],
         Shortcuts         = [],
         Upgrades          = [],
+        AllTableNames     = [],
     };
 
     private static PropertyRow Prop(string name, string value) => new(name, value);
