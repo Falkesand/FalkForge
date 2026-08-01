@@ -261,6 +261,11 @@ public sealed class MsiDecompiler
         var upResult        = TableReadEngine.ReadOne(UpgradeSchema.Schema,           access, logger, Category);
         if (upResult.IsFailure)        return Result<MsiReadRecipe>.Failure(upResult.Error);
 
+        // All table names present in the database, so the migration report can honestly
+        // name tables nothing above reads from (see MigrationMsiEmitter.BuildNotMigratedSection).
+        var tableNamesResult = access.GetTableNames();
+        if (tableNamesResult.IsFailure) return Result<MsiReadRecipe>.Failure(tableNamesResult.Error);
+
         // Read extension-contributed tables via ITableReadSchema.ReadErased. The erased
         // interface does not accept a logger (it lives in Extensibility, shared with
         // production extensions such as Firewall/Sql that this phase does not touch), so
@@ -299,6 +304,7 @@ public sealed class MsiDecompiler
             Services          = svcResult.Value,
             Shortcuts         = scResult.Value,
             Upgrades          = upResult.Value,
+            AllTableNames     = tableNamesResult.Value,
             ExtensionRows     = extRows.Count > 0
                 ? extRows.ToFrozenDictionary(StringComparer.Ordinal)
                 : (IReadOnlyDictionary<string, IReadOnlyList<object>>)

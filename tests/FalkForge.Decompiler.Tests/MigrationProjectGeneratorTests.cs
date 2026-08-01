@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Runtime.Versioning;
 using Xunit;
 
@@ -283,7 +284,7 @@ public sealed class MigrationProjectGeneratorTests
             ]
         };
 
-        var section = MigrationProjectGenerator.BuildNotMigratedSection(model);
+        var section = MigrationProjectGenerator.BuildNotMigratedSection(model, unmappedTableNames: []);
 
         Assert.Contains("Not yet migrated", section);
         Assert.Contains("environment variable", section, StringComparison.OrdinalIgnoreCase);
@@ -301,9 +302,113 @@ public sealed class MigrationProjectGeneratorTests
             Version = new Version(1, 0, 0),
         };
 
-        var section = MigrationProjectGenerator.BuildNotMigratedSection(model);
+        var section = MigrationProjectGenerator.BuildNotMigratedSection(model, unmappedTableNames: []);
 
         Assert.Contains("All present features were mapped.", section);
+    }
+
+    [Fact]
+    public void NotMigratedSection_WithUnmappedTableNames_NamesTheTableAndDropsAllMappedClaim()
+    {
+        // WHY (task #34 stage 1): MsiPackageReconstructor.Rebuild never populates any of the
+        // 8 fields BuildNotMigratedSection inspects, so before this fix dropped.Count was always
+        // 0 and "All present features were mapped." was emitted unconditionally — even though
+        // real MSIs routinely carry standard tables (CustomAction, Environment, ...) the migrator
+        // never reads. A table name the migrator does not demonstrably map must flip the gate and
+        // be named explicitly, regardless of the model's own (also-empty) 8 fields.
+        var model = new FalkForge.Models.PackageModel
+        {
+            Name = "App",
+            Manufacturer = "Corp",
+            Version = new Version(1, 0, 0),
+        };
+
+        var section = MigrationProjectGenerator.BuildNotMigratedSection(model, unmappedTableNames: ["CustomAction"]);
+
+        Assert.DoesNotContain("All present features were mapped.", section);
+        Assert.Contains("CustomAction", section);
+        Assert.Contains("dropped", section, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Generate_MsiWithUnreadTable_ReportNamesTheUnmappedTableEndToEnd()
+    {
+        // WHY: pins the FULL wiring (MockMsiTableAccess.GetTableNames -> MsiReadRecipe.AllTableNames
+        // -> MigrationMsiEmitter.ComputeUnmappedTableNames -> BuildReport), not just the pure
+        // BuildNotMigratedSection function. "CustomAction" is a real MSI table no core schema or
+        // extension contributor in this test reads, so it must show up as unmapped and the report
+        // must NOT claim everything was mapped.
+        using var access = CreateStandardMockAccess()
+            .WithTable("CustomAction", [["SetProp", "51", "MYPROP", "value"]]);
+        var generator = new MigrationProjectGenerator(new MsiDecompiler(access));
+
+        var result = generator.Generate("ignored.msi", DefaultOptions());
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : "");
+        var report = result.Value.TextFiles["MIGRATION-REPORT.md"];
+
+        Assert.Contains("CustomAction", report);
+        Assert.DoesNotContain("All present features were mapped.", report);
+    }
+
+    // ── ComputeUnmappedTableNames (pure) ─────────────────────────────────────
+
+    [Fact]
+    public void ComputeUnmappedTableNames_CoreTablesOnly_ReturnsEmpty()
+    {
+        // Every table the core schemas demonstrably read must never be reported as unmapped.
+        string[] allTables = ["Property", "Directory", "Component", "File", "Feature",
+            "FeatureComponents", "Registry", "ServiceInstall", "Shortcut", "Upgrade"];
+
+        var unmapped = MigrationMsiEmitter.ComputeUnmappedTableNames(
+            allTables, ImmutableDictionary<string, IReadOnlyList<object>>.Empty);
+
+        Assert.Empty(unmapped);
+    }
+
+    [Fact]
+    public void ComputeUnmappedTableNames_InternalCatalogTables_AreExcluded()
+    {
+        // _Tables/_Columns/_Validation are MSI's own catalog, never migratable data —
+        // they must not be reported as dropped rows.
+        string[] allTables = ["Property", "_Tables", "_Columns", "_Validation", "_StringData", "_StringPool"];
+
+        var unmapped = MigrationMsiEmitter.ComputeUnmappedTableNames(
+            allTables, ImmutableDictionary<string, IReadOnlyList<object>>.Empty);
+
+        Assert.Empty(unmapped);
+    }
+
+    [Fact]
+    public void ComputeUnmappedTableNames_ExtensionContributedTable_IsExcluded()
+    {
+        // A table an extension contributor demonstrably reads (present in ExtensionRows)
+        // is mapped too, even though it is not one of the 10 core schemas.
+        string[] allTables = ["Property", "WixFirewallException"];
+        var extensionRows = new Dictionary<string, IReadOnlyList<object>>(StringComparer.Ordinal)
+        {
+            ["WixFirewallException"] = [],
+        };
+
+        var unmapped = MigrationMsiEmitter.ComputeUnmappedTableNames(allTables, extensionRows);
+
+        Assert.Empty(unmapped);
+    }
+
+    [Fact]
+    public void ComputeUnmappedTableNames_UnknownTable_IsReportedAndSorted()
+    {
+        // WHY (this is the whole point of stage 1): a real MSI table nobody has ever
+        // written a reader for must be loud by construction, not silently dropped.
+        // This is the exact scenario that was structurally impossible to detect before —
+        // MsiPackageReconstructor.Rebuild never populated the 8 fields BuildNotMigratedSection
+        // checked, so "unmapped" was always empty no matter what the source MSI contained.
+        string[] allTables = ["Property", "ServiceControl", "CustomAction", "Binary"];
+
+        var unmapped = MigrationMsiEmitter.ComputeUnmappedTableNames(
+            allTables, ImmutableDictionary<string, IReadOnlyList<object>>.Empty);
+
+        Assert.Equal(["Binary", "CustomAction", "ServiceControl"], unmapped);
     }
 
     // ── error paths ──────────────────────────────────────────────────────────

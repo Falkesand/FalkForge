@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Bundle;
+using FalkForge.Decompiler.Recipe;
 using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Models;
 
@@ -98,13 +99,30 @@ public sealed class MigrationProjectGenerator
         // Reuse injected decompiler (tests) or create a fresh one (production).
         var decompiler = _msiDecompiler ?? new MsiDecompiler();
 
-        // Decompile to the model first so the report can honestly enumerate which
-        // model features are still not emitted; emit C# from the same model.
-        var modelResult = decompiler.Decompile(inputPath);
-        if (modelResult.IsFailure)
-            return Result<MigrationResult>.Failure(modelResult.Error);
+        // Read the recipe (not just the model) so the report can honestly compare every table
+        // name actually present in the MSI against the tables the migrator demonstrably reads
+        // (core schemas + extension contributors) — see MigrationMsiEmitter.ComputeUnmappedTableNames.
+        // Reconstructing the model from the recipe here (rather than calling decompiler.Decompile)
+        // mirrors MsiDecompiler.DecompileFromAccess exactly; it is the same public Rebuild call,
+        // just made from here so the recipe's AllTableNames/ExtensionRows are available too.
+        var recipeResult = decompiler.DecompileToRecipe(inputPath);
+        if (recipeResult.IsFailure)
+            return Result<MigrationResult>.Failure(recipeResult.Error);
 
-        var model = modelResult.Value;
+        var recipe = recipeResult.Value;
+        var model = MsiPackageReconstructor.Rebuild(
+            recipe.Properties,
+            recipe.Directories,
+            recipe.Components,
+            recipe.Files,
+            recipe.Features,
+            recipe.FeatureComponents,
+            recipe.RegistryEntries,
+            recipe.Services,
+            recipe.Shortcuts,
+            recipe.Upgrades);
+
+        var unmappedTableNames = MigrationMsiEmitter.ComputeUnmappedTableNames(recipe.AllTableNames, recipe.ExtensionRows);
 
         // Emit via the Result-returning path so an unsupported KnownFolder root token
         // surfaces as a Failure (preserving the Result<MigrationResult> contract and
@@ -116,7 +134,7 @@ public sealed class MigrationProjectGenerator
 
         var programCs   = MigrationMsiEmitter.BuildProgramCs(emittedFragment);
         var csproj      = MigrationMsiEmitter.BuildCsproj(options);
-        var report      = MigrationMsiEmitter.BuildReport(inputPath, options, model);
+        var report      = MigrationMsiEmitter.BuildReport(inputPath, options, model, unmappedTableNames);
 
         var files = new Dictionary<string, string>(StringComparer.Ordinal)
         {
@@ -303,6 +321,6 @@ public sealed class MigrationProjectGenerator
     /// Kept on the generator so existing tests that reference
     /// <c>MigrationProjectGenerator.BuildNotMigratedSection</c> resolve unchanged.
     /// </summary>
-    internal static string BuildNotMigratedSection(PackageModel model) =>
-        MigrationMsiEmitter.BuildNotMigratedSection(model);
+    internal static string BuildNotMigratedSection(PackageModel model, IReadOnlyList<string> unmappedTableNames) =>
+        MigrationMsiEmitter.BuildNotMigratedSection(model, unmappedTableNames);
 }

@@ -89,6 +89,13 @@ public sealed class MockMsiTableAccess : IMsiTableAccess
         return _tables.ContainsKey(tableName);
     }
 
+    public Result<IReadOnlyList<string>> GetTableNames()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        IReadOnlyList<string> names = _tables.Keys.ToList();
+        return Result<IReadOnlyList<string>>.Success(names);
+    }
+
     public void Dispose()
     {
         _disposed = true;
