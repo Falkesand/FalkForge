@@ -10,14 +10,17 @@ internal static class DependencyDetector
     /// Checks which required dependency providers are missing or have incompatible versions. Reads the
     /// provider Version from BOTH registry roots (<see cref="DependencyRegistrationPaths.ReadRoots"/>) and
     /// compares against the requirement's version range — a per-user-installed provider satisfies a
-    /// requirement just as a per-machine one does (union read).
+    /// requirement just as a per-machine one does (union read). Fails closed: a read error (access denied
+    /// / unreadable) on EITHER root propagates as a <see cref="Result{T}"/> failure instead of being
+    /// silently folded into "provider absent" — an unknown state must never look like, or be reported as,
+    /// a genuinely missing provider (see ADR 0008).
     /// </summary>
-    internal static IReadOnlyList<UnsatisfiedProviderInfo> DetectUnsatisfiedProviders(
+    internal static Result<IReadOnlyList<UnsatisfiedProviderInfo>> DetectUnsatisfiedProviders(
         ManifestDependencyRequirement[] requirements,
         IRegistry registry)
     {
         if (requirements.Length == 0)
-            return [];
+            return Result<IReadOnlyList<UnsatisfiedProviderInfo>>.Success([]);
 
         var unsatisfied = new List<UnsatisfiedProviderInfo>();
 
@@ -28,7 +31,11 @@ internal static class DependencyDetector
             string? installedVersionStr = null;
             foreach (var root in DependencyRegistrationPaths.ReadRoots)
             {
-                installedVersionStr = registry.GetStringValue(root, versionPath, "Version");
+                var readResult = registry.TryGetStringValue(root, versionPath, "Version");
+                if (readResult.IsFailure)
+                    return Result<IReadOnlyList<UnsatisfiedProviderInfo>>.Failure(readResult.Error);
+
+                installedVersionStr = readResult.Value.Value;
                 if (installedVersionStr is not null)
                     break;
             }
@@ -52,7 +59,7 @@ internal static class DependencyDetector
             }
         }
 
-        return unsatisfied;
+        return Result<IReadOnlyList<UnsatisfiedProviderInfo>>.Success(unsatisfied);
     }
 
     private static bool IsVersionInRange(System.Version version, ManifestDependencyRequirement req)
