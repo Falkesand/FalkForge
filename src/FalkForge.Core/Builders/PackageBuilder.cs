@@ -80,11 +80,29 @@ public sealed partial class PackageBuilder
         var upgradeCode = UpgradeCode ??
                           GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace,
                               $"{Name}::{Manufacturer}");
-        var productCode = ProductCode ?? (_reproducibleOptions is not null
-            ? GuidUtility.CreateDeterministicGuid(
-                GuidUtility.FalkForgeNamespace,
-                $"{Name}::{Manufacturer}::{Version}") // Version.ToString(): 2-component → "1.0", 3-component → "1.0.0"
-            : Guid.NewGuid());
+        // Match PropertyTableProducer's ProductVersion for every version the compiler
+        // accepts (major.minor.build): Windows Installer only ever reads three version
+        // fields, so a 4th (Revision) component -- e.g. a CI build number in "1.0.0.100"
+        // -- must not change product identity, or a rebuild that only bumps Revision gets
+        // a new ProductCode while ProductVersion (and RemoveExistingProducts' VersionMax
+        // match) stays identical, landing the install side by side instead of upgrading.
+        // Build defaults to -1 for a 2-component Version (Version.ToString(3) throws in
+        // that case); clamp it to 0 rather than let that turn a silent identity bug into
+        // a crash inside the builder.
+        var msiVersion = $"{Version.Major}.{Version.Minor}.{(Version.Build < 0 ? 0 : Version.Build)}";
+
+        // Architecture and Scope both change compiled product identity: Architecture
+        // drives the SummaryInformation Template (MsiRecipeBuilder.Metadata.cs) and the
+        // Component 64-bit attribute bit (ComponentTableProducer.cs); Scope drives
+        // ALLUSERS (PropertyTableProducer.cs). Without both in the key, an ordinary
+        // dual-architecture ship -- same Name/Manufacturer/Version, built once for X86 and
+        // once for X64 -- would derive the SAME ProductCode with a different Template, and
+        // likewise for a PerMachine vs. PerUser build of the same product: installing the
+        // second build then fails with 1638 (ERROR_PRODUCT_VERSION) instead of installing,
+        // with no build-time error.
+        var productCode = ProductCode ?? GuidUtility.CreateDeterministicGuid(
+            GuidUtility.FalkForgeNamespace,
+            $"{Name}::{Manufacturer}::{msiVersion}::{ArchitectureToken(Architecture)}::{ScopeToken(Scope)}");
         var defaultInstallDir = DefaultInstallDirectory ?? KnownFolder.ProgramFiles / Manufacturer / Name;
 
         // If no features defined, create implicit "Complete" feature
@@ -163,4 +181,27 @@ public sealed partial class PackageBuilder
             WinGet = _winGet
         };
     }
+
+    // Rendered via an explicit switch rather than architecture.ToString(): the enum's
+    // member names are an implementation detail of this codebase, so a future rename would
+    // silently change every already-shipped ProductCode. The raw numeric value was rejected
+    // for the same reason -- inserting a new member ahead of an existing one would renumber
+    // it and shift every derived GUID. Used only to build the ProductCode key in Build().
+    private static string ArchitectureToken(ProcessorArchitecture architecture) => architecture switch
+    {
+        ProcessorArchitecture.X86 => "x86",
+        ProcessorArchitecture.X64 => "x64",
+        ProcessorArchitecture.Arm64 => "arm64",
+        _ => throw new ArgumentOutOfRangeException(nameof(architecture), architecture,
+            "Unknown processor architecture."),
+    };
+
+    // Same rationale as ArchitectureToken: explicit switch, not scope.ToString(), so a
+    // future enum-member rename cannot silently change an already-shipped ProductCode.
+    private static string ScopeToken(InstallScope scope) => scope switch
+    {
+        InstallScope.PerMachine => "machine",
+        InstallScope.PerUser => "user",
+        _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, "Unknown install scope."),
+    };
 }

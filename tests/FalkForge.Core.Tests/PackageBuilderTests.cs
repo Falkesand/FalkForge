@@ -399,12 +399,197 @@ public sealed class PackageBuilderTests
         Assert.NotEqual(p1.ProductCode, p2.ProductCode);
     }
 
+    // Issue #61: ProductCode must default to a deterministic value so a rebuild of the
+    // same Name/Manufacturer/Version replaces the previous install instead of installing
+    // alongside it (two Add/Remove Programs entries). This is the regression test.
     [Fact]
-    public void NonReproducible_ProductCode_VariesAcrossBuilds()
+    public void NonReproducible_ProductCode_IsDeterministicAcrossBuilds()
     {
         var p1 = InstallerTestHost.BuildPackage(p => { p.Name = "App"; p.Manufacturer = "Corp"; });
         var p2 = InstallerTestHost.BuildPackage(p => { p.Name = "App"; p.Manufacturer = "Corp"; });
 
+        Assert.Equal(p1.ProductCode, p2.ProductCode);
+    }
+
+    // Guards against a naive fix that derives ProductCode from Name::Manufacturer alone
+    // (dropping Version): Windows Installer major-upgrade rules require a NEW version to
+    // get a NEW ProductCode, even without Reproducible() configured.
+    [Fact]
+    public void NonReproducible_ProductCode_DiffersForDifferentVersion()
+    {
+        var p1 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+        });
+        var p2 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(2, 0, 0);
+        });
+
         Assert.NotEqual(p1.ProductCode, p2.ProductCode);
+    }
+
+    // PackageCode is a different code with different MSI rules (identifies the .msi
+    // package bytes, not the product) and must stay a fresh Guid per build in normal
+    // (non-reproducible) mode -- this fix must not touch it.
+    [Fact]
+    public void NonReproducible_PackageCode_VariesAcrossBuilds()
+    {
+        var p1 = InstallerTestHost.BuildPackage(p => { p.Name = "App"; p.Manufacturer = "Corp"; });
+        var p2 = InstallerTestHost.BuildPackage(p => { p.Name = "App"; p.Manufacturer = "Corp"; });
+
+        Assert.NotEqual(p1.PackageCode, p2.PackageCode);
+    }
+
+    // Windows Installer only ever reads major.minor.build for ProductVersion (see
+    // PropertyTableProducer and UpgradeTableProducer, both call Version.ToString(3)) --
+    // the 4th (Revision) field never reaches the compiled MSI at all. A CI build number
+    // living in Revision (a completely standard .NET convention, e.g. "1.0.0.100") must
+    // therefore NOT change ProductCode, or a rebuild that only bumps Revision gets a new
+    // ProductCode while ProductVersion stays identical: RemoveExistingProducts then does
+    // nothing (VersionMax is exclusive) and the install lands side by side -- issue #61
+    // again, just triggered by a different field.
+    [Fact]
+    public void NonReproducible_ProductCode_IgnoresRevisionComponent()
+    {
+        var p1 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+        });
+        var p2 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0, 7);
+        });
+
+        Assert.Equal(p1.ProductCode, p2.ProductCode);
+    }
+
+    // Confirms the fix still tracks a real (major/minor/build) version change -- must not
+    // regress into deriving ProductCode from Name::Manufacturer alone.
+    [Fact]
+    public void NonReproducible_ProductCode_DiffersForDifferentBuildComponent()
+    {
+        var p1 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+        });
+        var p2 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 1);
+        });
+
+        Assert.NotEqual(p1.ProductCode, p2.ProductCode);
+    }
+
+    // A 2-component Version (Build == -1) is reachable today: JsonConfigLoader/
+    // StudioBuildService parse "version": "1.0" with plain Version.TryParse (no
+    // normalization) and PKG005-007 only bound Major/Minor/Build, not the absence of
+    // Build itself. The derivation must clamp the missing Build to 0 instead of calling
+    // Version.ToString(3) (which throws ArgumentException below 3 components) -- pins
+    // that the clamp doesn't throw and produces the same code as an explicit "1.0.0".
+    [Fact]
+    public void NonReproducible_ProductCode_TwoComponentVersion_MatchesThreeComponentEquivalent()
+    {
+        var p1 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0);
+        });
+        var p2 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+        });
+
+        Assert.Equal(p1.ProductCode, p2.ProductCode);
+    }
+
+    // Architecture changes compiled product identity: SummaryInformation's Template
+    // (MsiRecipeBuilder.Metadata.cs) and the Component 64-bit attribute bit
+    // (ComponentTableProducer.cs) both depend on it. Without Architecture in the key, a
+    // normal dual-architecture ship -- same Name/Manufacturer/Version, built once for X86
+    // and once for X64 -- derives the SAME ProductCode with different Templates.
+    // Installing x86 then x64 returns 1638 (ERROR_PRODUCT_VERSION) instead of installing,
+    // with no build-time error.
+    [Fact]
+    public void NonReproducible_ProductCode_DiffersForDifferentArchitecture()
+    {
+        var p1 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+            p.Architecture = ProcessorArchitecture.X86;
+        });
+        var p2 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+            p.Architecture = ProcessorArchitecture.X64;
+        });
+
+        Assert.NotEqual(p1.ProductCode, p2.ProductCode);
+    }
+
+    // Scope changes compiled product identity: ALLUSERS (PropertyTableProducer.cs) differs
+    // between PerMachine and PerUser installs of the same Name/Manufacturer/Version. Without
+    // Scope in the key, that collision is the same class of bug as the architecture one
+    // above -- a per-machine build and a per-user build of the same product silently share a
+    // ProductCode with different ALLUSERS values.
+    [Fact]
+    public void NonReproducible_ProductCode_DiffersForDifferentScope()
+    {
+        var p1 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+            p.Scope = InstallScope.PerMachine;
+        });
+        var p2 = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+            p.Scope = InstallScope.PerUser;
+        });
+
+        Assert.NotEqual(p1.ProductCode, p2.ProductCode);
+    }
+
+    // Pins the coupling nothing else asserts: PackageBuilder's ProductCode derivation must
+    // key on the exact same version string PropertyTableProducer.cs writes as
+    // ProductVersion (package.Version.ToString(3)). Every other test here compares two
+    // builder outputs to each other, so both sides could drift together and stay green. This
+    // test recomputes the expected GUID independently, via Version.ToString(3) directly (not
+    // PackageBuilder's internal msiVersion field) -- if PropertyTableProducer's normalization
+    // ever changes (e.g. to ToString(4)), this is the test that catches it.
+    [Fact]
+    public void NonReproducible_ProductCode_MatchesPropertyTableProducerVersionString()
+    {
+        var version = new Version(1, 2, 3);
+        var package = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = version;
+            p.Architecture = ProcessorArchitecture.X64;
+            p.Scope = InstallScope.PerMachine;
+        });
+
+        var expectedProductCode = GuidUtility.CreateDeterministicGuid(
+            GuidUtility.FalkForgeNamespace,
+            $"App::Corp::{version.ToString(3)}::x64::machine");
+
+        Assert.Equal(expectedProductCode, package.ProductCode);
+    }
+
+    // documentation.html:1168-1169 claims the derivation "applies identically in normal and
+    // reproducible-build mode". Every other ProductCode test in this file runs in normal
+    // (non-reproducible) mode only -- nothing pinned that claim for reproducible mode until
+    // now.
+    [Fact]
+    public void ProductCode_SameAcrossReproducibleAndNonReproducibleModes()
+    {
+        var nonReproducible = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+        });
+        var reproducible = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "App"; p.Manufacturer = "Corp"; p.Version = new Version(1, 0, 0);
+            p.Reproducible(1708600000L);
+        });
+
+        Assert.Equal(nonReproducible.ProductCode, reproducible.ProductCode);
     }
 }

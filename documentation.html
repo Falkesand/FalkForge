@@ -1158,11 +1158,27 @@ return Installer.Build(args, package =>
         <td><code>ProductCode</code></td>
         <td>One specific product+version combination. Classic MSI guidance says to bump it for
         every version you release.</td>
-        <td>A fresh <code>Guid.NewGuid()</code> on every <code>Build()</code> call &mdash; even two
-        builds of the identical version get different ProductCodes, unless you pin one explicitly.
-        In reproducible-build mode (<code>ReproducibleOptions</code>), it's instead a deterministic
-        digest of <code>Name::Manufacturer::Version</code>, so identical inputs reproduce the same
-        code.</td>
+        <td>Deterministically derived from <code>Name</code>, <code>Manufacturer</code>,
+        <code>&lt;major.minor.build&gt;</code>, <code>Architecture</code>, and <code>Scope</code>
+        &mdash; the same five inputs, rebuilt, keep the same ProductCode, while a change to any of
+        them gets a new ProductCode automatically (Architecture and Scope are included because both
+        change compiled product identity: Architecture drives the SummaryInformation Template and the
+        Component 64-bit attribute bit, Scope drives <code>ALLUSERS</code> &mdash; without them, a
+        normal dual-architecture or per-machine/per-user ship of the same product would collide on one
+        ProductCode). Same ProductCode + same <code>ProductVersion</code> + different bytes is an MSI
+        <em>small update</em>, not an automatic replacement: Windows Installer does not route it
+        through the upgrade mechanism (the emitted <code>Upgrade</code> table row's
+        <code>VersionMax</code> is exclusive, so it matches nothing at an identical version), so
+        running the new MSI again returns error 1638 (<code>ERROR_PRODUCT_VERSION</code>) or opens the
+        maintenance/repair UI. Applying it requires
+        <code>msiexec /i new.msi REINSTALL=ALL REINSTALLMODE=vomus</code>; without that flag
+        combination, the rebuild is at least not a second, separate product with its own Add/Remove
+        Programs entry &mdash; but it also does not install itself for you. Windows Installer's
+        <code>ProductVersion</code> property never carries a 4th (Revision) field, so a
+        <code>Version</code> with one set (e.g. a CI build number in <code>1.0.0.100</code>) does not
+        change the ProductCode either. Pin one explicitly with <code>package.ProductCode = ...</code>
+        to override. This applies identically in normal and reproducible-build
+        (<code>ReproducibleOptions</code>) mode.</td>
       </tr>
       <tr>
         <td><code>PackageCode</code></td>
@@ -1203,8 +1219,10 @@ return Installer.Build(args, package =>
   <h4>The Rule: Reuse the Old UpgradeCode</h4>
   <p>
     Set <code>PackageBuilder.UpgradeCode</code> to the <em>exact</em> GUID the old installer registered,
-    and configure <code>MajorUpgrade</code> as usual. A fresh <code>ProductCode</code> on every build is
-    still correct and expected &mdash; only <code>UpgradeCode</code> has to carry over:
+    and configure <code>MajorUpgrade</code> as usual. FalkForge's deterministic <code>ProductCode</code>
+    (derived from <code>Name</code>, <code>Manufacturer</code>, <code>&lt;major.minor.build&gt;</code>,
+    <code>Architecture</code>, and <code>Scope</code>) is unrelated to the old installer's ProductCode
+    and needs no special handling &mdash; only <code>UpgradeCode</code> has to carry over:
   </p>
   <pre><code class="language-csharp">var package = new PackageBuilder
 {
@@ -2891,7 +2909,7 @@ return Installer.Build(args, p =&gt;
       <tr><td><code>Manufacturer</code></td><td><code>string</code></td><td><code>""</code></td><td>Publisher / manufacturer name.</td></tr>
       <tr><td><code>Version</code></td><td><code>Version</code></td><td><code>1.0.0</code></td><td>Product version (major.minor.build).</td></tr>
       <tr><td><code>UpgradeCode</code></td><td><code>Guid?</code></td><td>Deterministic</td><td>Upgrade code. Auto-generated from Name + Manufacturer if not set.</td></tr>
-      <tr><td><code>ProductCode</code></td><td><code>Guid?</code></td><td><code>Guid.NewGuid()</code></td><td>Unique product code per build. Auto-generated if not set.</td></tr>
+      <tr><td><code>ProductCode</code></td><td><code>Guid?</code></td><td>Deterministic</td><td>Product code. Auto-generated from Name + Manufacturer + major.minor.build if not set (the Revision field is ignored, matching Windows Installer's own ProductVersion); the same major.minor.build rebuilt keeps the same code, a change to any of those three gets a new one.</td></tr>
       <tr><td><code>Scope</code></td><td><code>InstallScope</code></td><td><code>PerMachine</code></td><td>Install scope: <code>PerMachine</code> or <code>PerUser</code>.</td></tr>
       <tr><td><code>Architecture</code></td><td><code>ProcessorArchitecture</code></td><td><code>X64</code></td><td>Target processor architecture.</td></tr>
       <tr><td><code>DefaultInstallDirectory</code></td><td><code>InstallPath?</code></td><td><code>ProgramFiles/Manufacturer/Name</code></td><td>Default installation directory path.</td></tr>

@@ -238,7 +238,7 @@ forge plan installer.exe --json
 
 **Behaviour:** the command (a) checks the artifact and the `--rebuild` project both exist, (b) resolves `SOURCE_DATE_EPOCH` from `--source-date-epoch`, else the env var, else the git HEAD commit time (same rules as `forge build --reproducible`), (c) rebuilds the project via `dotnet run --project <project> -- -o <tempdir>` with that epoch pinned, (d) locates the rebuilt artifact of the same extension in the temp dir, (e) byte-compares it against the shipped artifact, and (f) emits a verdict. The temp directory is always cleaned up.
 
-> **The rebuild project must opt into reproducible mode** by calling `package.Reproducible()` (MSI) or `BundleBuilder.Reproducible()` (bundle). Without it, two builds differ in PackageCode/ProductCode and timestamps and will never match; `forge verify` then reports `MISMATCH` rather than silently passing.
+> **The rebuild project must opt into reproducible mode** by calling `package.Reproducible()` (MSI) or `BundleBuilder.Reproducible()` (bundle). Without it, two builds differ in PackageCode and timestamps and will never match; `forge verify` then reports `MISMATCH` rather than silently passing.
 
 **Verdicts:**
 
