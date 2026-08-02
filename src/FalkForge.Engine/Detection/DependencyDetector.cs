@@ -35,7 +35,7 @@ internal static class DependencyDetector
                 if (readResult.IsFailure)
                     return Result<IReadOnlyList<UnsatisfiedProviderInfo>>.Failure(readResult.Error);
 
-                installedVersionStr = readResult.Value.Value;
+                installedVersionStr = readResult.Value;
                 if (installedVersionStr is not null)
                     break;
             }
