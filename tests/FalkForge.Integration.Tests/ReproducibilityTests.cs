@@ -130,7 +130,9 @@ public sealed class ReproducibilityTests
             var hash1 = BuildAndHash(payloadPath, outputDir1, reproducible: false);
             var hash2 = BuildAndHash(payloadPath, outputDir2, reproducible: false);
 
-            // Without reproducible mode the ProductCode is a fresh Guid each build,
+            // Without reproducible mode the PackageCode is a fresh Guid each build
+            // (ProductCode is now deterministic by default -- see issue #61 -- but
+            // PackageCode intentionally stays random outside Reproducible() mode),
             // which propagates into the MSI bytes and makes hashes differ.
             Assert.NotEqual(hash1, hash2);
         }
