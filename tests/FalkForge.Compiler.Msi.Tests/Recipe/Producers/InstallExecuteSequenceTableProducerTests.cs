@@ -586,6 +586,85 @@ public sealed class InstallExecuteSequenceTableProducerTests
         Assert.Equal(1450, seq["RemoveExistingProducts"]);
     }
 
+    // ── Conditional: FindRelatedProducts (issue #65) ──────────────────────────
+    // FindRelatedProducts reads the Upgrade table and sets OLDERVERSIONFOUND /
+    // NEWERVERSIONFOUND. Without it, RemoveExistingProducts has nothing to
+    // remove and any launch condition on NEWERVERSIONFOUND is inert — the
+    // Upgrade table rows look correct but MajorUpgrade silently does nothing.
+
+    [Fact]
+    public void Produce_major_upgrade_emits_FindRelatedProducts()
+    {
+        IReadOnlyList<string> names = ActionNames(ProduceRows(MakeResolved(new PackageModel
+        {
+            Name = "P", Manufacturer = "M", Version = new Version(2, 0, 0),
+            MajorUpgrade = new MajorUpgradeModel
+            {
+                Schedule = RemoveExistingProductsSchedule.AfterInstallValidate,
+                MigrateFeatures = false,
+            },
+        })));
+
+        Assert.Contains("FindRelatedProducts", names);
+    }
+
+    [Fact]
+    public void Produce_with_upgrade_model_emits_FindRelatedProducts()
+    {
+        // Non-major Upgrade path (":186") also emits RemoveExistingProducts and must
+        // also get FindRelatedProducts — the gap is tied to the Upgrade table existing,
+        // not narrowly to MajorUpgrade.
+        IReadOnlyList<string> names = ActionNames(ProduceRows(MakeResolved(new PackageModel
+        {
+            Name = "P", Manufacturer = "M", Version = new Version(2, 0, 0),
+            Upgrade = new UpgradeModel(),
+        })));
+
+        Assert.Contains("FindRelatedProducts", names);
+    }
+
+    [Fact]
+    public void Produce_FindRelatedProducts_is_sequenced_strictly_before_LaunchConditions_and_RemoveExistingProducts()
+    {
+        // Encodes WHY the fix exists: FindRelatedProducts must run before LaunchConditions
+        // (100) so a downgrade-blocking condition on NEWERVERSIONFOUND is live, and before
+        // RemoveExistingProducts so the upgrade actually finds something to remove. Assert
+        // the ordering relationship, not the literal sequence number, so a future
+        // renumbering that preserves correctness does not produce a false failure.
+        Dictionary<string, int> seq = SeqByName(ProduceRows(MakeResolved(new PackageModel
+        {
+            Name = "P", Manufacturer = "M", Version = new Version(2, 0, 0),
+            MajorUpgrade = new MajorUpgradeModel
+            {
+                Schedule = RemoveExistingProductsSchedule.AfterInstallValidate,
+                MigrateFeatures = false,
+            },
+        })));
+
+        Assert.True(seq["FindRelatedProducts"] < seq["LaunchConditions"],
+            $"Expected FindRelatedProducts ({seq["FindRelatedProducts"]}) < LaunchConditions ({seq["LaunchConditions"]}).");
+        Assert.True(seq["FindRelatedProducts"] < seq["RemoveExistingProducts"],
+            $"Expected FindRelatedProducts ({seq["FindRelatedProducts"]}) < RemoveExistingProducts ({seq["RemoveExistingProducts"]}).");
+    }
+
+    [Fact]
+    public void Produce_without_upgrade_configured_does_not_emit_FindRelatedProducts()
+    {
+        // Guard: FindRelatedProducts must never be emitted unconditionally. This constructs
+        // PackageModel directly, so Upgrade/MajorUpgrade are both null — a state PackageBuilder
+        // itself never actually produces (Build() always defaults Upgrade to a plain
+        // UpgradeModel() when MajorUpgrade isn't configured). Real FalkForge-built packages
+        // always carry an Upgrade table and therefore always get FindRelatedProducts; this is a
+        // producer-contract test for the underlying condition, not a claim that real packages
+        // skip the action.
+        IReadOnlyList<string> names = ActionNames(ProduceRows(MakeResolved(new PackageModel
+        {
+            Name = "TestPkg", Manufacturer = "M", Version = new Version(1, 0, 0),
+        })));
+
+        Assert.DoesNotContain("FindRelatedProducts", names);
+    }
+
     // ── Conditional: User ExecuteSequenceActions ──────────────────────────────
 
     [Fact]

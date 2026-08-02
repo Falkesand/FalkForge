@@ -221,9 +221,9 @@ package<span class="punc">.</span><span class="method">CustomAction</span><span 
         <p>Within each phase, actions run in order of their sequence number. <code>After("CostFinalize")</code> places your action immediately after <code>CostFinalize</code> in the sequence. <code>Before("InstallFiles")</code> places it just before <code>InstallFiles</code>.</p>
         <p>Key built-in actions and their approximate order:</p>
         <ol>
+          <li><code>FindRelatedProducts</code> &mdash; detects prior versions.</li>
           <li><code>AppSearch</code> &mdash; searches for existing installations.</li>
           <li><code>LaunchConditions</code> &mdash; checks prerequisites.</li>
-          <li><code>FindRelatedProducts</code> &mdash; detects prior versions.</li>
           <li><code>CostFinalize</code> &mdash; calculates disk space.</li>
           <li><code>InstallInitialize</code> &mdash; begins the transaction.</li>
           <li><code>RemoveExistingProducts</code> &mdash; uninstalls old versions (if scheduled here).</li>

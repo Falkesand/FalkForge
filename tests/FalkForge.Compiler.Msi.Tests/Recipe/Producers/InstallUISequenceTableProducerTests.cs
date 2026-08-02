@@ -560,7 +560,9 @@ public sealed class InstallUISequenceTableProducerTests
 
     private static ResolvedPackage MakeResolved(
         MsiDialogSet dialogSet,
-        IReadOnlyList<SequenceActionModel> uiActions)
+        IReadOnlyList<SequenceActionModel> uiActions,
+        MajorUpgradeModel? majorUpgrade = null,
+        UpgradeModel? upgrade = null)
     {
         return new ResolvedPackage
         {
@@ -571,9 +573,89 @@ public sealed class InstallUISequenceTableProducerTests
                 Version = new Version(1, 0, 0),
                 DialogSet = dialogSet,
                 UISequenceActions = uiActions,
+                MajorUpgrade = majorUpgrade,
+                Upgrade = upgrade,
             },
             Components = new List<ResolvedComponent>(),
             Files = Array.Empty<ResolvedFile>(),
         };
+    }
+
+    // ── Conditional: FindRelatedProducts (issue #65) ──────────────────────────
+    // FindRelatedProducts must be emitted into InstallUISequence too, whenever the
+    // Upgrade table is emitted — not just InstallExecuteSequence — so the UI phase can
+    // also see OLDERVERSIONFOUND / NEWERVERSIONFOUND.
+
+    [Fact]
+    public void Produce_major_upgrade_with_dialog_set_none_and_no_ui_actions_emits_FindRelatedProducts()
+    {
+        // Must override the "no UI = no table" early return: an Upgrade table with no
+        // dialogs and no custom UI actions still needs FindRelatedProducts scheduled.
+        ResolvedPackage resolved = MakeResolved(
+            MsiDialogSet.None,
+            Array.Empty<SequenceActionModel>(),
+            majorUpgrade: new MajorUpgradeModel
+            {
+                Schedule = RemoveExistingProductsSchedule.AfterInstallValidate,
+                MigrateFeatures = false,
+            });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.Contains("FindRelatedProducts", ActionNames(rows));
+    }
+
+    [Fact]
+    public void Produce_with_upgrade_model_emits_FindRelatedProducts_in_ui_sequence()
+    {
+        // Non-major Upgrade path also needs FindRelatedProducts — tied to the Upgrade
+        // table existing, not narrowly to MajorUpgrade.
+        ResolvedPackage resolved = MakeResolved(
+            MsiDialogSet.None,
+            Array.Empty<SequenceActionModel>(),
+            upgrade: new UpgradeModel());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.Contains("FindRelatedProducts", ActionNames(rows));
+    }
+
+    [Fact]
+    public void Produce_FindRelatedProducts_is_sequenced_strictly_before_LaunchConditions_in_ui_sequence()
+    {
+        ResolvedPackage resolved = MakeResolved(
+            MsiDialogSet.Minimal,
+            Array.Empty<SequenceActionModel>(),
+            majorUpgrade: new MajorUpgradeModel
+            {
+                Schedule = RemoveExistingProductsSchedule.AfterInstallValidate,
+                MigrateFeatures = false,
+            });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+        Dictionary<string, int> seqByName = rows.ToDictionary(
+            r => ((CellValue.StringValue)r.Cells[0]).Value,
+            r => ((CellValue.IntValue)r.Cells[2]).Value);
+
+        Assert.True(seqByName["FindRelatedProducts"] < seqByName["LaunchConditions"],
+            $"Expected FindRelatedProducts ({seqByName["FindRelatedProducts"]}) < LaunchConditions ({seqByName["LaunchConditions"]}).");
+    }
+
+    [Fact]
+    public void Produce_without_upgrade_configured_does_not_emit_FindRelatedProducts_in_ui_sequence()
+    {
+        // MakeResolved's default upgrade/majorUpgrade are both null here — a state
+        // PackageBuilder itself never actually produces (Build() always defaults Upgrade to a
+        // plain UpgradeModel() when MajorUpgrade isn't configured). Real FalkForge-built
+        // packages always carry an Upgrade table and therefore always get FindRelatedProducts;
+        // this is a producer-contract test for the underlying condition, not a claim that real
+        // packages skip the action.
+        ResolvedPackage resolved = MakeResolved(
+            MsiDialogSet.Minimal,
+            Array.Empty<SequenceActionModel>());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.DoesNotContain("FindRelatedProducts", ActionNames(rows));
     }
 }

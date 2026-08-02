@@ -17,10 +17,22 @@ namespace FalkForge.Extensions.Dependency;
 ///     </para>
 ///     <para>
 ///     <c>InstallExecuteSequence</c> is always emitted by the compiler, so this contributor always
-///     targets it. <c>InstallUISequence</c> is only emitted when the package has a dialog set (or
-///     UI-sequence actions); when it will not exist, the UI-targeted instance emits no rows to
-///     avoid creating a malformed UI sequence — the execute sequence is the authoritative gate in
-///     that case.
+///     targets it. <c>InstallUISequence</c> is emitted when the package has a dialog set, has
+///     UI-sequence actions, or (since issue #65) carries an <c>Upgrade</c> table — the last of
+///     which is true for effectively every FalkForge-built package, since
+///     <c>PackageBuilder.Build()</c> defaults <c>Upgrade</c> to a plain <c>UpgradeModel()</c>
+///     whenever <c>MajorUpgrade</c> isn't configured. <see cref="HasUiSequence"/> intentionally
+///     does NOT track that third trigger: it stays a proxy for "has dialogs or UI actions", not
+///     "will the table exist", so a package with an implicit <c>Upgrade</c> table but no dialog
+///     set and no <c>UISequenceActions</c> still gets no dependency evaluator/abort rows in
+///     <c>InstallUISequence</c> even though the table now exists for it (baseline actions +
+///     <c>FindRelatedProducts</c> only, no dialogs). This is deliberate, not a gap: the abort
+///     custom action is a Type 19 action (<see cref="DependencyCustomActionContributor"/>), which
+///     needs no authored dialog to surface — it terminates through msiexec's own built-in error
+///     reporting either way. Running the check earlier in this narrow shape would only move where
+///     the abort fires, from the execute phase to the UI phase, not whether it fires —
+///     <c>InstallExecuteSequence</c> remains the authoritative gate, unconditionally, for every
+///     package regardless of this predicate.
 ///     </para>
 /// </summary>
 internal sealed class DependencySequenceContributor : IMsiTableContributor
@@ -67,6 +79,9 @@ internal sealed class DependencySequenceContributor : IMsiTableContributor
         return rows;
     }
 
+    // Deliberately does not also check package.Upgrade/MajorUpgrade (issue #65's third UI-sequence
+    // trigger) — see the class doc's InstallExecuteSequence/InstallUISequence paragraph for why an
+    // implicit-Upgrade-only InstallUISequence still gets no dependency rows.
     private static bool HasUiSequence(PackageModel package)
         => package.DialogSet != MsiDialogSet.None || package.UISequenceActions.Count > 0;
 }

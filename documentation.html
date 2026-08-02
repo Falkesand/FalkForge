@@ -1306,6 +1306,10 @@ package.MajorUpgrade(mu =&gt; mu
       don't line up &mdash; e.g. resetting to <code>1.0.0</code> under the same <code>UpgradeCode</code> the
       old <code>4.x</code> product used reads as a downgrade and is blocked. Decide your version numbering
       before wiring up the migration, not after.
+      (This bullet describes the current, correct behavior. Before 0.5.0-beta.6, the
+      <code>FindRelatedProducts</code> action that populates the property this block reads from was never
+      scheduled, so the block never actually fired &mdash; see the
+      <a href="docs/release-notes/v0.5.0-beta.6.md">beta.6 release notes</a>.)
     </li>
     <li>
       <strong>Per-machine and per-user context must match.</strong> <code>MajorUpgrade</code> detection
@@ -3723,6 +3727,50 @@ p.UISequence(seq =&gt; seq
     Downgrade blocking is configured separately via <code>PackageBuilder.Downgrade()</code>, not through
     <code>MajorUpgradeBuilder</code>. Located at <code>src/FalkForge.Core/Builders/DowngradeBuilder.cs</code>.
   </p>
+  <div class="note">
+    Whenever an <code>Upgrade</code> table is emitted &mdash; from either <code>MajorUpgradeBuilder</code>,
+    the lower-level <code>UpgradeBuilder</code> below, or the implicit <code>UpgradeModel</code> that
+    <code>PackageBuilder.Build()</code> creates when neither is configured &mdash; the compiler
+    automatically schedules the standard <code>FindRelatedProducts</code> action in both
+    <code>InstallExecuteSequence</code> and <code>InstallUISequence</code>, at sequence 25. There is no
+    builder method for this; it is not configurable. It runs before <code>LaunchConditions</code> (100) so
+    that a downgrade-blocking condition on <code>NEWERVERSIONFOUND</code> is already live by the time
+    <code>LaunchConditions</code> evaluates it, and before <code>RemoveExistingProducts</code> so the
+    upgrade has something to remove. <code>FindRelatedProducts</code> reads only the <code>Upgrade</code>
+    table and has no dependency on any earlier action, so running it this early is safe.
+    <br><br>
+    The compiler also lists <code>OLDERVERSIONFOUND</code> and <code>NEWERVERSIONFOUND</code> in
+    <code>SecureCustomProperties</code> whenever the <code>Upgrade</code> table is emitted.
+    <code>FindRelatedProducts</code> runs client-side and unelevated in
+    <code>InstallUISequence</code>; Windows Installer then suppresses the duplicate
+    <code>InstallExecuteSequence</code> copy of the same action once the UI-sequence copy has already
+    run. Without this entry, those two properties would never cross into the elevated server-side
+    process that runs <code>RemoveExistingProducts</code>, and any install run through a UI (not a
+    silent <code>/qn</code> install) would install side by side instead of upgrading. This is also not
+    configurable, and merges with any author-declared secure properties (ordinal-sorted, deduplicated)
+    rather than appending.
+    <br><br>
+    Listing a property in <code>SecureCustomProperties</code> makes it settable on the command line by
+    an unelevated caller, so this crosses a trust boundary on purpose. The bounded impact: setting
+    <code>NEWERVERSIONFOUND</code> only feeds the <code>NOT NEWERVERSIONFOUND</code> launch condition,
+    so at most it aborts the caller's own install (self-denial-of-service, not a security issue).
+    <code>OLDERVERSIONFOUND</code> is read by nothing in FalkForge &mdash; only Windows Installer's own
+    <code>RemoveExistingProducts</code> acts on it, against whatever <code>ProductCode</code> the
+    property names, so an unelevated principal who can already drive a per-machine install server-side
+    could point it at an unrelated installed product's <code>ProductCode</code>; what then runs is that
+    product's own signed uninstall path. This exposure is unavoidable while keeping the feature: the
+    property must be secure or the UI-sequence result never reaches the elevated server-side process,
+    and the platform offers no narrower alternative.
+    <br><br>
+    The two paths guard downgrades through <strong>two independent switches</strong> &mdash; do not assume
+    one controls the other. For a <code>MajorUpgradeBuilder</code> package, the guard is controlled by
+    <code>DowngradeBuilder.Block</code>/<code>Allow()</code> via <code>PackageBuilder.Downgrade()</code>.
+    For the non-major <code>UpgradeBuilder</code> path &mdash; which includes every package that never
+    calls <code>.Upgrade()</code> or <code>.MajorUpgrade()</code> at all, since it still gets the implicit
+    default <code>UpgradeModel()</code> &mdash; the guard is controlled by
+    <code>UpgradeBuilder.AllowDowngrades</code> instead; <code>package.Downgrade(d =&gt; d.Allow())</code>
+    has <strong>no effect</strong> on it.
+  </div>
 
   <h4>DowngradeBuilder</h4>
   <table class="api-table">

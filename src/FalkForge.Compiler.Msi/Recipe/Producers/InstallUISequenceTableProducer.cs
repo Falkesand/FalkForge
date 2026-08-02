@@ -22,9 +22,13 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 ///
 /// <para>
 /// When <see cref="PackageModel.UISequenceActions"/> is empty <b>and</b>
-/// <see cref="PackageModel.DialogSet"/> is <see cref="MsiDialogSet.None"/>,
-/// no rows are emitted — matching the legacy early-return that skipped the
-/// table entirely in that case (no UI = no InstallUISequence table).
+/// <see cref="PackageModel.DialogSet"/> is <see cref="MsiDialogSet.None"/>
+/// <b>and</b> no <c>Upgrade</c> table would be emitted, no rows are emitted —
+/// matching the legacy early-return that skipped the table entirely in that
+/// case (no UI = no InstallUISequence table). A configured
+/// <see cref="PackageModel.Upgrade"/> or <see cref="PackageModel.MajorUpgrade"/>
+/// defeats the early return: <c>FindRelatedProducts</c> (issue #65) must run in
+/// the UI sequence too, at sequence 25, even with no dialogs configured.
 /// </para>
 ///
 /// <para>
@@ -51,6 +55,11 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
 {
     // Baseline sequence numbers — match legacy TableEmitter.EmitUISequence exactly.
     private const int SeqAppSearch          = 50;
+    // FindRelatedProducts (issue #65): see InstallExecuteSequenceTableProducer.SeqFindRelatedProducts
+    // for the full reasoning. Scheduled at 25 in this sequence too — whenever the Upgrade table
+    // is emitted — so the UI phase can also see OLDERVERSIONFOUND/NEWERVERSIONFOUND, not just
+    // the execute phase.
+    private const int SeqFindRelatedProducts = 25;
     private const int SeqLaunchConditions   = 100;
     private const int SeqValidateProductID  = 700;
     private const int SeqCostInitialize     = 800;
@@ -80,11 +89,17 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
         // additional dialog-flow source, so the baseline UI sequence must exist for them too.
         (string Action, int Sequence)[] customEntryRows = GetCustomDialogEntryRows(package);
 
-        // Legacy early-return: no UI actions + no dialog set + no sequenced custom dialog =
-        // skip table entirely.
+        // FindRelatedProducts (issue #65): whenever the Upgrade table is emitted, the UI
+        // sequence needs FindRelatedProducts too — even with no dialogs and no custom UI
+        // actions — so it must also defeat the "no UI = no table" early return below.
+        bool hasUpgradeTable = package.Upgrade is not null || package.MajorUpgrade is not null;
+
+        // Legacy early-return: no UI actions + no dialog set + no sequenced custom dialog +
+        // no Upgrade table = skip table entirely.
         if (package.UISequenceActions.Count == 0
             && package.DialogSet == MsiDialogSet.None
-            && customEntryRows.Length == 0)
+            && customEntryRows.Length == 0
+            && !hasUpgradeTable)
         {
             return Result<ImmutableArray<RecipeRow>>.Success(ImmutableArray<RecipeRow>.Empty);
         }
@@ -95,7 +110,8 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
 
         // Build the full baseline. Capacity is exact to avoid re-allocation.
         List<(string Action, int Sequence)> actions =
-            new(7 + dialogFlowRows.Length + customEntryRows.Length + package.UISequenceActions.Count)
+            new(7 + dialogFlowRows.Length + customEntryRows.Length + package.UISequenceActions.Count
+                + (hasUpgradeTable ? 1 : 0))
         {
             ("AppSearch",         SeqAppSearch),
             ("LaunchConditions",  SeqLaunchConditions),
@@ -105,6 +121,11 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
             ("CostFinalize",      SeqCostFinalize),
             ("ExecuteAction",     SeqExecuteAction),
         };
+
+        if (hasUpgradeTable)
+        {
+            actions.Add(("FindRelatedProducts", SeqFindRelatedProducts));
+        }
 
         // Append dialog-flow rows (firstDialog/Progress/Exit) when DialogSet is active.
         // These mirror the rows emitted by the legacy DialogEmitter.EmitInstallUISequence (deleted in Phase 9).
