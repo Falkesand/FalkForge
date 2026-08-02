@@ -28,7 +28,14 @@ public static class TestTemp
     /// genuinely unrecoverable and must be allowed to propagate.
     /// </summary>
     /// <param name="path">The directory to delete, if it exists.</param>
-    public static void TryDelete(string path)
+    /// <param name="trace">
+    /// Where to write the failure trace if cleanup fails. Defaults to <see cref="Console.Error"/>
+    /// (<see langword="null"/> means "use the console"), which is what all 266+ existing call
+    /// sites get unchanged. Callers that need to assert on the trace without mutating the
+    /// process-global <see cref="Console.Error"/> (e.g. from a parallel-unsafe test assembly)
+    /// can pass their own <see cref="TextWriter"/> instead.
+    /// </param>
+    public static void TryDelete(string path, TextWriter? trace = null)
     {
         try
         {
@@ -37,7 +44,7 @@ public static class TestTemp
         }
         catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {
-            WriteFailureTrace(Console.Error, path, ex);
+            WriteFailureTrace(trace ?? Console.Error, path, ex);
         }
     }
 

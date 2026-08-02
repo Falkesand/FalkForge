@@ -105,12 +105,20 @@ public sealed class DefaultRebuildRunnerRealProcessTests
     /// with a constant 200ms delay between attempts -- not exponential backoff, despite this
     /// comment's prior wording; the delay never grows -- because a killed process tree's handles
     /// can take a moment to release. The final attempt routes through
-    /// <see cref="TestTemp.TryDelete"/> instead of one more silent inline catch, so a failure
-    /// that survives every retry (i.e. one that was never transient in the first place) still
-    /// leaves a one-line trace instead of vanishing; short of that, this is purely tidy-up, never
-    /// the thing a test result should hinge on.
+    /// <see cref="TestTemp.TryDelete(string, TextWriter?)"/> instead of one more silent inline
+    /// catch, so a failure that survives every retry (i.e. one that was never transient in the
+    /// first place) still leaves a one-line trace instead of vanishing; short of that, this is
+    /// purely tidy-up, never the thing a test result should hinge on.
     /// </summary>
-    private static void TryDeleteWithRetry(string tempDir)
+    /// <param name="tempDir">The directory to delete.</param>
+    /// <param name="trace">
+    /// Forwarded to <see cref="TestTemp.TryDelete(string, TextWriter?)"/>'s failure trace. Left
+    /// <see langword="null"/> (the console) at every real call site; the regression test below
+    /// passes its own <see cref="StringWriter"/> instead of redirecting the process-global
+    /// <see cref="Console.Error"/>, which this assembly's default parallel test execution would
+    /// otherwise make unsafe to touch.
+    /// </param>
+    private static void TryDeleteWithRetry(string tempDir, TextWriter? trace = null)
     {
         for (var attempt = 0; attempt < 9; attempt++)
         {
@@ -132,7 +140,7 @@ public sealed class DefaultRebuildRunnerRealProcessTests
         // ArgumentException on a malformed path, not a lock that clears), so route it through
         // the shared helper for the same one-line trace as the other 266 call sites, instead of
         // one more inline swallow that would vanish it with zero trace.
-        TestTemp.TryDelete(tempDir);
+        TestTemp.TryDelete(tempDir, trace);
     }
 
     /// <summary>
@@ -141,8 +149,12 @@ public sealed class DefaultRebuildRunnerRealProcessTests
     /// by definition not transient -- e.g. an <see cref="ArgumentException"/> on a malformed
     /// path -- and must not vanish silently after 10 retries burn ~2s of sleep for nothing. This
     /// pins that the final attempt leaves the same one-line trace as the other 266
-    /// <see cref="TestTemp.TryDelete"/> call sites, instead of disappearing into the old bare
-    /// <c>catch (Exception ex) when (...) { Thread.Sleep(200); }</c> with no logging at all.
+    /// <see cref="TestTemp.TryDelete(string, TextWriter?)"/> call sites, instead of disappearing
+    /// into the old bare <c>catch (Exception ex) when (...) { Thread.Sleep(200); }</c> with no
+    /// logging at all. The trace sink is injected as a plain <see cref="StringWriter"/> argument
+    /// -- this assembly has no <c>[CollectionBehavior(DisableTestParallelization = true)]</c>, so
+    /// redirecting the real, process-global <see cref="Console.Error"/> here would risk stealing
+    /// a concurrently-running test's own stderr write into this test's capture buffer.
     /// </summary>
     [Fact]
     public void TryDeleteWithRetry_PersistentFailure_LeavesATraceInsteadOfVanishingSilently()
@@ -150,34 +162,18 @@ public sealed class DefaultRebuildRunnerRealProcessTests
         // A file handle held open for the retry loop's entire duration simulates a permanent
         // failure (never clears, unlike the transient lock this loop is designed to recover
         // from) without depending on a specific exception type or path validation quirk.
-        //
-        // This assembly has no other test that redirects Console.Error (unlike
-        // FalkForge.Core.Tests, which disables Console capture entirely for exactly this
-        // reason -- see TestTempTests.cs), so this ~1.8s capture window cannot race a
-        // concurrently-running test's own stderr write today. If that ever changes, treat the
-        // resulting flake as the signal to add assembly-level
-        // [CollectionBehavior(DisableTestParallelization = true)] (see
-        // tests/FalkForge.Integration.Tests/IntegrationAssemblyParallelization.cs for the
-        // existing repo precedent), not a reason to delete this coverage.
         var target = Path.Combine(Path.GetTempPath(), $"TryDeleteRetryTrace_{Guid.NewGuid():N}");
         Directory.CreateDirectory(target);
         var lockedFile = Path.Combine(target, "locked.bin");
+        var trace = new StringWriter();
 
-        var originalError = Console.Error;
-        var captured = new StringWriter();
-        Console.SetError(captured);
-        try
+        using (var handle = new FileStream(
+            lockedFile, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            using var handle = new FileStream(
-                lockedFile, FileMode.Create, FileAccess.Write, FileShare.None);
-            TryDeleteWithRetry(target);
-        }
-        finally
-        {
-            Console.SetError(originalError);
+            TryDeleteWithRetry(target, trace);
         }
 
-        Assert.Contains(target, captured.ToString(), StringComparison.Ordinal);
+        Assert.Contains(target, trace.ToString(), StringComparison.Ordinal);
 
         // Handle released now -- clean up for real.
         TestTemp.TryDelete(target);
