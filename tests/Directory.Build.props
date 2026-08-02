@@ -23,4 +23,12 @@
         <!-- MTP-native hang guard (see FalkHangDumpTimeout above). -->
         <PackageReference Include="Microsoft.Testing.Extensions.HangDump" />
     </ItemGroup>
+    <!-- TestTemp.TryDelete: shared best-effort temp-directory cleanup helper for teardown/Dispose.
+         Linked (not copied) into every test project so the swallow-and-log idiom has one source
+         instead of being pasted at every call site. Excluded from FakeSigil, which opts out of
+         IsTestProject (it's a plain console app, not a test host) and has no teardown to guard. -->
+    <ItemGroup Condition="'$(IsTestProject)' != 'false'">
+        <Compile Include="$(MSBuildThisFileDirectory)TestTemp.cs" Link="TestSupport\TestTemp.cs" />
+        <Using Include="FalkForge.TestSupport" />
+    </ItemGroup>
 </Project>
