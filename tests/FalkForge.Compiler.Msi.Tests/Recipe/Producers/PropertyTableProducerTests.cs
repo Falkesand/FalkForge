@@ -406,6 +406,89 @@ public sealed class PropertyTableProducerTests
         AssertRow(rows, "AdminProperties", "ADMIN_ONLY;BOTH_FLAGS");
     }
 
+    // ── SecureCustomProperties must carry the Upgrade-table ActionProperty names (F1) ─────────
+    // FindRelatedProducts runs client-side, unelevated, in InstallUISequence. Windows Installer
+    // suppresses the duplicate InstallExecuteSequence copy of that action once the UI-sequence
+    // copy has already run, so OLDERVERSIONFOUND/NEWERVERSIONFOUND only reach the elevated
+    // server-side RemoveExistingProducts/LaunchConditions evaluation if they are listed in
+    // SecureCustomProperties. Without this, any package installed through a UI (not /qn) never
+    // actually upgrades — v2 installs side by side with v1 — even though the Upgrade table rows
+    // and FindRelatedProducts scheduling (issue #65) are both correct.
+
+    [Fact]
+    public void Produce_with_upgrade_configured_adds_upgrade_action_properties_to_securecustomproperties()
+    {
+        ResolvedPackage resolved = MakeResolved(
+            System.Array.Empty<PropertyModel>(),
+            upgrade: new UpgradeModel());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "SecureCustomProperties", "NEWERVERSIONFOUND;OLDERVERSIONFOUND");
+    }
+
+    [Fact]
+    public void Produce_with_major_upgrade_configured_adds_upgrade_action_properties_to_securecustomproperties()
+    {
+        ResolvedPackage resolved = MakeResolved(
+            System.Array.Empty<PropertyModel>(),
+            majorUpgrade: new MajorUpgradeModel());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "SecureCustomProperties", "NEWERVERSIONFOUND;OLDERVERSIONFOUND");
+    }
+
+    [Fact]
+    public void Produce_without_upgrade_or_major_upgrade_does_not_add_upgrade_action_properties()
+    {
+        // PackageModel constructed directly here has Upgrade == null, MajorUpgrade == null — a
+        // state PackageBuilder never actually produces (it always defaults Upgrade to a plain
+        // UpgradeModel()), but a legitimate producer-contract case: with neither table source
+        // configured, UpgradeTableProducer emits no Upgrade table at all, so there is nothing for
+        // FindRelatedProducts to populate and no property to secure.
+        ResolvedPackage resolved = MakeResolved(System.Array.Empty<PropertyModel>());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.DoesNotContain(rows, r => ((CellValue.StringValue)r.Cells[0]).Value == "SecureCustomProperties");
+    }
+
+    [Fact]
+    public void Produce_securecustomproperties_merges_upgrade_action_properties_with_user_declared_names_ordinal_sorted()
+    {
+        // Ordinal-sort determinism (required for Reproducible()) must hold with a mix of
+        // user-declared secure properties and the two Upgrade-table names merged in.
+        ResolvedPackage resolved = MakeResolved(
+            new[]
+            {
+                new PropertyModel { Name = "Z_PWD", Value = "z", IsSecure = true },
+                new PropertyModel { Name = "A_PWD", Value = "a", IsSecure = true },
+            },
+            upgrade: new UpgradeModel());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "SecureCustomProperties", "A_PWD;NEWERVERSIONFOUND;OLDERVERSIONFOUND;Z_PWD");
+    }
+
+    [Fact]
+    public void Produce_securecustomproperties_deduplicates_user_declared_upgrade_action_property_name()
+    {
+        // An author who has already declared OLDERVERSIONFOUND as a secure property themselves
+        // must not end up with a duplicate entry — SortedSet merge, not append.
+        ResolvedPackage resolved = MakeResolved(
+            new[]
+            {
+                new PropertyModel { Name = "OLDERVERSIONFOUND", Value = "", IsSecure = true },
+            },
+            upgrade: new UpgradeModel());
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        AssertRow(rows, "SecureCustomProperties", "NEWERVERSIONFOUND;OLDERVERSIONFOUND");
+    }
+
     private static void AssertRow(ImmutableArray<RecipeRow> rows, string name, string value)
     {
         RecipeRow row = Assert.Single(
@@ -434,7 +517,9 @@ public sealed class PropertyTableProducerTests
         System.Guid upgradeCode = default,
         InstallScope scope = InstallScope.PerMachine,
         bool enableRestartManager = false,
-        MsiDialogSet dialogSet = MsiDialogSet.Minimal)
+        MsiDialogSet dialogSet = MsiDialogSet.Minimal,
+        UpgradeModel? upgrade = null,
+        MajorUpgradeModel? majorUpgrade = null)
     {
         return new ResolvedPackage
         {
@@ -449,6 +534,8 @@ public sealed class PropertyTableProducerTests
                 EnableRestartManager = enableRestartManager,
                 DialogSet = dialogSet,
                 Properties = properties,
+                Upgrade = upgrade,
+                MajorUpgrade = majorUpgrade,
             },
             Components = new List<ResolvedComponent>(),
             Files = new List<ResolvedFile>(),

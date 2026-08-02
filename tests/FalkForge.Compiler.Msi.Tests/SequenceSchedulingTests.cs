@@ -156,14 +156,27 @@ public sealed class SequenceSchedulingTests
     }
 
     [Fact]
-    public void NoUISequenceTable_WhenNotConfigured()
+    public void UISequenceTable_HasFullBaselinePlusFindRelatedProducts_WhenNoDialogsOrUIActionsConfigured()
     {
         using var ctx = CompileWithSequence(_ => { });
 
-        // Query the UI sequence table - should have no custom rows
-        // The standard UI actions are only emitted when UISequenceActions is non-empty
+        // PackageBuilder defaults Upgrade to a non-major UpgradeModel whenever MajorUpgrade
+        // isn't configured (see PackageBuilder.Build), so every package built through the
+        // fluent builder carries an implicit Upgrade table and therefore FindRelatedProducts
+        // (issue #65) — even with no dialogs and no custom UI actions configured. That triggers
+        // the same unconditional full baseline the producer already emits whenever ANY trigger
+        // (custom UI action, DialogSet, or now an Upgrade table) defeats the early return —
+        // including ExecuteAction, without which a UI-sequence table would never hand off to
+        // InstallExecuteSequence. The table is no longer empty.
         var uiRows = QueryUISequenceRows(ctx.Database);
-        Assert.Empty(uiRows);
+        var actionNames = uiRows.Select(r => r.Action).ToList();
+        Assert.Equal(
+            new[]
+            {
+                "FindRelatedProducts", "AppSearch", "LaunchConditions", "ValidateProductID",
+                "CostInitialize", "FileCost", "CostFinalize", "ExecuteAction",
+            },
+            actionNames);
     }
 
     [Fact]
@@ -356,8 +369,11 @@ public sealed class SequenceSchedulingTests
 
     private static List<(string Action, string Condition)> QueryUISequenceRows(MsiDatabase db)
     {
+        // ORDER BY Sequence: MSI-SQL makes no ordering guarantee without one. Row order happens
+        // to match insertion order today, but that is unspecified — callers that assert on row
+        // order (e.g. the full-baseline test above) need a real ORDER BY, not incidental luck.
         var rows = db.QueryRows(
-            "SELECT `Action`, `Condition` FROM `InstallUISequence`", 2);
+            "SELECT `Action`, `Condition` FROM `InstallUISequence` ORDER BY `Sequence`", 2);
         Assert.True(rows.IsSuccess, $"Query failed: {(rows.IsFailure ? rows.Error.Message : "")}");
 
         return rows.Value.Select(r => (Action: r[0] ?? "", Condition: r[1] ?? "")).ToList();

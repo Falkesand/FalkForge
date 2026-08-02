@@ -31,9 +31,16 @@ namespace FalkForge.Compiler.Msi.Recipe.Producers;
 ///   <item><term>CreateFolders</term><description>RemoveFolders(3600), CreateFolders(3700)</description></item>
 ///   <item><term>MoveFiles</term><description>MoveFiles(3800)</description></item>
 ///   <item><term>DuplicateFiles</term><description>RemoveDuplicateFiles(3180), DuplicateFiles(4210)</description></item>
-///   <item><term>Upgrade (non-major)</term><description>RemoveExistingProducts(1450)</description></item>
-///   <item><term>MajorUpgrade</term><description>RemoveExistingProducts(schedule-driven), optionally MigrateFeatureStates(1401)</description></item>
+///   <item><term>Upgrade (non-major)</term><description>FindRelatedProducts(25), RemoveExistingProducts(1450)</description></item>
+///   <item><term>MajorUpgrade</term><description>FindRelatedProducts(25), RemoveExistingProducts(schedule-driven), optionally MigrateFeatureStates(1401)</description></item>
 /// </list>
+///
+/// <para>
+/// <c>FindRelatedProducts</c> is emitted whenever the <c>Upgrade</c> table would be emitted
+/// (either <see cref="PackageModel.Upgrade"/> or <see cref="PackageModel.MajorUpgrade"/>),
+/// at sequence 25 — before <c>LaunchConditions</c>(100). See <c>SeqFindRelatedProducts</c> for
+/// the reasoning (issue #65).
+/// </para>
 ///
 /// <para>
 /// <c>RemoveExistingProducts</c> sequence for <see cref="MajorUpgradeModel"/>:
@@ -78,6 +85,17 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
 {
     // Baseline sequence numbers — mirror TableEmitter.EmitInstallSequences exactly.
     private const int SeqAppSearch              = 50;
+    // FindRelatedProducts (issue #65): scheduled at 25, BEFORE LaunchConditions (100).
+    // FindRelatedProducts reads only the Upgrade table and has no dependency on any earlier
+    // action (AppSearch/CostInitialize/property resolution do not feed it), so running it first
+    // is safe. A downgrade-blocking launch condition on NEWERVERSIONFOUND evaluates at
+    // LaunchConditions (100), so FindRelatedProducts must have already run by then or the
+    // property would not exist yet and the condition would be silently inert — scheduling it any
+    // later than 100 would reproduce this same bug one step removed. RemoveExistingProducts
+    // (1450 or later) sees OLDERVERSIONFOUND/NEWERVERSIONFOUND regardless of where between 0 and
+    // 100 FindRelatedProducts lands, so 25 is not itself load-bearing beyond "before 100" — it
+    // just leaves headroom before LaunchConditions without crowding sequence 0.
+    private const int SeqFindRelatedProducts     = 25;
     private const int SeqLaunchConditions       = 100;
     private const int SeqValidateProductID      = 700;
     private const int SeqCostInitialize         = 800;
@@ -178,6 +196,18 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
         {
             actions.Add(("UnregisterExtensionInfo", SeqUnregisterExtensionInfo));
             actions.Add(("RegisterExtensionInfo",   SeqRegisterExtensionInfo));
+        }
+
+        // ── Conditional: FindRelatedProducts (issue #65) ──────────────────────
+        // Whenever the Upgrade table is emitted — either the non-major UpgradeModel path
+        // or MajorUpgrade — FindRelatedProducts must run so the Upgrade table's ActionProperty
+        // values (OLDERVERSIONFOUND/NEWERVERSIONFOUND) actually get set. Without this,
+        // RemoveExistingProducts has nothing to remove and any NEWERVERSIONFOUND launch
+        // condition is inert, even though the Upgrade table rows themselves are correct.
+        bool hasUpgradeTable = package.Upgrade is not null || package.MajorUpgrade is not null;
+        if (hasUpgradeTable)
+        {
+            actions.Add(("FindRelatedProducts", SeqFindRelatedProducts));
         }
 
         // ── Conditional: UpgradeModel (non-major, fixed sequence 1450) ────────
@@ -461,6 +491,7 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
         if (package.Fonts.Count > 0)                                                count += 2;
         if (package.IniFiles.Count > 0)                                              count += 2;
         if (package.FileAssociations.Count > 0)                                      count += 2;
+        if (package.Upgrade is not null || package.MajorUpgrade is not null)        count += 1; // FindRelatedProducts
         if (package.Upgrade is not null)                                             count += 1;
         if (package.MajorUpgrade is not null)                                        count += package.MajorUpgrade.MigrateFeatures ? 2 : 1;
         if (package.EnvironmentVariables.Count > 0)                                  count += 2;

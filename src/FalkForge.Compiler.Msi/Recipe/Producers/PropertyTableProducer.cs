@@ -152,6 +152,24 @@ internal sealed class PropertyTableProducer : ITableProducer
             }
         }
 
+        // FindRelatedProducts (issue #65) runs client-side, unelevated, in InstallUISequence.
+        // Windows Installer suppresses the InstallExecuteSequence copy of that same action once
+        // the UI-sequence copy has already run, so its ActionProperty values
+        // (OLDERVERSIONFOUND/NEWERVERSIONFOUND) only cross into the elevated server-side process
+        // — where RemoveExistingProducts and the deferred phase of LaunchConditions actually
+        // consume them — if they are listed here. Gated on the exact same condition as
+        // UpgradeTableProducer's early return (package.Upgrade or package.MajorUpgrade set) so
+        // the two producers can never disagree about whether the Upgrade table — and therefore
+        // these two ActionProperty names — exists. Merged into the same SortedSet as user-declared
+        // secure names (not appended) so a name an author already declared secure, e.g.
+        // OLDERVERSIONFOUND itself, is not duplicated, and the emitted list stays ordinal-sorted
+        // for Reproducible().
+        if (package.Upgrade is not null || package.MajorUpgrade is not null)
+        {
+            secureNames.Add("OLDERVERSIONFOUND");
+            secureNames.Add("NEWERVERSIONFOUND");
+        }
+
         if (secureNames.Count > 0)
         {
             // string.Join never emits a trailing separator; SortedSet iterates in ordinal order, so the

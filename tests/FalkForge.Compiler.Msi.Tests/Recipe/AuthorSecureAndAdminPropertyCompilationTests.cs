@@ -34,7 +34,12 @@ public sealed class AuthorSecureAndAdminPropertyCompilationTests
 
         using var db = Compile(scratch, package);
 
-        Assert.Equal("APP_SECRET", SinglePropertyListValue(db, "SecureCustomProperties"));
+        // PackageBuilder.Build() defaults Upgrade to a plain UpgradeModel() whenever MajorUpgrade
+        // isn't configured (which this package doesn't), so SecureCustomProperties also carries
+        // the Upgrade table's OLDERVERSIONFOUND/NEWERVERSIONFOUND ActionProperty names (F1) —
+        // required so FindRelatedProducts' UI-sequence result crosses into the elevated execute
+        // phase. Ordinal-sorted alongside the author's own APP_SECRET.
+        Assert.Equal("APP_SECRET;NEWERVERSIONFOUND;OLDERVERSIONFOUND", SinglePropertyListValue(db, "SecureCustomProperties"));
     }
 
     [Fact]
