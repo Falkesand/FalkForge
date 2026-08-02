@@ -101,14 +101,18 @@ public sealed class DefaultRebuildRunnerRealProcessTests
     /// <summary>
     /// Best-effort backstop cleanup for when an earlier assertion in the test body already failed
     /// (so <see cref="AssertKilledProcessTreeReleasedDirectory"/> never ran) or a test intentionally
-    /// leaves the directory behind for that method to inspect. Retries with backoff rather than a
-    /// single delete attempt (matches the established pattern in
-    /// <c>DemoBuildFixture.Dispose</c>), and swallows the final failure -- this is purely tidy-up,
-    /// never the thing a test result should hinge on.
+    /// leaves the directory behind for that method to inspect. Retries a fixed number of times
+    /// with a constant 200ms delay between attempts -- not exponential backoff, despite this
+    /// comment's prior wording; the delay never grows -- because a killed process tree's handles
+    /// can take a moment to release. The final attempt routes through
+    /// <see cref="TestTemp.TryDelete"/> instead of one more silent inline catch, so a failure
+    /// that survives every retry (i.e. one that was never transient in the first place) still
+    /// leaves a one-line trace instead of vanishing; short of that, this is purely tidy-up, never
+    /// the thing a test result should hinge on.
     /// </summary>
     private static void TryDeleteWithRetry(string tempDir)
     {
-        for (var attempt = 0; attempt < 10; attempt++)
+        for (var attempt = 0; attempt < 9; attempt++)
         {
             try
             {
@@ -123,6 +127,60 @@ public sealed class DefaultRebuildRunnerRealProcessTests
                 Thread.Sleep(200);
             }
         }
+
+        // Final attempt: a failure that survived every retry above was never transient (e.g.
+        // ArgumentException on a malformed path, not a lock that clears), so route it through
+        // the shared helper for the same one-line trace as the other 266 call sites, instead of
+        // one more inline swallow that would vanish it with zero trace.
+        TestTemp.TryDelete(tempDir);
+    }
+
+    /// <summary>
+    /// <see cref="TryDeleteWithRetry"/> exists to absorb TRANSIENT failures (a lock that clears
+    /// once the killed process tree's handles release). A failure that survives every retry is
+    /// by definition not transient -- e.g. an <see cref="ArgumentException"/> on a malformed
+    /// path -- and must not vanish silently after 10 retries burn ~2s of sleep for nothing. This
+    /// pins that the final attempt leaves the same one-line trace as the other 266
+    /// <see cref="TestTemp.TryDelete"/> call sites, instead of disappearing into the old bare
+    /// <c>catch (Exception ex) when (...) { Thread.Sleep(200); }</c> with no logging at all.
+    /// </summary>
+    [Fact]
+    public void TryDeleteWithRetry_PersistentFailure_LeavesATraceInsteadOfVanishingSilently()
+    {
+        // A file handle held open for the retry loop's entire duration simulates a permanent
+        // failure (never clears, unlike the transient lock this loop is designed to recover
+        // from) without depending on a specific exception type or path validation quirk.
+        //
+        // This assembly has no other test that redirects Console.Error (unlike
+        // FalkForge.Core.Tests, which disables Console capture entirely for exactly this
+        // reason -- see TestTempTests.cs), so this ~1.8s capture window cannot race a
+        // concurrently-running test's own stderr write today. If that ever changes, treat the
+        // resulting flake as the signal to add assembly-level
+        // [CollectionBehavior(DisableTestParallelization = true)] (see
+        // tests/FalkForge.Integration.Tests/IntegrationAssemblyParallelization.cs for the
+        // existing repo precedent), not a reason to delete this coverage.
+        var target = Path.Combine(Path.GetTempPath(), $"TryDeleteRetryTrace_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(target);
+        var lockedFile = Path.Combine(target, "locked.bin");
+
+        var originalError = Console.Error;
+        var captured = new StringWriter();
+        Console.SetError(captured);
+        try
+        {
+            using var handle = new FileStream(
+                lockedFile, FileMode.Create, FileAccess.Write, FileShare.None);
+            TryDeleteWithRetry(target);
+        }
+        finally
+        {
+            Console.SetError(originalError);
+        }
+
+        Assert.Contains(target, captured.ToString(), StringComparison.Ordinal);
+
+        // Handle released now -- clean up for real.
+        TestTemp.TryDelete(target);
     }
 
     [Fact]
