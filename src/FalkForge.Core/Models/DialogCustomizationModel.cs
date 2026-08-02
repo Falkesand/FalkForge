@@ -11,9 +11,23 @@ namespace FalkForge.Models;
 public sealed record DialogCustomizationModel
 {
     /// <summary>
-    /// Binary stream key of a 493x58 banner image (BMP/PNG) shown on the top of every interior
-    /// dialog. Must name a stream registered via <c>PackageBuilder.Binary(name, sourcePath)</c> —
-    /// DLG003 fails the build if the key does not resolve to a registered Binary.
+    /// Binary stream key of a banner image (BMP/PNG) shown on the top of every interior dialog.
+    /// For the stock dialogs — none of which declare a bitmap control of their own —
+    /// <c>DialogComposer</c> always synthesizes a new banner control sized to the layout's 370x58
+    /// DLU <c>Banner</c> region: as of this release the control area is 493x77 px, converted at the
+    /// same 4/3 DLU-to-pixel ratio documented on <see cref="DialogBitmap"/> (493x77, not 493x58: the
+    /// region's width and height are both 4/3 of their DLU values, but only the width axis happens
+    /// to convert to the familiar 493 — a banner authored at the old 493x58 guidance renders
+    /// stretched ~1.33x vertically, since the region currently is 58 DLU / ~77 px tall, not 58 px).
+    /// Whether the <c>Banner</c> region's 58 DLU height is itself correct — versus the classic
+    /// WiX/MSI banner convention of 44 DLU / 58 px — is under review; if it changes, this documented
+    /// 493x77 figure changes with it. If an interior dialog step already declares its own Bitmap
+    /// control (an extension-contributed custom dialog inserted via
+    /// <see cref="InsertedDialogStep"/> can do this), <c>DialogComposer</c> swaps that existing
+    /// control's text to this key instead of synthesizing a new one, and the banner takes that
+    /// control's own dimensions rather than 493x77. Must name a stream registered via
+    /// <c>PackageBuilder.Binary(name, sourcePath)</c> — DLG003 fails the build if the key does not
+    /// resolve to a registered Binary.
     /// </summary>
     public string? BannerBitmap { get; init; }
 

@@ -84,6 +84,14 @@ sequence before calling `Compose`.
 Single source of truth for all stock dialog DLU coordinates.
 File: `src/FalkForge.Compiler.Msi/UI/Layout/Layouts.cs`
 
+For the pixel-equivalent sizes (DLU-to-pixel conversion is 4/3 on both axes independently) and the
+resulting text-safe zones for custom banner art, see `documentation.html` §14 ("MSI Dialog Templates" →
+"Dialog Customization API" → "Bitmap Dimensions and Text Safe Zones") — this table is the DLU source of
+truth for stock region coordinates; that section derives pixel sizes from it and combines them with
+`Description` placements from the individual dialog builders and `HeaderIcon` placement from
+`DialogComposer` to document safe zones, and should not be treated as a second, independently-maintained
+source of the DLU numbers themselves.
+
 | Region | X | Y | Width | Height | Policy | Typical occupants |
 |--------|---|---|-------|--------|--------|-------------------|
 | `Banner` | 0 | 0 | 370 | 58 | `SingleControl` | Banner bitmap control |

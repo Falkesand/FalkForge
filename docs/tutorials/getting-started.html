@@ -177,8 +177,9 @@ package<span class="punc">.</span><span class="method">EnableRestartManagerSuppo
 
     <!-- Try It -->
     <h2>Try it</h2>
-    <pre><code>dotnet run --project demo/01-hello-world</code></pre>
-    <p>This compiles the installer definition and produces a <code>.msi</code> file. You can double-click it to install, or inspect it with the CLI:</p>
+    <pre><code>cd demo/01-hello-world
+dotnet run</code></pre>
+    <p>This compiles the installer definition and produces a <code>.msi</code> file. <strong>Run it from inside the project directory</strong>, not <code>dotnet run --project demo/01-hello-world</code> from the repo root: FalkForge resolves payload paths like <code>payload/hello.txt</code> against the process's current working directory, and <code>--project</code> does not change it &mdash; only actually being in that directory does. If you build via a script or an IDE's "Run" button instead, make sure it sets the working directory to the installer project's own folder. You can double-click the resulting <code>.msi</code> to install it, or inspect it with the CLI:</p>
     <pre><code>forge inspect path/to/output.msi</code></pre>
     <p>The <code>inspect</code> command shows the MSI's tables, files, features, and properties &mdash; useful for verifying the output without installing it.</p>
 

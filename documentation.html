@@ -9281,6 +9281,67 @@ public interface IDialogStepBuilder
     the full verb reference and exact placement rules.
 </p>
 
+<h4 id="dlg-bitmap-dimensions">Bitmap Dimensions and Text Safe Zones</h4>
+
+<p>
+    The stock 370x270 DLU dialog canvas (<code>Layouts.Standard370x270</code>) converts to pixels at a
+    fixed <strong>4/3 ratio applied to both axes independently</strong> &mdash; the same ratio the classic
+    Windows Installer banner/dialog-bitmap convention uses (234 DLU &rarr; 312 px is exact; 370 DLU &rarr;
+    493 px is <code>370 &times; 4&frasl;3</code> rounded to the nearest pixel). Convert <code>Width</code>
+    and <code>Height</code> separately &mdash; round each DLU value &times; 4&frasl;3 to the nearest pixel
+    on its own axis. Reusing a canonical pixel figure for one axis (493 is well known) while leaving the
+    other axis in raw DLU (58) silently stretches the image on the unconverted axis; this is exactly what
+    the pre-beta.6 <code>BannerBitmap</code> guidance did (493x58 instead of the correct 493x77 &mdash; see
+    the beta.6 release notes).
+</p>
+
+<table class="api-table">
+    <thead><tr><th>Region / control</th><th>DLU (X, Y, W, H)</th><th>Pixels (X, Y, W, H)</th><th>Source</th></tr></thead>
+    <tbody>
+        <tr><td>Canvas</td><td>0, 0, 370, 270</td><td>0, 0, 493, 360</td><td><code>Layouts.Standard370x270</code></td></tr>
+        <tr><td><code>Banner</code> region (banner bitmap)</td><td>0, 0, 370, 58</td><td>0, 0, 493, 77</td><td><code>Layouts.cs</code> &mdash; <code>Standard370x270.Regions["Banner"]</code></td></tr>
+        <tr><td>Welcome/Exit dialog bitmap (<code>DialogBitmap</code>)</td><td>0, 0, 370, 234</td><td>0, 0, 493, 312</td><td><code>DialogComposer.BuildDialogBitmapControl</code> &mdash; height is the <code>BottomLine</code> region's Y</td></tr>
+        <tr><td><code>TitleRow</code> region (dialog title text)</td><td>15, 6, 200, 15</td><td>20, 8, 267, 20</td><td><code>Layouts.cs</code> &mdash; <code>Standard370x270.Regions["TitleRow"]</code></td></tr>
+        <tr><td><code>Description</code> control (most interior dialogs)</td><td>25, 23, 280, 15&ndash;20</td><td>33, 31, 373, 20&ndash;27</td><td>e.g. <code>InstallDirDlgBuilder.cs</code>, <code>SetupTypeDlgBuilder.cs</code>, <code>CustomizeDlgBuilder.cs</code></td></tr>
+        <tr><td>Synthesized <code>HeaderIcon</code></td><td>346, 6, 16, 16</td><td>461, 8, 21, 21</td><td><code>DialogComposer.BuildHeaderIconControl</code> &mdash; top-right of <code>Banner</code>, Y aligned to <code>TitleRow</code></td></tr>
+    </tbody>
+</table>
+
+<p>
+    The <code>Description</code> row above is the placement most interior dialogs share
+    (<code>OverrideX=25, OverrideY=23, OverrideWidth=280</code> DLU); <code>OverrideHeight</code> varies by
+    dialog &mdash; 15 DLU on <code>InstallDirDlg</code>/<code>SetupTypeDlg</code>/<code>CustomizeDlg</code>,
+    20 on <code>ExitDlg</code>/<code>InstallScopeDlg</code>, 40 on <code>WelcomeDlg</code>.
+    <code>LicenseAgreementDlg</code> has no <code>Description</code> control at all &mdash; its
+    <code>ContentArea</code> is filled by the scrollable license text instead, starting at DLU (20, 60) /
+    px (27, 80).
+</p>
+
+<p>
+    <strong>Exception:</strong> the RestartManager files-in-use dialog
+    (<code>MsiRMFilesInUseDlgBuilder.cs</code>) does <em>not</em> share <code>OverrideX=25</code>. It is an
+    interior dialog (<code>Kind="RestartManager"</code>, has a <code>TitleRow</code>, so it gets a banner
+    like the others), and it shares <code>OverrideY=23</code>/<code>OverrideWidth=280</code>/
+    <code>OverrideHeight=20</code> with the general row above &mdash; but its <code>OverrideX</code> is
+    <strong>20</strong> DLU (27 px), not 25. Its <code>Description</code> control therefore spans DLU
+    20&ndash;300 / px 27&ndash;400, <em>narrower</em> than the general row's DLU 25&ndash;305 / px
+    33&ndash;406, not wider. The safe-zone conclusion below is unaffected by this: the RestartManager
+    dialog's <code>Description</code> right edge (400 px) still falls short of the 406&ndash;461 px strip,
+    so that strip stays clear on every interior dialog, including this one.
+</p>
+
+<p>
+    <strong>Practical safe zone for custom banner art:</strong> on the 493x77 px banner, the
+    <code>Description</code> text on interior dialogs occupies roughly <strong>x 33&ndash;406</strong> px
+    (DLU 25&ndash;305), and a synthesized <code>HeaderIcon</code> &mdash; when <code>HeaderIcon(key)</code>
+    is set &mdash; occupies roughly <strong>x 461&ndash;482</strong> px (DLU 346&ndash;362) at the banner's
+    top-right, vertically aligned with the title. That leaves a clear vertical strip of roughly
+    <strong>x 406&ndash;461 px (&asymp;55 px wide)</strong> free of both. Counter-intuitively, the dialog's
+    own title sits at the <strong>left</strong> edge of the banner (<code>TitleRow</code>, DLU X=15 / px
+    X=20, drawn in front of the banner bitmap) &mdash; so custom branding art composed to avoid the title
+    belongs on the <strong>right</strong> side of the banner, not the left where a logo would usually go.
+</p>
+
 </section>
 
 <!-- ============================================================ -->
