@@ -92,8 +92,7 @@ public sealed class BundleSigningEndToEndTests
         }
         finally
         {
-            try { Directory.Delete(dir, recursive: true); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            TestTemp.TryDelete(dir);
         }
     }
 
@@ -128,8 +127,7 @@ public sealed class BundleSigningEndToEndTests
         }
         finally
         {
-            try { Directory.Delete(dir, recursive: true); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            TestTemp.TryDelete(dir);
         }
     }
 
@@ -180,8 +178,7 @@ public sealed class BundleSigningEndToEndTests
         }
         finally
         {
-            try { Directory.Delete(dir, recursive: true); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            TestTemp.TryDelete(dir);
             File.Delete(pemPath);
         }
     }

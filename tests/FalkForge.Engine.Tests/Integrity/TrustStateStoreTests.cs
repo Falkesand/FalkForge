@@ -591,12 +591,8 @@ public sealed class TrustStateStoreTests
 
     private static void TryCleanup(string path)
     {
-        try
-        {
-            var dir = Path.GetDirectoryName(path);
-            if (dir is not null && Directory.Exists(dir))
-                Directory.Delete(dir, recursive: true);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+        var dir = Path.GetDirectoryName(path);
+        if (dir is not null)
+            TestTemp.TryDelete(dir);
     }
 }

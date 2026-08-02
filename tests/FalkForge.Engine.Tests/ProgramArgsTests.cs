@@ -16,14 +16,7 @@ public sealed class ProgramArgsTests : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_tempDir))
-            {
-                Directory.Delete(_tempDir, recursive: true);
-            }
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+        TestTemp.TryDelete(_tempDir);
     }
 
     [Fact]

@@ -76,8 +76,7 @@ public sealed class UpdateLauncherAuthenticodeTests
         }
         finally
         {
-            try { Directory.Delete(cacheRoot, recursive: true); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            TestTemp.TryDelete(cacheRoot);
         }
     }
 
@@ -104,8 +103,7 @@ public sealed class UpdateLauncherAuthenticodeTests
         }
         finally
         {
-            try { Directory.Delete(cacheRoot, recursive: true); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            TestTemp.TryDelete(cacheRoot);
         }
     }
 
@@ -129,8 +127,7 @@ public sealed class UpdateLauncherAuthenticodeTests
         }
         finally
         {
-            try { Directory.Delete(cacheRoot, recursive: true); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            TestTemp.TryDelete(cacheRoot);
         }
     }
 
@@ -153,8 +150,7 @@ public sealed class UpdateLauncherAuthenticodeTests
         }
         finally
         {
-            try { Directory.Delete(cacheRoot, recursive: true); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            TestTemp.TryDelete(cacheRoot);
         }
     }
 }

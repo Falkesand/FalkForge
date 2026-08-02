@@ -92,8 +92,7 @@ public sealed class MsixCompilerTests
             if (Directory.Exists(outputPath))
             {
                 // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
-                try { Directory.Delete(outputPath, true); }
-                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+                TestTemp.TryDelete(outputPath);
             }
         }
     }
@@ -128,8 +127,7 @@ public sealed class MsixCompilerTests
             if (Directory.Exists(outputPath))
             {
                 // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
-                try { Directory.Delete(outputPath, true); }
-                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+                TestTemp.TryDelete(outputPath);
             }
         }
     }

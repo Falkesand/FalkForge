@@ -65,16 +65,7 @@ public class StudioBuildServiceBundleTests
         }
         finally
         {
-            try
-            {
-                if (Directory.Exists(tempDir))
-                    Directory.Delete(tempDir, recursive: true);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-            {
-                // Best effort cleanup — a locked handle or transient I/O error here must not
-                // masquerade as a test failure via an escaping teardown exception.
-            }
+            TestTemp.TryDelete(tempDir);
         }
     }
 }

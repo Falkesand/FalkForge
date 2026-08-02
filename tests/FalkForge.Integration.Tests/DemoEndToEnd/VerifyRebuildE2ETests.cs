@@ -41,8 +41,7 @@ public sealed class VerifyRebuildE2ETests : IDisposable
 
     public void Dispose()
     {
-        try { if (Directory.Exists(_scratch)) Directory.Delete(_scratch, recursive: true); }
-        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+        TestTemp.TryDelete(_scratch);
     }
 
     private static CommandContext Ctx() =>

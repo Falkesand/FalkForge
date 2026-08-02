@@ -64,7 +64,7 @@ public sealed class EngineSessionCompanionPolicyTests : IDisposable
             try { File.Delete(_plantedCompanionPath); } catch (IOException) { /* best effort */ }
         }
 
-        try { Directory.Delete(_tempDir, recursive: true); } catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+        TestTemp.TryDelete(_tempDir);
     }
 
     private string WriteManifest()

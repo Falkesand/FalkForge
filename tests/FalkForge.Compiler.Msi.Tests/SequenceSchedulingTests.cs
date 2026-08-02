@@ -296,8 +296,7 @@ public sealed class SequenceSchedulingTests
             Database.Dispose();
             if (Directory.Exists(TempDir))
             {
-                try { Directory.Delete(TempDir, true); }
-                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+                TestTemp.TryDelete(TempDir);
             }
         }
     }

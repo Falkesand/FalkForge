@@ -400,12 +400,7 @@ public sealed class SqlExecutionEmissionTests
 
         public void Dispose()
         {
-            try
-            {
-                if (Directory.Exists(_root))
-                    Directory.Delete(_root, recursive: true);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            TestTemp.TryDelete(_root);
         }
     }
 }

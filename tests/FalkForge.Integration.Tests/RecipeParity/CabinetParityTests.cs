@@ -237,7 +237,6 @@ public sealed class CabinetParityTests
 
     private static void TryDeleteDir(string path)
     {
-        try { Directory.Delete(path, recursive: true); }
-        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+        TestTemp.TryDelete(path);
     }
 }
