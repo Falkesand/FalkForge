@@ -134,18 +134,18 @@ public sealed class MockRegistry : IRegistry
         return Result<IReadOnlyList<string>>.Success(GetSubKeyNames(rootKey, subKey));
     }
 
-    public Result<RegistryStringValue> TryGetStringValue(RegistryRoot rootKey, string subKey, string valueName)
+    public Result<string?> TryGetStringValue(RegistryRoot rootKey, string subKey, string valueName)
     {
         foreach (var prefix in _failReadPrefixes)
         {
             if (subKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
             {
-                return Result<RegistryStringValue>.Failure(ErrorKind.SecurityError,
+                return Result<string?>.Failure(ErrorKind.SecurityError,
                     $"Simulated read failure under '{rootKey}\\{subKey}'.");
             }
         }
 
-        return Result<RegistryStringValue>.Success(new RegistryStringValue(GetStringValue(rootKey, subKey, valueName)));
+        return Result<string?>.Success(GetStringValue(rootKey, subKey, valueName));
     }
 
     public void DeleteKey(RegistryRoot rootKey, string subKey)

@@ -46,17 +46,17 @@ public sealed class WindowsRegistry : IRegistry
         }
     }
 
-    public Result<RegistryStringValue> TryGetStringValue(RegistryRoot rootKey, string subKey, string valueName)
+    public Result<string?> TryGetStringValue(RegistryRoot rootKey, string subKey, string valueName)
     {
         try
         {
             using var key = GetRootKey(rootKey).OpenSubKey(subKey);
             var value = key?.GetValue(valueName) as string;
-            return Result<RegistryStringValue>.Success(new RegistryStringValue(value));
+            return Result<string?>.Success(value);
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
         {
-            return Result<RegistryStringValue>.Failure(ErrorKind.SecurityError,
+            return Result<string?>.Failure(ErrorKind.SecurityError,
                 $"Failed to read registry value '{valueName}' under '{rootKey}\\{subKey}': {ex.Message}");
         }
     }
