@@ -8070,7 +8070,7 @@ public sealed record EngineSessionOptions
         <tr><td>VersionMsi</td><td>Version</td><td>Emulated MSI version (always 5.0)</td><td>5.0</td></tr>
         <tr><td>Date</td><td>string</td><td>Current UTC date</td><td>20260217</td></tr>
         <tr><td>Time</td><td>string</td><td>Current UTC time</td><td>143022</td></tr>
-        <tr><td>RebootPending</td><td>long</td><td>1 if a reboot is pending from prior installations</td><td>0</td></tr>
+        <tr><td>RebootPending</td><td>long</td><td>1 if a reboot is pending from prior installations: the Component Based Servicing <code>RebootPending</code> key exists, the Windows Update <code>RebootRequired</code> key exists, the <code>PendingFileRenameOperations</code> value exists under Session Manager, or any of those probes could not be read (an unreadable probe is treated as pending, not as safe)</td><td>0</td></tr>
     </tbody>
 </table>
 
