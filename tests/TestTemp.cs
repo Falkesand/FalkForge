@@ -37,8 +37,38 @@ public static class TestTemp
         }
         catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
         {
-            Console.Error.WriteLine(
-                $"[TestTemp.TryDelete] best-effort cleanup failed for '{path}': {ex.GetType().Name}: {ex.Message}");
+            WriteFailureTrace(Console.Error, path, ex);
+        }
+    }
+
+    /// <summary>
+    /// Builds the one-line trace naming <paramref name="path"/> and the failing exception's
+    /// type. Pure and side-effect free so tests can pin the message shape without mutating any
+    /// process-global state (e.g. <see cref="Console.Error"/>).
+    /// </summary>
+    internal static string BuildFailureTraceMessage(string path, Exception ex) =>
+        $"[TestTemp.TryDelete] best-effort cleanup failed for '{path}': {ex.GetType().Name}: {ex.Message}";
+
+    /// <summary>
+    /// Writes the trace built by <see cref="BuildFailureTraceMessage"/> to <paramref name="writer"/>,
+    /// swallowing any failure from the write itself. Cleanup has already failed once by the
+    /// time this runs -- if the sink is also broken (e.g. <see cref="Console.Error"/> replaced
+    /// by a disposed <see cref="TextWriter"/>) that must not compound into a second, escaping
+    /// exception that breaks <see cref="TryDelete"/>'s "never throws" contract at exactly the
+    /// moment cleanup already failed. Internal (not private) so tests can exercise this exact
+    /// path against a throwaway writer instead of redirecting the real, process-global
+    /// <see cref="Console.Error"/>.
+    /// </summary>
+    internal static void WriteFailureTrace(TextWriter writer, string path, Exception ex)
+    {
+        try
+        {
+            writer.WriteLine(BuildFailureTraceMessage(path, ex));
+        }
+        catch (Exception writeEx) when (writeEx is not OutOfMemoryException and not StackOverflowException)
+        {
+            // Logging the failure must never itself throw -- teardown already failed once; a
+            // broken sink must not compound that into a second escaping exception.
         }
     }
 }
