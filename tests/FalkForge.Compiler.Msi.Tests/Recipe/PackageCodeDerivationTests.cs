@@ -300,6 +300,277 @@ public sealed class PackageCodeDerivationTests
         }
     }
 
+    /// <summary>
+    ///     Issue #63: a missing payload source file most commonly happens because the caller
+    ///     built from the wrong working directory (e.g. <c>dotnet run --project installer/App</c>
+    ///     from a repo root, which does NOT change <see cref="Environment.CurrentDirectory"/> the
+    ///     way plain <c>dotnet run</c> from inside the project does). Before this fix the failure
+    ///     message named only the already-resolved absolute path, which reads exactly like a path
+    ///     typo and sends the author chasing a source path that was never wrong. The message must
+    ///     name the actual cause: the current working directory the path was resolved against, and
+    ///     the <c>dotnet run --project</c> gotcha specifically. That cause is only true when the
+    ///     authored <see cref="ResolvedFile.SourcePath"/> is relative — a relative path is the only
+    ///     case where <see cref="Environment.CurrentDirectory"/> played any part in resolution, so
+    ///     this test uses a relative path to exercise that cause.
+    ///     WHY this is a behavior contract, not prose: the message is the only signal an author
+    ///     gets when this fails, so asserting on the cause (not exact wording) keeps the test
+    ///     meaningful if the copy is reworded later.
+    /// </summary>
+    [Fact]
+    public void Reproducible_MissingRelativeSourceFile_MessageNamesCwdAndDotnetRunProjectCause()
+    {
+        var missingPath = $"does_not_exist_{Guid.NewGuid():N}.dll";
+        Assert.False(System.IO.Path.IsPathRooted(missingPath),
+            "Test setup invariant: the source path under test must be relative.");
+
+        var package = new PackageModel
+        {
+            Name = "MissingRelativeFileCauseTest",
+            Manufacturer = "FalkForge Tests",
+            Version = new Version(1, 0, 0),
+            ProductCode = new Guid("FFFFFFFF-0000-0000-0000-000000000006"),
+            ReproducibleOptions = new ReproducibleBuildOptions { SourceDateEpoch = TestEpoch },
+        };
+
+        var installDir = KnownFolder.ProgramFiles / "MissingRelativeFileCauseTest" / "App";
+
+        var resolvedFile = new ResolvedFile
+        {
+            SourcePath = missingPath,
+            TargetDirectory = installDir,
+            FileName = "does_not_exist.dll",
+            FileSize = 0,
+            ComponentId = "MainComponent",
+            FileId = "file_missing_relative_cause",
+        };
+
+        var resolved = new ResolvedPackage
+        {
+            Package = package,
+            Components = [],
+            Files = [resolvedFile],
+        };
+
+        var result = MsiRecipeBuilder.Build(resolved, []);
+
+        Assert.False(result.IsSuccess,
+            "Expected failure when source file is missing, but Build returned success.");
+        Assert.Equal(ErrorKind.FileNotFound, result.Error.Kind);
+
+        // Relative path: the cwd genuinely explains the failure, so the message must name it...
+        Assert.Contains(Environment.CurrentDirectory, result.Error.Message,
+            StringComparison.OrdinalIgnoreCase);
+        // ...and the specific 'dotnet run --project' gotcha that produces this symptom.
+        Assert.Contains("dotnet run --project", result.Error.Message,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Issue #63 correction (CodeRabbit review on the fix's own PR): a fully qualified
+    ///     <see cref="ResolvedFile.SourcePath"/> is never resolved against
+    ///     <see cref="Environment.CurrentDirectory"/> — <see cref="System.IO.FileStream"/> opens an
+    ///     absolute path exactly as given. Naming the working directory and the
+    ///     <c>dotnet run --project</c> gotcha for an absolute path states a cause that cannot be
+    ///     true and sends the author looking in the wrong place. The message for an absolute path
+    ///     must say plainly that the file is missing at that location, without attributing it to
+    ///     the working directory.
+    ///     WHY this is a behavior contract, not prose: the message is the only signal an author
+    ///     gets when this fails, so asserting on the absence of the false cause (not exact wording)
+    ///     keeps the test meaningful if the copy is reworded later.
+    /// </summary>
+    [Fact]
+    public void Reproducible_MissingAbsoluteSourceFile_MessageDoesNotNameCwd()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            var missingPath = System.IO.Path.Combine(tempDir, "does_not_exist.dll");
+            Assert.True(System.IO.Path.IsPathRooted(missingPath),
+                "Test setup invariant: the source path under test must be absolute.");
+
+            var package = new PackageModel
+            {
+                Name = "MissingFileCauseTest",
+                Manufacturer = "FalkForge Tests",
+                Version = new Version(1, 0, 0),
+                ProductCode = new Guid("FFFFFFFF-0000-0000-0000-000000000006"),
+                ReproducibleOptions = new ReproducibleBuildOptions { SourceDateEpoch = TestEpoch },
+            };
+
+            var installDir = KnownFolder.ProgramFiles / "MissingFileCauseTest" / "App";
+
+            var resolvedFile = new ResolvedFile
+            {
+                SourcePath = missingPath,
+                TargetDirectory = installDir,
+                FileName = "does_not_exist.dll",
+                FileSize = 0,
+                ComponentId = "MainComponent",
+                FileId = "file_missing_cause",
+            };
+
+            var resolved = new ResolvedPackage
+            {
+                Package = package,
+                Components = [],
+                Files = [resolvedFile],
+            };
+
+            var result = MsiRecipeBuilder.Build(resolved, []);
+
+            Assert.False(result.IsSuccess,
+                "Expected failure when source file is missing, but Build returned success.");
+            Assert.Equal(ErrorKind.FileNotFound, result.Error.Kind);
+
+            // Absolute path: names the path itself...
+            Assert.Contains(missingPath, result.Error.Message,
+                StringComparison.OrdinalIgnoreCase);
+            // ...but must NOT misattribute the failure to the working directory — an absolute
+            // path was never resolved against it.
+            Assert.DoesNotContain(Environment.CurrentDirectory, result.Error.Message,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("dotnet run --project", result.Error.Message,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            TryDeleteDirectory(tempDir);
+        }
+    }
+
+    /// <summary>
+    ///     Issue #63 follow-up: the same cwd/`dotnet run --project` cause must be named when the
+    ///     payload source path fails with <see cref="System.IO.DirectoryNotFoundException"/> (the
+    ///     path's parent directory does not exist), not just <see cref="System.IO.FileNotFoundException"/>
+    ///     (the parent directory exists but the file itself does not) — but, per the sibling
+    ///     file-not-found tests above, only when the path is relative; an absolute path was never
+    ///     resolved against the working directory regardless of which exception it triggers.
+    ///     WHY this is a behavior contract, not prose: the message is the only signal an author gets
+    ///     when this fails, so asserting on the cause (not exact wording) keeps the test meaningful if
+    ///     the copy is reworded later.
+    /// </summary>
+    [Fact]
+    public void Reproducible_MissingRelativeSourceDirectory_MessageNamesCwdAndDotnetRunProjectCause()
+    {
+        // A relative path whose parent directory does not exist — triggers
+        // DirectoryNotFoundException rather than FileNotFoundException when opened.
+        var missingDirPath = System.IO.Path.Combine($"missing_subdir_{Guid.NewGuid():N}", "does_not_exist.dll");
+        Assert.False(System.IO.Path.IsPathRooted(missingDirPath),
+            "Test setup invariant: the source path under test must be relative.");
+
+        var package = new PackageModel
+        {
+            Name = "MissingRelativeDirectoryCauseTest",
+            Manufacturer = "FalkForge Tests",
+            Version = new Version(1, 0, 0),
+            ProductCode = new Guid("11111111-0000-0000-0000-000000000007"),
+            ReproducibleOptions = new ReproducibleBuildOptions { SourceDateEpoch = TestEpoch },
+        };
+
+        var installDir = KnownFolder.ProgramFiles / "MissingRelativeDirectoryCauseTest" / "App";
+
+        var resolvedFile = new ResolvedFile
+        {
+            SourcePath = missingDirPath,
+            TargetDirectory = installDir,
+            FileName = "does_not_exist.dll",
+            FileSize = 0,
+            ComponentId = "MainComponent",
+            FileId = "file_missing_relative_dir_cause",
+        };
+
+        var resolved = new ResolvedPackage
+        {
+            Package = package,
+            Components = [],
+            Files = [resolvedFile],
+        };
+
+        var result = MsiRecipeBuilder.Build(resolved, []);
+
+        Assert.False(result.IsSuccess,
+            "Expected failure when source directory is missing, but Build returned success.");
+        Assert.Equal(ErrorKind.FileNotFound, result.Error.Kind);
+
+        // Relative path: the cwd genuinely explains the failure, so the message must name it...
+        Assert.Contains(Environment.CurrentDirectory, result.Error.Message,
+            StringComparison.OrdinalIgnoreCase);
+        // ...and the specific 'dotnet run --project' gotcha that produces this symptom.
+        Assert.Contains("dotnet run --project", result.Error.Message,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    ///     Issue #63 correction (CodeRabbit review on the fix's own PR): the absolute-path
+    ///     no-misattribution rule from <see cref="Reproducible_MissingAbsoluteSourceFile_MessageDoesNotNameCwd"/>
+    ///     applies equally to the <see cref="System.IO.DirectoryNotFoundException"/> branch — an
+    ///     absolute path's missing parent directory was never resolved against the working
+    ///     directory either.
+    ///     WHY this is a behavior contract, not prose: the message is the only signal an author
+    ///     gets when this fails, so asserting on the absence of the false cause (not exact wording)
+    ///     keeps the test meaningful if the copy is reworded later.
+    /// </summary>
+    [Fact]
+    public void Reproducible_MissingAbsoluteSourceDirectory_MessageDoesNotNameCwd()
+    {
+        var tempDir = CreateTempDir();
+        try
+        {
+            // The parent directory itself does not exist (not just the file) — triggers
+            // DirectoryNotFoundException rather than FileNotFoundException when opened.
+            var missingDirPath = System.IO.Path.Combine(tempDir, "missing_subdir", "does_not_exist.dll");
+            Assert.True(System.IO.Path.IsPathRooted(missingDirPath),
+                "Test setup invariant: the source path under test must be absolute.");
+
+            var package = new PackageModel
+            {
+                Name = "MissingDirectoryCauseTest",
+                Manufacturer = "FalkForge Tests",
+                Version = new Version(1, 0, 0),
+                ProductCode = new Guid("11111111-0000-0000-0000-000000000007"),
+                ReproducibleOptions = new ReproducibleBuildOptions { SourceDateEpoch = TestEpoch },
+            };
+
+            var installDir = KnownFolder.ProgramFiles / "MissingDirectoryCauseTest" / "App";
+
+            var resolvedFile = new ResolvedFile
+            {
+                SourcePath = missingDirPath,
+                TargetDirectory = installDir,
+                FileName = "does_not_exist.dll",
+                FileSize = 0,
+                ComponentId = "MainComponent",
+                FileId = "file_missing_dir_cause",
+            };
+
+            var resolved = new ResolvedPackage
+            {
+                Package = package,
+                Components = [],
+                Files = [resolvedFile],
+            };
+
+            var result = MsiRecipeBuilder.Build(resolved, []);
+
+            Assert.False(result.IsSuccess,
+                "Expected failure when source directory is missing, but Build returned success.");
+            Assert.Equal(ErrorKind.FileNotFound, result.Error.Kind);
+
+            // Absolute path: names the path itself...
+            Assert.Contains(missingDirPath, result.Error.Message,
+                StringComparison.OrdinalIgnoreCase);
+            // ...but must NOT misattribute the failure to the working directory.
+            Assert.DoesNotContain(Environment.CurrentDirectory, result.Error.Message,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("dotnet run --project", result.Error.Message,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            TryDeleteDirectory(tempDir);
+        }
+    }
+
     private static void TryDeleteDirectory(string path)
     {
         TestTemp.TryDelete(path);

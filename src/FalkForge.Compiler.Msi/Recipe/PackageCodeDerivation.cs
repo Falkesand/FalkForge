@@ -173,12 +173,27 @@ internal static class PackageCodeDerivation
         catch (FileNotFoundException)
         {
             return Result<Unit>.Failure(ErrorKind.FileNotFound,
-                $"Payload source file not found: {filePath}");
+                Path.IsPathRooted(filePath)
+                    // A fully qualified path is never resolved against the working directory —
+                    // FileStream opens it exactly as given — so naming the cwd here would state a
+                    // cause that cannot be true and send the author looking in the wrong place.
+                    ? $"Payload source file not found at '{filePath}'."
+                    : $"Payload source file not found: '{filePath}'. The path was resolved against the " +
+                      $"current working directory '{Environment.CurrentDirectory}'. If you ran " +
+                      "'dotnet run --project', note that it does not change the working directory — run " +
+                      "the build from the installer project's own directory instead.");
         }
         catch (DirectoryNotFoundException)
         {
             return Result<Unit>.Failure(ErrorKind.FileNotFound,
-                $"Payload source directory not found for: {filePath}");
+                Path.IsPathRooted(filePath)
+                    // Same reasoning as the FileNotFoundException branch above: an absolute path's
+                    // missing parent directory was never resolved against the working directory.
+                    ? $"Payload source directory not found for: '{filePath}'."
+                    : $"Payload source directory not found for: '{filePath}'. The path was resolved " +
+                      $"against the current working directory '{Environment.CurrentDirectory}'. If you " +
+                      "ran 'dotnet run --project', note that it does not change the working directory — " +
+                      "run the build from the installer project's own directory instead.");
         }
         catch (IOException ex)
         {

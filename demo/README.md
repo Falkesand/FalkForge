@@ -355,15 +355,21 @@ dotnet build demo/09-advanced-msi/
 
 **Run** (produces an `.msi` file, requires Windows with `msi.dll`):
 
+Each command below runs from inside the demo's own project directory (`(cd demo/X && dotnet run ...)`),
+not via `dotnet run --project demo/X` from the repo root. FalkForge resolves payload paths like
+`payload/hello.txt` against the process's current working directory, and `--project` does not change
+it — only actually being in that directory does. The parenthesized subshell means each line is
+independent and returns you to the repo root afterward, so the whole block can be copy-pasted as-is.
+
 ```bash
-dotnet run --project demo/01-hello-world/ -- -o ./output
-dotnet run --project demo/02-notepad-clone/ -- -o ./output
-dotnet run --project demo/03-client-server/ -- -o ./output
-dotnet run --project demo/04-dev-toolkit/ -- -o ./output
-dotnet run --project demo/05-enterprise-suite/ -- -o ./output
-dotnet run --project demo/07-extensions-showcase/ -- -o ./output
-dotnet run --project demo/08-localization/ -- -o ./output
-dotnet run --project demo/09-advanced-msi/ -- -o ./output
+(cd demo/01-hello-world && dotnet run -- -o ./output)
+(cd demo/02-notepad-clone && dotnet run -- -o ./output)
+(cd demo/03-client-server && dotnet run -- -o ./output)
+(cd demo/04-dev-toolkit && dotnet run -- -o ./output)
+(cd demo/05-enterprise-suite && dotnet run -- -o ./output)
+(cd demo/07-extensions-showcase && dotnet run -- -o ./output)
+(cd demo/08-localization && dotnet run -- -o ./output)
+(cd demo/09-advanced-msi && dotnet run -- -o ./output)
 ```
 
 ### Multi-project demos
@@ -371,23 +377,23 @@ dotnet run --project demo/09-advanced-msi/ -- -o ./output
 **Demo 06 (Product Suite)** -- Build the MSI packages first, then the bundle:
 
 ```bash
-dotnet run --project demo/06-product-suite/app-installer -- -o ./output
-dotnet run --project demo/06-product-suite/service-installer -- -o ./output
-dotnet run --project demo/06-product-suite/suite-bundle -- -o ./output
+(cd demo/06-product-suite/app-installer && dotnet run -- -o ./output)
+(cd demo/06-product-suite/service-installer && dotnet run -- -o ./output)
+(cd demo/06-product-suite/suite-bundle && dotnet run -- -o ./output)
 ```
 
 **Demo 10 (Advanced Bundle)** -- Build the MSI package first, then the bundle:
 
 ```bash
-dotnet run --project demo/10-advanced-bundle/msi-package -- -o ./output
-dotnet run --project demo/10-advanced-bundle/bundle -- -o ./output
+(cd demo/10-advanced-bundle/msi-package && dotnet run -- -o ./output)
+(cd demo/10-advanced-bundle/bundle && dotnet run -- -o ./output)
 ```
 
 **Demo 15 (Bundle Signing)** -- Build the MSI package first, then the bundle:
 
 ```bash
-dotnet run --project demo/15-bundle-signing/msi-package -- -o ./output
-dotnet run --project demo/15-bundle-signing/bundle -- -o ./output
+(cd demo/15-bundle-signing/msi-package && dotnet run -- -o ./output)
+(cd demo/15-bundle-signing/bundle && dotnet run -- -o ./output)
 ```
 
 ### Focused demos (16-28)
@@ -463,10 +469,11 @@ Demo 15 (MSIX Basic) also uses a C# script (experimental):
 dotnet script demo/15-msix-basic/msix-basic.csx -- -o ./output
 ```
 
-Demo 53 (Delta Updates):
+Demo 53 (Delta Updates) -- run from inside the project directory, not `--project` from the repo root
+(see the note above the "Run" block):
 
 ```bash
-dotnet run --project demo/53-delta-updates/ -- -o ./output
+(cd demo/53-delta-updates && dotnet run -- -o ./output)
 ```
 
 ### Provability & supply chain demos (54-58)
@@ -477,28 +484,29 @@ Demo 54 (forge migrate):
 dotnet build demo/54-forge-migrate
 ```
 
-Demo 55 (WinGet Manifest Generation):
+Demo 55 (WinGet Manifest Generation) -- run from inside the project directory, not `--project` from
+the repo root (see the note above the "Run" block):
 
 ```bash
-dotnet run --project demo/55-winget -- -o output/MyApp.msi
+(cd demo/55-winget && dotnet run -- -o output/MyApp.msi)
 ```
 
 Demo 56 (Verify and Plan):
 
 ```bash
-dotnet run --project demo/56-verify-and-plan/ -- -o out/v1
+(cd demo/56-verify-and-plan && dotnet run -- -o out/v1)
 ```
 
 Demo 57 (Reproducible Builds + SBOM):
 
 ```bash
-dotnet run --project demo/57-reproducible-sbom -- -o ./out-a
+(cd demo/57-reproducible-sbom && dotnet run -- -o ./out-a)
 ```
 
 Demo 58 (Project References):
 
 ```bash
-dotnet run --project demo/58-project-references/installer/installer.csproj -- -o ./out/
+(cd demo/58-project-references/installer && dotnet run -- -o ./out/)
 ```
 
 ## Validating JSON Demos
