@@ -3,10 +3,13 @@ using FalkForge;
 namespace FalkForge.Platform;
 
 /// <summary>
-/// Outcome of <see cref="IRegistry.TryGetStringValue"/>. Wrapped in a struct rather than returned as a
-/// bare <c>string?</c> because <see cref="Result{T}.Success"/> rejects a null payload unconditionally
-/// (its null-guard checks the runtime value, not the nullable annotation) — a legitimate "key/value does
-/// not exist" success could never be represented as <c>Result&lt;string?&gt;.Success(null)</c>.
+/// Outcome of <see cref="IRegistry.TryGetStringValue"/>. Originally wrapped in a struct because
+/// <see cref="Result{T}.Success"/> used to reject a null payload unconditionally (its null-guard checked
+/// the runtime value, not the nullable annotation), so a legitimate "key/value does not exist" success
+/// could not be represented as <c>Result&lt;string?&gt;.Success(null)</c>. That guard is gone (task #42) and
+/// <c>Result&lt;string?&gt;</c> now works directly, so this wrapper is redundant; kept as-is for this change
+/// to stay small — replacing it is a separate follow-up (touches the interface, both implementations, and
+/// their callers/tests).
 /// </summary>
 public readonly record struct RegistryStringValue(string? Value);
 
