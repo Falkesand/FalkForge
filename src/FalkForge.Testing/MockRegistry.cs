@@ -7,13 +7,15 @@ public sealed class MockRegistry : IRegistry
     private readonly Dictionary<string, Dictionary<string, object?>> _keys = new(StringComparer.OrdinalIgnoreCase);
 
     // Prefixes matched against the BARE subkey path (e.g. "SOFTWARE\Classes\Installer\Dependencies"),
-    // with no root prefix — TryReadSubKeyNames/TryGetStringValue compare against their `subKey`
-    // parameter directly, never against a root-qualified string. Because the root is never part of the
-    // comparison, one prefix simulates a read failure under LocalMachine and CurrentUser alike.
+    // with no root prefix — TryReadSubKeyNames/TryGetStringValue/TryValueExists/TryKeyExists compare
+    // against their `subKey` parameter directly, never against a root-qualified string. Because the
+    // root is never part of the comparison, one prefix simulates a read failure under LocalMachine and
+    // CurrentUser alike.
     private readonly List<string> _failReadPrefixes = [];
 
     /// <summary>
-    /// Makes <see cref="TryReadSubKeyNames"/> and <see cref="TryGetStringValue"/> return a
+    /// Makes <see cref="TryReadSubKeyNames"/>, <see cref="TryGetStringValue"/>,
+    /// <see cref="TryValueExists"/>, and <see cref="TryKeyExists"/> return a
     /// <c>Failure</c> for any subkey path under <paramref name="subKeyPrefix"/>. The match is against the
     /// bare subkey — do NOT pass a root-qualified prefix (e.g. <c>"LocalMachine\SOFTWARE\..."</c>); it
     /// will never match and the simulated failure silently won't trigger. Because the root is never part
@@ -146,6 +148,36 @@ public sealed class MockRegistry : IRegistry
         }
 
         return Result<string?>.Success(GetStringValue(rootKey, subKey, valueName));
+    }
+
+    public Result<bool> TryValueExists(RegistryRoot rootKey, string subKey, string valueName)
+    {
+        foreach (var prefix in _failReadPrefixes)
+        {
+            if (subKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return Result<bool>.Failure(ErrorKind.SecurityError,
+                    $"Simulated read failure under '{rootKey}\\{subKey}'.");
+            }
+        }
+
+        var fullKey = $@"{rootKey}\{subKey}";
+        var exists = _keys.TryGetValue(fullKey, out var values) && values.ContainsKey(valueName);
+        return Result<bool>.Success(exists);
+    }
+
+    public Result<bool> TryKeyExists(RegistryRoot rootKey, string subKey)
+    {
+        foreach (var prefix in _failReadPrefixes)
+        {
+            if (subKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return Result<bool>.Failure(ErrorKind.SecurityError,
+                    $"Simulated read failure under '{rootKey}\\{subKey}'.");
+            }
+        }
+
+        return Result<bool>.Success(KeyExists(rootKey, subKey));
     }
 
     public void DeleteKey(RegistryRoot rootKey, string subKey)

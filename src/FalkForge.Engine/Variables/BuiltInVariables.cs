@@ -204,13 +204,40 @@ public static class BuiltInVariables
 
     private static void PopulateRebootPending(VariableStore store, IPlatformServices? platform)
     {
+        // No platform means no probe was possible, not that a probe was attempted and failed —
+        // PopulateSessionInfo's TerminalServer/RemoteSession probe is the only other platform-null
+        // branch in this file that defaults to a state (rather than falling back to a real value) for
+        // the same reason, so RebootPending follows suit here.
         var rebootPending = false;
         if (platform is not null)
         {
-            // Check standard reboot-pending registry keys
+            // PendingFileRenameOperations is a registry VALUE under Session Manager, not a subkey of
+            // its own — KeyExists on that path can never see it (bare OpenSubKey). TryValueExists
+            // probes the value directly, type-agnostic (it's REG_MULTI_SZ).
+            var pendingRenameResult = platform.Registry.TryValueExists(
+                RegistryRoot.LocalMachine,
+                @"SYSTEM\CurrentControlSet\Control\Session Manager",
+                "PendingFileRenameOperations");
+
+            // TryKeyExists (not the bare KeyExists) for both key probes below: an ACL-denied key
+            // must fail closed to "pending" like the value probe above, not silently read as
+            // "absent" the way bare KeyExists would (it cannot report failure at all).
+            var cbsResult = platform.Registry.TryKeyExists(
+                RegistryRoot.LocalMachine,
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending");
+            var windowsUpdateResult = platform.Registry.TryKeyExists(
+                RegistryRoot.LocalMachine,
+                @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired");
+
+            // An unreadable probe is not evidence of safety — fail closed to "pending" rather than
+            // read an inconclusive result as "absent" (mirrors the fail-closed precedent on
+            // IRegistry.TryReadSubKeyNames: an unknown state must never look like the safe answer).
+            // Result<T>.Value throws on a failed result, so the IsFailure short-circuit before each
+            // .Value access is load-bearing — do not reorder.
             rebootPending =
-                platform.Registry.KeyExists(RegistryRoot.LocalMachine, @"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending") ||
-                platform.Registry.KeyExists(RegistryRoot.LocalMachine, @"SYSTEM\CurrentControlSet\Control\Session Manager\PendingFileRenameOperations");
+                cbsResult.IsFailure || cbsResult.Value ||
+                windowsUpdateResult.IsFailure || windowsUpdateResult.Value ||
+                pendingRenameResult.IsFailure || pendingRenameResult.Value;
         }
         store.Set(BuiltInVariableNames.RebootPending, rebootPending ? 1L : 0L);
     }

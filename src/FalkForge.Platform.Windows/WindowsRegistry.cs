@@ -61,6 +61,36 @@ public sealed class WindowsRegistry : IRegistry
         }
     }
 
+    public Result<bool> TryValueExists(RegistryRoot rootKey, string subKey, string valueName)
+    {
+        try
+        {
+            using var key = GetRootKey(rootKey).OpenSubKey(subKey);
+            var exists = key is not null && Array.Exists(key.GetValueNames(),
+                name => string.Equals(name, valueName, StringComparison.OrdinalIgnoreCase));
+            return Result<bool>.Success(exists);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        {
+            return Result<bool>.Failure(ErrorKind.SecurityError,
+                $"Failed to read registry value '{valueName}' under '{rootKey}\\{subKey}': {ex.Message}");
+        }
+    }
+
+    public Result<bool> TryKeyExists(RegistryRoot rootKey, string subKey)
+    {
+        try
+        {
+            using var key = GetRootKey(rootKey).OpenSubKey(subKey);
+            return Result<bool>.Success(key is not null);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        {
+            return Result<bool>.Failure(ErrorKind.SecurityError,
+                $"Failed to read registry key '{rootKey}\\{subKey}': {ex.Message}");
+        }
+    }
+
     public void SetStringValue(RegistryRoot rootKey, string subKey, string valueName, string value)
     {
         using var key = GetRootKey(rootKey).CreateSubKey(subKey, writable: true);
