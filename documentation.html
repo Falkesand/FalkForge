@@ -1627,7 +1627,7 @@ Executables:
       <tr><th>Method</th><th>Description</th></tr>
     </thead>
     <tbody>
-      <tr><td><code>Success(T value)</code></td><td>Creates a successful result. Throws <code>ArgumentNullException</code> if value is null.</td></tr>
+      <tr><td><code>Success(T value)</code></td><td>Creates a successful result. Accepts <code>null</code> when <code>T</code> is a nullable type (e.g. <code>Result&lt;string?&gt;.Success(null)</code>) &mdash; the compiler's nullable-reference analysis, not a runtime guard, is what stops a null being passed where <code>T</code> is non-nullable.</td></tr>
       <tr><td><code>Failure(Error error)</code></td><td>Creates a failed result from an Error.</td></tr>
       <tr><td><code>Failure(ErrorKind kind, string message)</code></td><td>Creates a failed result from kind and message.</td></tr>
     </tbody>
@@ -1653,6 +1653,21 @@ Executables:
         <td><code>Bind</code></td>
         <td><code>Result&lt;TResult&gt; Bind&lt;TResult&gt;(Func&lt;T, Result&lt;TResult&gt;&gt; bind)</code></td>
         <td>Chain a fallible operation. Propagates failure unchanged.</td>
+      </tr>
+      <tr>
+        <td><code>GetValueOrDefault</code></td>
+        <td><code>T? GetValueOrDefault()</code></td>
+        <td>Success returns the value, including a legitimate null. Failure returns <code>default</code>. Cannot distinguish "failed" from "succeeded with null" &mdash; use <code>TryGetValue</code> when that distinction matters.</td>
+      </tr>
+      <tr>
+        <td><code>GetValueOrDefault</code></td>
+        <td><code>T GetValueOrDefault(T fallback)</code></td>
+        <td>Success returns the value, including a legitimate null (the fallback never replaces a stored null). Failure returns <code>fallback</code>. Mirrors <code>Dictionary.GetValueOrDefault</code>: the fallback substitutes only when the operation failed, never because the stored value happens to be null.</td>
+      </tr>
+      <tr>
+        <td><code>TryGetValue</code></td>
+        <td><code>bool TryGetValue(out T? value)</code></td>
+        <td>Returns <code>true</code> and the stored value (which may legitimately be null) on success; <code>false</code> and <code>default</code> on failure. The member that resolves the ambiguity <code>GetValueOrDefault()</code> cannot: it tells "failed" and "succeeded with null" apart.</td>
       </tr>
     </tbody>
   </table>

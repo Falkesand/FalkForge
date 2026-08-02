@@ -47,6 +47,38 @@ public sealed class ResultTests
     }
 
     [Fact]
+    public void Success_WithNullValue_CreatesSuccessfulResultCarryingNull()
+    {
+        var result = Result<string?>.Success(null);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.IsFailure);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void ImplicitConversion_FromNullValue_CreatesSuccessResultCarryingNull()
+    {
+        string? value = null;
+
+        Result<string?> result = value;
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void Map_WhenMappingFunctionReturnsNull_CreatesSuccessResultCarryingNull()
+    {
+        var result = Result<int>.Success(1);
+
+        var mapped = result.Map(_ => (string?)null);
+
+        Assert.True(mapped.IsSuccess);
+        Assert.Null(mapped.Value);
+    }
+
+    [Fact]
     public void Value_OnFailure_ThrowsInvalidOperationException()
     {
         var result = Result<int>.Failure(ErrorKind.Validation, "err");
@@ -154,5 +186,88 @@ public sealed class ResultTests
         var error = new Error(ErrorKind.SecurityError, "access denied");
 
         Assert.Equal("SecurityError: access denied", error.ToString());
+    }
+
+    [Fact]
+    public void GetValueOrDefault_OnSuccess_ReturnsValue()
+    {
+        var result = Result<int>.Success(42);
+
+        Assert.Equal(42, result.GetValueOrDefault());
+        Assert.Equal(42, result.GetValueOrDefault(-1));
+    }
+
+    [Fact]
+    public void GetValueOrDefault_OnFailure_ReturnsDefaultOfT()
+    {
+        var result = Result<int>.Failure(ErrorKind.Validation, "bad");
+
+        Assert.Equal(0, result.GetValueOrDefault());
+    }
+
+    [Fact]
+    public void GetValueOrDefault_WithFallback_OnFailure_ReturnsFallback()
+    {
+        var result = Result<int>.Failure(ErrorKind.Validation, "bad");
+
+        Assert.Equal(-1, result.GetValueOrDefault(-1));
+    }
+
+    [Fact]
+    public void GetValueOrDefault_OnSuccessCarryingNull_ReturnsNull()
+    {
+        var result = Result<string?>.Success(null);
+
+        Assert.Null(result.GetValueOrDefault());
+    }
+
+    [Fact]
+    public void GetValueOrDefault_WithFallback_OnSuccessCarryingNull_ReturnsNullNotFallback()
+    {
+        // The operation succeeded, so the stored null must win over the fallback — mirrors
+        // Dictionary.GetValueOrDefault, which substitutes only when the key is absent, not when
+        // the stored value happens to be null.
+        var result = Result<string?>.Success(null);
+
+        var value = result.GetValueOrDefault("fallback");
+
+        Assert.Null(value);
+    }
+
+    [Fact]
+    public void TryGetValue_OnSuccess_ReturnsTrueAndValue()
+    {
+        var result = Result<int>.Success(7);
+
+        var found = result.TryGetValue(out var value);
+
+        Assert.True(found);
+        Assert.Equal(7, value);
+    }
+
+    [Fact]
+    public void TryGetValue_OnFailure_ReturnsFalseAndDefault()
+    {
+        var result = Result<int>.Failure(ErrorKind.Validation, "bad");
+
+        var found = result.TryGetValue(out var value);
+
+        Assert.False(found);
+        Assert.Equal(0, value);
+    }
+
+    [Fact]
+    public void TryGetValue_OnSuccessCarryingNull_DistinguishesFromFailure_UnlikeGetValueOrDefault()
+    {
+        // This is the reason TryGetValue exists: GetValueOrDefault() cannot tell "failed" apart from
+        // "succeeded with null" (both return null). TryGetValue can — it returns true here.
+        var result = Result<string?>.Success(null);
+
+        Assert.Null(result.GetValueOrDefault());
+
+        var found = result.TryGetValue(out var value);
+
+        Assert.True(found);
+        Assert.Null(value);
     }
 }
