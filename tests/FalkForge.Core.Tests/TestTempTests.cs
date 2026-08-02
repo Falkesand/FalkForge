@@ -83,29 +83,44 @@ public sealed class TestTempTests : IDisposable
         Assert.True(Directory.Exists(target));
     }
 
+    // The two tests below replace a prior version of this file that proved the "leaves a
+    // trace" contract by redirecting the real, process-global Console.Error via
+    // Console.SetError. This assembly (FalkForge.Core.Tests) carries no
+    // [assembly: CollectionBehavior(DisableTestParallelization = true)] -- unlike
+    // FalkForge.Integration.Tests, FalkForge.Compiler.Msi.Tests, FalkForge.Engine.Tests and
+    // FalkForge.Platform.Windows.Tests, which all disable parallelization for exactly this
+    // reason (see tests/FalkForge.Integration.Tests/IntegrationAssemblyParallelization.cs).
+    // With 1200+ tests and default parallel collections in this assembly, that redirect
+    // window could divert another concurrently-running test's own genuine stderr trace into
+    // the capture buffer and lose it. Rather than serialize the whole assembly to protect one
+    // test, TestTemp.TryDelete's trace-writing was split into two directly-testable, pure/
+    // seam pieces (TestTemp.BuildFailureTraceMessage and TestTemp.WriteFailureTrace) so both
+    // can be pinned without ever touching the static Console.Error.
     [Fact]
-    public void TryDelete_DeletionFails_LeavesATraceOnStandardError()
+    public void BuildFailureTraceMessage_NamesPathAndExceptionType()
     {
-        var target = Path.Combine(_root, "locked-for-trace");
-        Directory.CreateDirectory(target);
-        var lockedFile = Path.Combine(target, "locked.bin");
+        var ex = new IOException(
+            "The process cannot access the file because it is being used by another process.");
 
-        var originalErr = Console.Error;
-        var captured = new StringWriter();
-        Console.SetError(captured);
-        try
-        {
-            using var handle = new FileStream(
-                lockedFile, FileMode.Create, FileAccess.Write, FileShare.None);
+        var message = TestTemp.BuildFailureTraceMessage(@"C:\some\path", ex);
 
-            TestTemp.TryDelete(target);
-        }
-        finally
-        {
-            Console.SetError(originalErr);
-        }
+        Assert.Contains(@"C:\some\path", message, StringComparison.Ordinal);
+        Assert.Contains(nameof(IOException), message, StringComparison.Ordinal);
+        Assert.Contains(ex.Message, message, StringComparison.Ordinal);
+    }
 
-        var trace = captured.ToString();
-        Assert.Contains(target, trace, StringComparison.Ordinal);
+    [Fact]
+    public void WriteFailureTrace_WriterThrows_DoesNotThrow()
+    {
+        // A disposed TextWriter throws ObjectDisposedException on write -- standing in for
+        // Console.Error itself being broken at exactly the moment cleanup already failed,
+        // without ever mutating the real, process-global Console.Error.
+        var writer = new StreamWriter(Stream.Null);
+        writer.Dispose();
+
+        var exception = Record.Exception(
+            () => TestTemp.WriteFailureTrace(writer, "some/path", new IOException("locked")));
+
+        Assert.Null(exception);
     }
 }
