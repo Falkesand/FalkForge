@@ -207,16 +207,6 @@ public sealed class DemoBuildFixture : IDisposable
             catch { /* best effort */ }
         }
 
-        try
-        {
-            if (Directory.Exists(_tempRoot))
-            {
-                Directory.Delete(_tempRoot, recursive: true);
-            }
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-        {
-            // Best effort cleanup -- temp directory will be cleaned by OS eventually.
-        }
+        TestTemp.TryDelete(_tempRoot);
     }
 }

@@ -24,15 +24,7 @@ public sealed class AuthenticodeValidatorTests : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_tempDir))
-                Directory.Delete(_tempDir, recursive: true);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-        {
-            // Best-effort cleanup; a locked temp file must not fail the test run.
-        }
+        TestTemp.TryDelete(_tempDir);
     }
 
     /// <summary>

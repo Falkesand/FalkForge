@@ -36,16 +36,7 @@ public sealed class ExternalContainerAcquirerTests : IDisposable
 
     public void Dispose()
     {
-        try
-        {
-            if (Directory.Exists(_tempDir))
-                Directory.Delete(_tempDir, recursive: true);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-        {
-            // Best effort cleanup — a locked handle or transient I/O error here must not
-            // masquerade as a test failure via an escaping Dispose exception.
-        }
+        TestTemp.TryDelete(_tempDir);
     }
 
     /// <summary>Compiles the fixture bundle and returns (manifest, containerFilePath).</summary>

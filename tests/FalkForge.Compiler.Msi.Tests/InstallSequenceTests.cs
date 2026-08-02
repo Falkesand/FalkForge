@@ -51,14 +51,7 @@ public sealed class InstallSequenceTests
         finally
         {
             // Cleanup is best-effort; a locked handle or transient I/O error must not fail the test.
-            try
-            {
-                if (Directory.Exists(tempDir))
-                    Directory.Delete(tempDir, true);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-            {
-            }
+            TestTemp.TryDelete(tempDir);
         }
     }
 
@@ -103,14 +96,7 @@ public sealed class InstallSequenceTests
         finally
         {
             // Cleanup is best-effort; a locked handle or transient I/O error must not fail the test.
-            try
-            {
-                if (Directory.Exists(tempDir))
-                    Directory.Delete(tempDir, true);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-            {
-            }
+            TestTemp.TryDelete(tempDir);
         }
     }
 
@@ -160,14 +146,7 @@ public sealed class InstallSequenceTests
         finally
         {
             // Cleanup is best-effort; a locked handle or transient I/O error must not fail the test.
-            try
-            {
-                if (Directory.Exists(tempDir))
-                    Directory.Delete(tempDir, true);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-            {
-            }
+            TestTemp.TryDelete(tempDir);
         }
     }
 
@@ -211,14 +190,7 @@ public sealed class InstallSequenceTests
         finally
         {
             // Cleanup is best-effort; a locked handle or transient I/O error must not fail the test.
-            try
-            {
-                if (Directory.Exists(tempDir))
-                    Directory.Delete(tempDir, true);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-            {
-            }
+            TestTemp.TryDelete(tempDir);
         }
     }
 
@@ -268,14 +240,7 @@ public sealed class InstallSequenceTests
         finally
         {
             // Cleanup is best-effort; a locked handle or transient I/O error must not fail the test.
-            try
-            {
-                if (Directory.Exists(tempDir))
-                    Directory.Delete(tempDir, true);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-            {
-            }
+            TestTemp.TryDelete(tempDir);
         }
     }
 
@@ -320,14 +285,7 @@ public sealed class InstallSequenceTests
         finally
         {
             // Cleanup is best-effort; a locked handle or transient I/O error must not fail the test.
-            try
-            {
-                if (Directory.Exists(tempDir))
-                    Directory.Delete(tempDir, true);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-            {
-            }
+            TestTemp.TryDelete(tempDir);
         }
     }
 

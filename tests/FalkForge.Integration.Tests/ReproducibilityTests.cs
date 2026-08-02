@@ -183,14 +183,6 @@ public sealed class ReproducibilityTests
 
     private static void TryDeleteDirectory(string path)
     {
-        try
-        {
-            if (Directory.Exists(path))
-                Directory.Delete(path, recursive: true);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-        {
-            // Best effort cleanup
-        }
+        TestTemp.TryDelete(path);
     }
 }

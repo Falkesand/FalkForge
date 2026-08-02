@@ -53,15 +53,7 @@ public sealed class ElevationSecurityLogTests : IDisposable
     {
         ResetStaticState();
 
-        try
-        {
-            if (Directory.Exists(_tempDir))
-                Directory.Delete(_tempDir, recursive: true);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-        {
-            // Best-effort cleanup — temp files are not critical
-        }
+        TestTemp.TryDelete(_tempDir);
     }
 
     /// <summary>

@@ -96,15 +96,7 @@ public sealed class BuildCommandJsonExtensionsIntegrationTests
         {
             if (Directory.Exists(tempDir))
             {
-                try
-                {
-                    Directory.Delete(tempDir, true);
-                }
-                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-                {
-                    // Best-effort cleanup; a locked file or transient I/O error here must not
-                    // masquerade as a test failure via an escaping teardown exception.
-                }
+                TestTemp.TryDelete(tempDir);
             }
         }
     }
@@ -169,15 +161,7 @@ public sealed class BuildCommandJsonExtensionsIntegrationTests
         {
             if (Directory.Exists(tempDir))
             {
-                try
-                {
-                    Directory.Delete(tempDir, true);
-                }
-                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-                {
-                    // Best-effort cleanup; a locked file or transient I/O error here must not
-                    // masquerade as a test failure via an escaping teardown exception.
-                }
+                TestTemp.TryDelete(tempDir);
             }
         }
     }
@@ -246,15 +230,7 @@ public sealed class BuildCommandJsonExtensionsIntegrationTests
         {
             if (Directory.Exists(tempDir))
             {
-                try
-                {
-                    Directory.Delete(tempDir, true);
-                }
-                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-                {
-                    // Best-effort cleanup; a locked file or transient I/O error here must not
-                    // masquerade as a test failure via an escaping teardown exception.
-                }
+                TestTemp.TryDelete(tempDir);
             }
         }
     }

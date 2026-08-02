@@ -155,8 +155,7 @@ public sealed class UpdateDownloaderTrustTests
         }
         finally
         {
-            try { Directory.Delete(dir, recursive: true); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+            TestTemp.TryDelete(dir);
         }
     }
 

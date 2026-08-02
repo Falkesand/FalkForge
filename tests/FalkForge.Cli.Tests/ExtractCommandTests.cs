@@ -168,8 +168,7 @@ public sealed class ExtractCommandTests
         }
         finally
         {
-            try { Directory.Delete(outputDir, recursive: true); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best-effort cleanup */ }
+            TestTemp.TryDelete(outputDir);
         }
     }
 
@@ -188,8 +187,7 @@ public sealed class ExtractCommandTests
         }
         finally
         {
-            try { Directory.Delete(outputDir, recursive: true); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best-effort cleanup */ }
+            TestTemp.TryDelete(outputDir);
         }
     }
 
@@ -208,8 +206,7 @@ public sealed class ExtractCommandTests
         }
         finally
         {
-            try { Directory.Delete(outputDir, recursive: true); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best-effort cleanup */ }
+            TestTemp.TryDelete(outputDir);
         }
     }
 }

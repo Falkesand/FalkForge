@@ -302,14 +302,6 @@ public sealed class PackageCodeDerivationTests
 
     private static void TryDeleteDirectory(string path)
     {
-        try
-        {
-            if (System.IO.Directory.Exists(path))
-                System.IO.Directory.Delete(path, recursive: true);
-        }
-        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
-        {
-            // Best-effort cleanup — test isolation is not affected.
-        }
+        TestTemp.TryDelete(path);
     }
 }

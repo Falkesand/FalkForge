@@ -112,8 +112,7 @@ public sealed class MajorUpgradeEmissionTests
         if (parent is not null && Directory.Exists(parent))
         {
             // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
-            try { Directory.Delete(parent, recursive: true); }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+            TestTemp.TryDelete(parent);
         }
     }
 }

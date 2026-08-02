@@ -74,7 +74,7 @@ public sealed class IntegritySignaturePayloadHashToctouTests : IDisposable
         if (Directory.Exists(_tempDir))
         {
             // Cleanup is best-effort: a locked file or transient I/O error must not fail the test.
-            try { Directory.Delete(_tempDir, recursive: true); } catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { }
+            TestTemp.TryDelete(_tempDir);
         }
     }
 

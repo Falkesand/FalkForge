@@ -330,8 +330,7 @@ public sealed class HttpExecutionEmissionTests
         {
             if (Directory.Exists(_root))
             {
-                try { Directory.Delete(_root, recursive: true); }
-                catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException) { /* best effort */ }
+                TestTemp.TryDelete(_root);
             }
         }
     }
