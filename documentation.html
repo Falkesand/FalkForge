@@ -1627,7 +1627,7 @@ Executables:
       <tr><th>Method</th><th>Description</th></tr>
     </thead>
     <tbody>
-      <tr><td><code>Success(T value)</code></td><td>Creates a successful result. Accepts <code>null</code> when <code>T</code> is a nullable type (e.g. <code>Result&lt;string?&gt;.Success(null)</code>) &mdash; the compiler's nullable-reference analysis, not a runtime guard, is what stops a null being passed where <code>T</code> is non-nullable.</td></tr>
+      <tr><td><code>Success(T value)</code></td><td>Creates a successful result. Accepts <code>null</code> &mdash; there is no runtime guard. When <code>T</code> is non-nullable, passing null is reported by the compiler (CS8604, an error here via <code>TreatWarningsAsErrors</code>), but that is a diagnostic, not a barrier: a caller who suppresses it with <code>!</code>, or who calls from a nullable-disabled context, still gets a success carrying null.</td></tr>
       <tr><td><code>Failure(Error error)</code></td><td>Creates a failed result from an Error.</td></tr>
       <tr><td><code>Failure(ErrorKind kind, string message)</code></td><td>Creates a failed result from kind and message.</td></tr>
     </tbody>
