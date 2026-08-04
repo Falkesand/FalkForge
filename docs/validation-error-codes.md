@@ -4,7 +4,7 @@ Reference for every diagnostic code emitted by validators, builders, decompilers
 
 Historically auto-generated; the extraction script has been retired — this file is now hand-maintained. Keep entries in sync with the validation rule sources (`src/FalkForge.Core/Validation/...` and the other `Source` columns below).
 
-**Total codes:** 255 across 54 categories.
+**Total codes:** 256 across 55 categories.
 
 ## Categories at a Glance
 
@@ -54,6 +54,7 @@ Historically auto-generated; the extraction script has been retired — this fil
 | RRG | RemoveRegistry | `src/FalkForge.Core/Validation` |
 | SCT | Service control | `src/FalkForge.Core/Validation` |
 | SDP | Service dependency | `src/FalkForge.Core/Validation` |
+| SEQ | Sequence | `src/FalkForge.Compiler.Msi/Recipe/Producers` |
 | SGN | Signing | `src/FalkForge.Core/Validation` |
 | SHC | Shortcut | `src/FalkForge.Core/Validation` |
 | SQL | SQL extension | `src/FalkForge.Extensions.Sql` |
@@ -481,6 +482,12 @@ Historically auto-generated; the extraction script has been retired — this fil
 | Code | Message | Source |
 |------|---------|--------|
 | SDP001 | Service dependency DependsOn value is required | `src/FalkForge.Core/Validation/ServiceRules.cs` |
+
+## SEQ — Sequence
+
+| Code | Message | Source |
+|------|---------|--------|
+| SEQ001 | An `ExecuteSequence(...)`/`UISequence(...)` action name collides with a baseline standard action the compiler now schedules automatically for this package (e.g. hand-scheduling `FindRelatedProducts` as an issue #65 workaround). `InstallExecuteSequence`/`InstallUISequence`'s primary key is `Action`, so the collision fails the build with guidance to remove the manual entry instead of a bare duplicate-row error | `src/FalkForge.Compiler.Msi/Recipe/Producers/InstallExecuteSequenceTableProducer.cs`, `src/FalkForge.Compiler.Msi/Recipe/Producers/InstallUISequenceTableProducer.cs` |
 
 ## SGN — Signing
 

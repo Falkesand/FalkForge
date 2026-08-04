@@ -145,6 +145,18 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
         // Merge user actions, resolving relative positions against the running list.
         IReadOnlyList<SequenceActionModel> userActions = package.UISequenceActions;
 
+        // SEQ001 guard: snapshot the baseline action names (unconditional rows +
+        // FindRelatedProducts + dialog-flow rows + custom-dialog entries) BEFORE any user
+        // action is merged into `actions`. InstallUISequence's primary key is Action, so an
+        // author-scheduled action sharing a baseline name is an outright insert failure, not a
+        // harmless duplicate — see InstallExecuteSequenceTableProducer's SEQ001 guard for the
+        // full rationale (same defect, same fix, mirrored across both sequence tables).
+        HashSet<string> baselineActionNames = new(actions.Count, StringComparer.Ordinal);
+        for (int i = 0; i < actions.Count; i++)
+        {
+            baselineActionNames.Add(actions[i].Action);
+        }
+
         // Build the occupied-sequence set once before the merge loop so that
         // EnsureUniqueSequence is O(1) per call instead of O(n) per call.
         // Without this, N user actions would rebuild the set N times → O(n²) total.
@@ -157,6 +169,25 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
         for (int i = 0; i < userActions.Count; i++)
         {
             SequenceActionModel ua = userActions[i];
+
+            // SEQ001 — reject a UISequence(...) action whose name collides with a baseline row;
+            // see the guard-set comment above. baselineActionNames mixes two sources (standard
+            // actions the compiler schedules, and the author's own custom-dialog SequenceNumber
+            // entries), so the message below stays source-agnostic rather than claiming the
+            // collision is always compiler-scheduled — see InstallExecuteSequenceTableProducer's
+            // SEQ001 guard for the execute-sequence side, where every baseline row IS
+            // compiler-scheduled and the message says so directly.
+            if (baselineActionNames.Contains(ua.ActionName))
+            {
+                return Result<ImmutableArray<RecipeRow>>.Failure(ErrorKind.Validation,
+                    $"SEQ001: '{ua.ActionName}' already has an InstallUISequence row of the same " +
+                    "name (either a standard action scheduled automatically by the compiler, or " +
+                    "your own custom dialog's SequenceNumber entry) and collides with it. " +
+                    $"Remove the manual UISequence(...) entry for '{ua.ActionName}' — " +
+                    "InstallUISequence's primary key is Action, so scheduling it again would " +
+                    "fail the build with a duplicate-row error.");
+            }
+
             int seq = ResolveSequenceNumber(ua.Position, actions);
             seq = EnsureUniqueSequence(seq, occupiedSequences);
             occupiedSequences.Add(seq); // claim the sequence before processing next action

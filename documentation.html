@@ -3676,6 +3676,13 @@ p.CustomAction("SetInstallMode", ca =&gt;
     flushes the previous action definition, so position and condition must be set between
     <code>Action()</code> calls.
   </div>
+  <div class="note">
+    Naming an action the same as a standard action the compiler already schedules (e.g.
+    <code>InstallFiles</code>, <code>AppSearch</code>) fails the build with diagnostic
+    <strong>SEQ001</strong> instead of a bare duplicate-row error. See
+    <a href="#msi-major-upgrade-builder">8.14 MajorUpgradeBuilder</a> for the full explanation and its
+    extension-contributor caveat.
+  </div>
 
   <pre><code class="language-csharp">p.ExecuteSequence(seq =&gt; seq
     .Action("InitializeDatabase")
@@ -3770,6 +3777,31 @@ p.UISequence(seq =&gt; seq
     default <code>UpgradeModel()</code> &mdash; the guard is controlled by
     <code>UpgradeBuilder.AllowDowngrades</code> instead; <code>package.Downgrade(d =&gt; d.Allow())</code>
     has <strong>no effect</strong> on it.
+  </div>
+  <div class="note">
+    Because the compiler now schedules <code>FindRelatedProducts</code> automatically, hand-scheduling it
+    yourself &mdash; for example <code>p.ExecuteSequence(seq =&gt; seq.Action("FindRelatedProducts").After("AppSearch"))</code>,
+    the classic workaround for issue&nbsp;#65 &mdash; now fails the build with diagnostic
+    <strong>SEQ001</strong> instead of silently double-inserting a row. <code>InstallExecuteSequence</code> and
+    <code>InstallUISequence</code> are both keyed on <code>Action</code>, so a manually-scheduled action that
+    shares a name with a baseline row is an outright insert failure, not a harmless duplicate. SEQ001 fires
+    for any standard action scheduled by the sequence producers themselves &mdash;
+    <code>InstallExecuteSequenceTableProducer</code> / <code>InstallUISequenceTableProducer</code>, which
+    covers the unconditional baseline plus every conditional family (Fonts, Services, MoveFiles, and so
+    on) &mdash; not only <code>FindRelatedProducts</code>. Fix: remove the manual
+    <code>ExecuteSequence(...)</code>/<code>UISequence(...)</code> entry for that action name; the compiler
+    schedules it for you. Referencing a baseline action as a position anchor (e.g.
+    <code>.After("FindRelatedProducts")</code> to place a <em>different</em> action) is unaffected &mdash;
+    SEQ001 only fires when the author-scheduled action's own name collides with the baseline, not when it is
+    merely anchored relative to one.
+    <br><br>
+    <strong>SEQ001 does not cover actions contributed by extensions.</strong> Rows an
+    <code>IMsiTableContributor</code> emits directly into <code>InstallExecuteSequence</code>/
+    <code>InstallUISequence</code> &mdash; for example the ODBC extension's <code>InstallODBC</code>/
+    <code>RemoveODBC</code> rows &mdash; are merged in after the sequence producers have already run, so
+    they never enter the baseline snapshot SEQ001 checks against. Hand-scheduling an action whose name
+    collides with one of those extension-contributed rows still fails the build, but as the generic
+    duplicate-primary-key error, not SEQ001's named diagnostic.
   </div>
 
   <h4>DowngradeBuilder</h4>

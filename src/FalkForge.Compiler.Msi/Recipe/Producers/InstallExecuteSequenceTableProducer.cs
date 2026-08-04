@@ -268,6 +268,23 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
         IReadOnlyList<SequenceActionModel> userActions = package.ExecuteSequenceActions;
         IReadOnlyList<CustomActionModel> customActions = package.CustomActions;
 
+        // SEQ001 guard: snapshot the baseline action names BEFORE any user/inline action is
+        // merged into `actions`. InstallExecuteSequence's primary key is Action (see BuildSchema
+        // below), so an author-scheduled action sharing a baseline name is not a harmless
+        // duplicate — it is an outright insert failure once this table reaches
+        // PrimaryKeyValidator (or msi.dll itself). The most common way to hit this:
+        // hand-scheduling FindRelatedProducts as a workaround for issue #65, which this producer
+        // now schedules automatically (see SeqFindRelatedProducts above) — see the beta.6 release
+        // notes for the migration note. Snapshotted here (not read live off `actions`) so the
+        // guard only fires against the compiler's OWN baseline rows, never against a sibling user
+        // action racing for the same name — that is a different failure mode, still caught later
+        // by PrimaryKeyValidator, and not what SEQ001 diagnoses.
+        HashSet<string> baselineActionNames = new(actions.Count, StringComparer.Ordinal);
+        for (int i = 0; i < actions.Count; i++)
+        {
+            baselineActionNames.Add(actions[i].Action);
+        }
+
         // Build the occupied-sequence set once before the merge loops so that
         // EnsureUniqueSequence is O(1) per call instead of O(n) per call.
         // Without this, N actions would rebuild the set N times → O(n²) total.
@@ -288,6 +305,19 @@ internal sealed class InstallExecuteSequenceTableProducer : ITableProducer
         for (int i = 0; i < userActions.Count; i++)
         {
             SequenceActionModel ua = userActions[i];
+
+            // SEQ001 — reject an ExecuteSequence(...) action whose name collides with a
+            // baseline standard action; see the guard-set comment above.
+            if (baselineActionNames.Contains(ua.ActionName))
+            {
+                return Result<ImmutableArray<RecipeRow>>.Failure(ErrorKind.Validation,
+                    $"SEQ001: '{ua.ActionName}' is scheduled automatically by the compiler and " +
+                    "collides with the InstallExecuteSequence baseline row of the same name. " +
+                    $"Remove the manual ExecuteSequence(...) entry for '{ua.ActionName}' — " +
+                    "InstallExecuteSequence's primary key is Action, so scheduling it again would " +
+                    "fail the build with a duplicate-row error.");
+            }
+
             int seq = ResolveSequenceNumber(ua.Position, actions);
             seq = EnsureUniqueSequence(seq, occupiedSequences);
             occupiedSequences.Add(seq); // claim the sequence before processing next action
