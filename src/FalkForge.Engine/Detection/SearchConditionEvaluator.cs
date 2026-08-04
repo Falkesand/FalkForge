@@ -83,11 +83,21 @@ public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem, IRe
 
     private Result<bool> EvaluateRegistryExists(RegistryRoot rootKey, string subKey, string? valueName)
     {
+        // TryKeyExists / TryGetStringValue (not the bare KeyExists / GetStringValue): this runs on
+        // the pre-UI bootstrap path (PreUIPrerequisiteDetector, before the WPF UI exists), so a
+        // SecurityException from an ACL-denied key (HKLM\SECURITY, a vendor key with tight ACLs,
+        // another user's HKU hive) must surface as a Result Failure instead of escaping uncaught —
+        // WindowsRegistry's bare KeyExists/GetStringValue let that exception through unhandled.
+        // A Failure here propagates up to PreUIPrerequisiteDetector.IsInstalled, which already
+        // treats it the same as "condition false": the prerequisite is reported missing and a
+        // (possibly redundant) install is attempted rather than the search silently reporting the
+        // prerequisite as present. That mirrors the fail-closed precedent BuiltInVariables set for
+        // RebootPending in beta.6 — an unreadable probe is not evidence of the safe answer.
         if (valueName is null)
-            return registry!.KeyExists(rootKey, subKey);
+            return registry!.TryKeyExists(rootKey, subKey);
 
-        var value = registry!.GetStringValue(rootKey, subKey, valueName);
-        return value is not null;
+        return registry!.TryGetStringValue(rootKey, subKey, valueName)
+            .Map(value => value is not null);
     }
 
     private Result<bool> EvaluateRegistryComparison(RegistryRoot rootKey, string subKey, string? valueName, string comparison)
@@ -103,7 +113,13 @@ public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem, IRe
         var op = comparison[..colonIndex];
         var expectedValue = comparison[(colonIndex + 1)..];
 
-        var actualValue = registry!.GetStringValue(rootKey, subKey, valueName);
+        // TryGetStringValue (not the bare GetStringValue) — see EvaluateRegistryExists for why an
+        // ACL-denied read must surface as a Result Failure instead of an uncaught exception.
+        var actualValueResult = registry!.TryGetStringValue(rootKey, subKey, valueName);
+        if (actualValueResult.IsFailure)
+            return Result<bool>.Failure(actualValueResult.Error);
+
+        var actualValue = actualValueResult.Value;
         if (actualValue is null)
             return false;
 

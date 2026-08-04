@@ -4991,6 +4991,15 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
     <code>RegistryRoot</code> values: <code>LocalMachine</code> (HKLM), <code>CurrentUser</code> (HKCU),
     <code>ClassesRoot</code> (HKCR), <code>Users</code> (HKU).
   </div>
+  <div class="note">
+    <strong>REG_EXPAND_SZ values are read already expanded.</strong> <code>RegistryExists</code> and
+    <code>RegistryValue</code> read both <code>REG_SZ</code> and <code>REG_EXPAND_SZ</code> values as a
+    string, but a <code>REG_EXPAND_SZ</code> value has its environment variables expanded by the
+    registry API before FalkForge ever sees it. A value stored as <code>%ProgramFiles%\App</code> comes
+    back as <code>C:\Program Files\App</code> (or similar), never the literal placeholder. Write the
+    <code>expected</code> argument of <code>RegistryValue()</code> as the expanded form you expect on
+    the target machine, not the placeholder text stored in the registry.
+  </div>
 
   <!-- 9.3b PackageGroupBuilder -->
   <h3 id="bundle-package-groups">9.3b PackageGroupBuilder</h3>
