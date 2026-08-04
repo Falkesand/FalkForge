@@ -102,22 +102,22 @@
       "falkforge.engine.protocol": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.5, )",
+          "FalkForge.Core": "[0.5.0-beta.6, )",
           "Octopus.Octodiff": "[2.0.549, )"
         }
       },
       "falkforge.localization": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.5, )"
+          "FalkForge.Core": "[0.5.0-beta.6, )"
         }
       },
       "falkforge.ui": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Engine.Protocol": "[0.5.0-beta.5, )",
-          "FalkForge.Localization": "[0.5.0-beta.5, )",
-          "FalkForge.Ui.Abstractions": "[0.5.0-beta.5, )",
+          "FalkForge.Engine.Protocol": "[0.5.0-beta.6, )",
+          "FalkForge.Localization": "[0.5.0-beta.6, )",
+          "FalkForge.Ui.Abstractions": "[0.5.0-beta.6, )",
           "ReactiveUI.WPF": "[23.2.28, )",
           "System.Reactive": "[6.1.0, )"
         }
@@ -125,7 +125,7 @@
       "falkforge.ui.abstractions": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Engine.Protocol": "[0.5.0-beta.5, )"
+          "FalkForge.Engine.Protocol": "[0.5.0-beta.6, )"
         }
       },
       "Octopus.Octodiff": {

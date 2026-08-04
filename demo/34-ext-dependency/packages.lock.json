@@ -35,12 +35,12 @@
       "falkforge.compiler.msi": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.5, )",
-          "FalkForge.Engine.Protocol": "[0.5.0-beta.5, )",
-          "FalkForge.Extensibility": "[0.5.0-beta.5, )",
-          "FalkForge.Localization": "[0.5.0-beta.5, )",
-          "FalkForge.Platform": "[0.5.0-beta.5, )",
-          "FalkForge.Platform.Windows": "[0.5.0-beta.5, )"
+          "FalkForge.Core": "[0.5.0-beta.6, )",
+          "FalkForge.Engine.Protocol": "[0.5.0-beta.6, )",
+          "FalkForge.Extensibility": "[0.5.0-beta.6, )",
+          "FalkForge.Localization": "[0.5.0-beta.6, )",
+          "FalkForge.Platform": "[0.5.0-beta.6, )",
+          "FalkForge.Platform.Windows": "[0.5.0-beta.6, )"
         }
       },
       "falkforge.core": {
@@ -49,39 +49,39 @@
       "falkforge.engine.protocol": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.5, )",
+          "FalkForge.Core": "[0.5.0-beta.6, )",
           "Octopus.Octodiff": "[2.0.549, )"
         }
       },
       "falkforge.extensibility": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.5, )"
+          "FalkForge.Core": "[0.5.0-beta.6, )"
         }
       },
       "falkforge.extensions.dependency": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.5, )",
-          "FalkForge.Extensibility": "[0.5.0-beta.5, )"
+          "FalkForge.Core": "[0.5.0-beta.6, )",
+          "FalkForge.Extensibility": "[0.5.0-beta.6, )"
         }
       },
       "falkforge.localization": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.5, )"
+          "FalkForge.Core": "[0.5.0-beta.6, )"
         }
       },
       "falkforge.platform": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.5, )"
+          "FalkForge.Core": "[0.5.0-beta.6, )"
         }
       },
       "falkforge.platform.windows": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Platform": "[0.5.0-beta.5, )"
+          "FalkForge.Platform": "[0.5.0-beta.6, )"
         }
       },
       "Octopus.Octodiff": {
