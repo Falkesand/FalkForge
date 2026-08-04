@@ -287,6 +287,10 @@ public sealed partial class EngineSession
         var pipelineBuilder = new InstallerPipelineBuilder()
             .WithManifest(manifest)
             .WithRegistry(platform.Registry)
+            // Enables SearchOnly/Combined package detection (file/directory/registry search conditions,
+            // including the NetFx472/VCRedist14x64 built-ins) — see WithFileSystem's xmldoc. Same
+            // Windows-only production adapter DefaultPreUIPrerequisiteDetector already uses pre-UI.
+            .WithFileSystem(FalkForge.Engine.Bootstrap.WindowsFileSystemProvider.Instance)
             .WithPackageExecutor(packageExecutor)
             .WithVariableStore(variableStore)
             .WithPlatformServices(platform)

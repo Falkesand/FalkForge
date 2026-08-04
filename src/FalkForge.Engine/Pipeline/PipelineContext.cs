@@ -3,6 +3,7 @@ namespace FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Detection;
 using FalkForge.Engine.Download;
 using FalkForge.Engine.Planning;
+using FalkForge.Engine.Protocol;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.RestartManager;
 
@@ -29,6 +30,14 @@ internal sealed class PipelineContext
 
     /// <summary>Current installation state of all packages.</summary>
     public DetectionResult? Detection { get; set; }
+
+    /// <summary>
+    /// Per-package detection state, keyed by <see cref="PackageInfo.Id"/>. Consumed by
+    /// <see cref="PlanStep"/> (forwarded to <see cref="Planning.Planner.CreatePlan"/>'s
+    /// <c>detectedPackageStates</c> parameter) so an already-installed prerequisite is skipped
+    /// instead of being reinstalled on every run. Null when <see cref="DetectStep"/> has not run.
+    /// </summary>
+    public IReadOnlyDictionary<string, InstallState>? DetectedPackageStates { get; set; }
 
     /// <summary>
     /// Related bundles detected on the machine (upgrade candidates, etc.).

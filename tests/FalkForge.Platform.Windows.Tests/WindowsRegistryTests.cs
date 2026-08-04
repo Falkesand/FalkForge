@@ -169,6 +169,47 @@ public sealed class WindowsRegistryTests : IDisposable
     }
 
     [Fact]
+    public void TryGetDWordValue_MissingKey_ReturnsSuccessWithNull()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        var result = _registry.TryGetDWordValue(RegistryRoot.CurrentUser, _subKey, "NoSuch");
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void TryGetDWordValue_AfterWrite_ReturnsValue()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        // Written directly via Microsoft.Win32.Registry (WindowsRegistry exposes no DWORD writer) —
+        // same approach as SetStringValue_WritesToRegistry_VerifiedDirectly, reversed.
+        using (var key = Registry.CurrentUser.CreateSubKey(_subKey))
+        {
+            key.SetValue("Release", 461808, RegistryValueKind.DWord);
+        }
+
+        var result = _registry.TryGetDWordValue(RegistryRoot.CurrentUser, _subKey, "Release");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(461808, result.Value);
+    }
+
+    [Fact]
+    public void TryGetDWordValue_ExistingKeyWrongType_ReturnsSuccessWithNull()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+
+        // Write a string; reading it as DWORD must yield SUCCESS with null (cast fails gracefully,
+        // not indistinguishable from a genuine read error) — see IRegistry.TryGetDWordValue's xmldoc.
+        _registry.SetStringValue(RegistryRoot.CurrentUser, _subKey, "Str", "notanint");
+        var result = _registry.TryGetDWordValue(RegistryRoot.CurrentUser, _subKey, "Str");
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
     public void GetStringValue_MissingValue_ReturnsNull()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
@@ -246,6 +287,14 @@ public sealed class WindowsRegistryTests : IDisposable
         var invalidRoot = (RegistryRoot)999;
         Assert.Throws<ArgumentOutOfRangeException>(
             () => _registry.GetDWordValue(invalidRoot, _subKey, "V"));
+    }
+
+    [Fact]
+    public void TryGetDWordValue_InvalidEnum_ThrowsArgumentOutOfRange()
+    {
+        var invalidRoot = (RegistryRoot)999;
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => _registry.TryGetDWordValue(invalidRoot, _subKey, "V"));
     }
 
     [Fact]
@@ -344,6 +393,18 @@ public sealed class WindowsRegistryTests : IDisposable
         var subKey = $@"{_subKey}\{OverLongKeyNameComponent}";
 
         var result = _registry.TryValueExists(RegistryRoot.CurrentUser, subKey, "V");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+    }
+
+    [Fact]
+    public void TryGetDWordValue_OverLongKeyNameComponent_ReturnsFailureNotException()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        var subKey = $@"{_subKey}\{OverLongKeyNameComponent}";
+
+        var result = _registry.TryGetDWordValue(RegistryRoot.CurrentUser, subKey, "V");
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.Validation, result.Error.Kind);

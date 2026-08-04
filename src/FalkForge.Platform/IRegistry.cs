@@ -40,6 +40,26 @@ public interface IRegistry
     Result<string?> TryGetStringValue(RegistryRoot rootKey, string subKey, string valueName);
 
     /// <summary>
+    /// Reads a REG_DWORD value, reporting a read failure (access denied / unreadable) instead of letting
+    /// an exception escape uncaught. A missing key, a missing value name, or a value that exists but is
+    /// not a REG_DWORD (e.g. REG_SZ, REG_QWORD, REG_BINARY, REG_MULTI_SZ) is SUCCESS with <c>null</c> —
+    /// only a genuine read error (e.g. <c>SecurityException</c>, <c>UnauthorizedAccessException</c>) is a
+    /// <c>Failure</c>. Callers that need the numeric value for a comparison (an existence check alone,
+    /// regardless of type, wants <see cref="TryValueExists"/> instead) and must fail closed on an
+    /// inconclusive read use this instead of <see cref="GetDWordValue"/>.
+    /// <para>
+    /// <b>Signed, not unsigned:</b> a REG_DWORD is an unsigned 32-bit value, but this returns
+    /// <see cref="int"/> (the .NET registry API's own <c>as int?</c> cast). A stored value at or above
+    /// <c>0x80000000</c> comes back negative. No FalkForge built-in prerequisite or documented search
+    /// condition currently stores a value in that range, so this has not needed fixing; a caller
+    /// comparing against a literal parsed as unsigned/<see cref="long"/> (as
+    /// <c>SearchConditionEvaluator.EvaluateRegistryDWordComparison</c> does) must be aware the read side
+    /// can go negative before the write side's literal does.
+    /// </para>
+    /// </summary>
+    Result<int?> TryGetDWordValue(RegistryRoot rootKey, string subKey, string valueName);
+
+    /// <summary>
     /// Reports whether a named value exists under <paramref name="subKey"/>, regardless of its
     /// registry type (REG_SZ, REG_DWORD, REG_MULTI_SZ, ...) — unlike <see cref="TryGetStringValue"/>,
     /// which returns a string for REG_SZ and REG_EXPAND_SZ but reports SUCCESS with <c>null</c> for

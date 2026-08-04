@@ -143,6 +143,12 @@ internal sealed class PlanStep : IPlanStep
                 ? request.Properties
                 : null,
             secretPropertyNames: secretNames,
+            // Feeds Planner.OrderWithPrerequisites' "skip prerequisites already installed" branch.
+            // Without this, every prerequisite is reinstalled on every run regardless of what
+            // DetectStep found (DetectStep populates ctx.DetectedPackageStates; null here — e.g. an
+            // ordering-only pipeline that skips DetectStep — falls back to the old always-reinstall
+            // behavior).
+            detectedPackageStates: ctx.DetectedPackageStates,
             packageFeatureSelections: request.PackageFeatureSelections is { Count: > 0 }
                 ? request.PackageFeatureSelections
                 : null);

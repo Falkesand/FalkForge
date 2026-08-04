@@ -96,8 +96,11 @@ public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem, IRe
         if (valueName is null)
             return registry!.TryKeyExists(rootKey, subKey);
 
-        return registry!.TryGetStringValue(rootKey, subKey, valueName)
-            .Map(value => value is not null);
+        // Type-agnostic on purpose: an "exists" check must not care whether the value is REG_SZ,
+        // REG_DWORD, or anything else -- GetStringValue/TryGetStringValue only recognize REG_SZ and
+        // report SUCCESS with null for every other type, which would misreport a present-but-non-string
+        // value as absent.
+        return registry!.TryValueExists(rootKey, subKey, valueName);
     }
 
     private Result<bool> EvaluateRegistryComparison(RegistryRoot rootKey, string subKey, string? valueName, string comparison)
@@ -121,7 +124,7 @@ public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem, IRe
 
         var actualValue = actualValueResult.Value;
         if (actualValue is null)
-            return false;
+            return EvaluateRegistryDWordComparison(rootKey, subKey, valueName, op, expectedValue);
 
         // Try version comparison first
         if (Version.TryParse(actualValue, out var actualVersion) &&
@@ -146,6 +149,45 @@ public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem, IRe
             "<>" => !string.Equals(actualValue, expectedValue, StringComparison.OrdinalIgnoreCase),
             _ => Result<bool>.Failure(ErrorKind.DetectionError,
                 $"Operator '{op}' not supported for non-version string values")
+        };
+    }
+
+    /// <summary>
+    /// Falls back to a numeric (REG_DWORD) read when a string-typed read of the same value came back
+    /// null. <see cref="IRegistry.TryGetStringValue"/> reports SUCCESS with null both when the value is
+    /// genuinely absent AND when it exists but is a non-string type -- the two cases are indistinguishable
+    /// from a string read alone. Built-in prerequisite detection (e.g. <c>BuiltInPrerequisites.NetFx472</c>'s
+    /// "Release" value, <c>VCRedist14x64</c>'s "Installed" value) compares against a REG_DWORD, never a
+    /// REG_SZ, on every real machine. REG_QWORD, REG_BINARY, and REG_MULTI_SZ are deliberately NOT covered
+    /// here -- no built-in prerequisite or documented search condition compares against one, and adding
+    /// numeric-vs-binary coercion is a bigger surface than this fix's scope; a value of one of those types
+    /// falls through to "absent" exactly as it did before this fix.
+    /// </summary>
+    private Result<bool> EvaluateRegistryDWordComparison(
+        RegistryRoot rootKey, string subKey, string valueName, string op, string expectedValue)
+    {
+        var dwordResult = registry!.TryGetDWordValue(rootKey, subKey, valueName);
+        if (dwordResult.IsFailure)
+            return Result<bool>.Failure(dwordResult.Error);
+
+        if (dwordResult.Value is not { } actualDword)
+            return false; // genuinely absent (or a type this fallback deliberately does not cover)
+
+        if (!long.TryParse(expectedValue, out var expectedDword))
+        {
+            return Result<bool>.Failure(ErrorKind.DetectionError,
+                $"Registry value '{valueName}' is numeric (DWORD) but comparison value '{expectedValue}' is not a valid integer");
+        }
+
+        return op switch
+        {
+            "=" => actualDword == expectedDword,
+            ">" => actualDword > expectedDword,
+            ">=" => actualDword >= expectedDword,
+            "<" => actualDword < expectedDword,
+            "<=" => actualDword <= expectedDword,
+            "<>" => actualDword != expectedDword,
+            _ => Result<bool>.Failure(ErrorKind.DetectionError, $"Unknown comparison operator: {op}")
         };
     }
 }
