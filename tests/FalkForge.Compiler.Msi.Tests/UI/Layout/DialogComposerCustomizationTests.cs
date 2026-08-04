@@ -371,7 +371,10 @@ public sealed class DialogComposerCustomizationTests
         Assert.Equal(0, banner.X);
         Assert.Equal(0, banner.Y);
         Assert.Equal(370, banner.Width);
-        Assert.Equal(58, banner.Height);
+        // 44 Installer Units, matching WiX's InstallDirDlg.wxs BannerBitmap/BannerLine height —
+        // this is the same value emitted into the Control table's Height column, not the 58
+        // pixel figure that was mistakenly carried into this DLU field.
+        Assert.Equal(44, banner.Height);
         // Inserted first so Title (TitleRow) draws in front of the banner strip.
         Assert.Equal(banner, model.Controls[0]);
     }

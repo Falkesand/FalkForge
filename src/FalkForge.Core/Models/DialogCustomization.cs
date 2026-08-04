@@ -24,17 +24,17 @@ public sealed class DialogCustomization
     /// <summary>
     /// Sets the Binary stream key of a banner image shown on every interior dialog header. For the
     /// stock dialogs — none of which place a bitmap control of their own — this always synthesizes
-    /// a new <c>BannerBmp</c> control sized to the layout's 370x58 DLU <c>Banner</c> region: as of
-    /// this release, 493x77 px at the same 4/3 DLU-to-pixel ratio used for the Welcome/Exit dialog
-    /// bitmap (see <see cref="DialogBitmap(string)"/>). A banner authored to the old 493x58 guidance
-    /// renders stretched ~1.33x vertically, since the region currently is 58 DLU / ~77 px tall, not
-    /// 58 px. Whether the <c>Banner</c> region's 58 DLU height is itself correct — versus the
-    /// classic WiX/MSI banner convention of 44 DLU / 58 px — is under review; if it changes, this
-    /// documented 493x77 figure changes with it. If an interior dialog step already declares its
-    /// own Bitmap control (an extension-contributed custom dialog inserted via
+    /// a new <c>BannerBmp</c> control sized to the layout's 370x44 Installer Unit <c>Banner</c>
+    /// region (matching WiX's own <c>BannerBitmap</c>/<c>BannerLine</c> convention): 493x58 px, the
+    /// classic Windows Installer banner pixel size for that same region. Installer Units are
+    /// approximately 1/12 the height of the 10-point MS Sans Serif font (see the MSI Dialog Table
+    /// reference), not Windows dialog units — the two are different concepts despite the similar
+    /// name; 4/3 is only an approximation of the ratio between Installer Units and pixels at
+    /// typical rendering, not an exact defined conversion. If an interior dialog step already
+    /// declares its own Bitmap control (an extension-contributed custom dialog inserted via
     /// <see cref="InsertStep(string, StockDialog)"/> can do this), that existing control's
     /// <c>Text</c> is swapped to this key instead — no control is synthesized, and the banner takes
-    /// that control's own dimensions rather than 493x77. The key must name a stream registered via
+    /// that control's own dimensions rather than 493x58. The key must name a stream registered via
     /// <see cref="FalkForge.Builders.PackageBuilder.Binary(string, string)"/> — DLG003
     /// fails the build if no matching Binary entry exists.
     /// </summary>
@@ -47,8 +47,8 @@ public sealed class DialogCustomization
 
     /// <summary>
     /// Sets the Binary stream key of the Welcome/Exit background bitmap. Pixel dimensions
-    /// follow the classic MSI convention (roughly 493x312 for the 370x234 DLU dialog area);
-    /// the key must name a stream registered via
+    /// follow the classic MSI convention (roughly 493x312 for the 370x234 Installer Unit dialog
+    /// area); the key must name a stream registered via
     /// <see cref="FalkForge.Builders.PackageBuilder.Binary(string, string)"/> — DLG003
     /// fails the build if no matching Binary entry exists.
     /// </summary>

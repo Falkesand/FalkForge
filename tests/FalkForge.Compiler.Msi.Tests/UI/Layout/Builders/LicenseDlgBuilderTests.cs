@@ -25,12 +25,14 @@ public sealed class LicenseDlgBuilderTests
     }
 
     [Fact]
-    public void Build_placement_count_matches_legacy()
+    public void Build_placement_count_matches_WiX()
     {
-        // Title (TitleRow), [LicenseText, LicenseAccepted] (ContentArea), BottomLine, [Cancel, Next, Back] (ButtonRow).
+        // Title (TitleRow), BannerLine, [LicenseText, LicenseAccepted] (ContentArea), BottomLine,
+        // [Cancel, Next, Back] (ButtonRow). 5, not the legacy 4 — BannerLine is a new region added
+        // to match WiX's own InstallDirDlg.wxs BannerBitmap/BannerLine pair.
         var content = LicenseDlgBuilder.Build();
 
-        Assert.Equal(4, content.Placements.Length);
+        Assert.Equal(5, content.Placements.Length);
     }
 
     [Fact]

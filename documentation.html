@@ -8919,7 +8919,7 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
 <p>
     When <code>EnableRestartManagerSupport()</code> is set (see &sect;8.2), <code>DialogSetProducer</code>
     appends one more dialog to whichever stock dialog set is active &mdash; <code>MsiRMFilesInUse</code>,
-    370&times;270 DLU, matching WiX's own <code>MsiRMFilesInUse.wxs</code> geometry. Unlike every other
+    370&times;270 Installer Units, matching WiX's own <code>MsiRMFilesInUse.wxs</code> geometry. Unlike every other
     dialog in this section, it is not part of the wizard flow: Windows Installer creates it directly at
     <code>InstallValidate</code> when Restart Manager reports files in use at full UI, so it is reachable
     from no other dialog and carries <code>KeepModeless</code> (0x10) on top of the standard attributes
@@ -8940,6 +8940,7 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     <thead><tr><th>Control</th><th>Type</th><th>Bound property / text</th><th>Control_Next</th></tr></thead>
     <tbody>
         <tr><td>Title</td><td>Text</td><td><code>Dialog.RestartManager.Title</code></td><td>&mdash; (non-focusable)</td></tr>
+        <tr><td>BannerLine</td><td>Line</td><td>&mdash; (horizontal separator below the banner region, shared by every interior wizard dialog; see <code>DialogFooter.BannerLine()</code>)</td><td>&mdash; (non-focusable)</td></tr>
         <tr><td>Description</td><td>Text</td><td><code>Dialog.RestartManager.Description</code></td><td>&mdash; (non-focusable)</td></tr>
         <tr><td>Text</td><td>Text</td><td><code>Dialog.RestartManager.Text</code></td><td>&mdash; (non-focusable)</td></tr>
         <tr><td>List</td><td>ListBox</td><td>the built-in <code>FileInUseProcess</code> property, populated by the Windows Installer engine at runtime</td><td>ShutdownOption</td></tr>
@@ -9049,11 +9050,13 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
 </p>
 
 <p>
-    <strong>Coordinates are dialog units (DLU), not pixels.</strong> <code>X</code>/<code>Y</code>/
-    <code>Width</code>/<code>Height</code> on both the dialog and its controls are DLU: a font-relative
-    unit Windows Installer converts to pixels at render time using the dialog's font metrics, so the
-    same authoring renders consistently across DPI and font-size settings. The MSI standard dialog is
-    370&times;270 DLU; lay controls out inside that.
+    <strong>Coordinates are Installer Units, not pixels &mdash; and not Windows dialog units either,
+    despite the similar name.</strong> <code>X</code>/<code>Y</code>/<code>Width</code>/<code>Height</code>
+    on both the dialog and its controls are Installer Units: approximately 1/12 the height of the
+    10-point MS Sans Serif font (see the MSI Dialog Table reference), a font-relative unit Windows
+    Installer converts to pixels at render time using the dialog's font metrics, so the same authoring
+    renders consistently across DPI and font-size settings. The MSI standard dialog is 370&times;270
+    Installer Units; lay controls out inside that.
 </p>
 
 <p>
@@ -9316,37 +9319,78 @@ public interface IDialogStepBuilder
 <h4 id="dlg-bitmap-dimensions">Bitmap Dimensions and Text Safe Zones</h4>
 
 <p>
-    The stock 370x270 DLU dialog canvas (<code>Layouts.Standard370x270</code>) converts to pixels at a
-    fixed <strong>4/3 ratio applied to both axes independently</strong> &mdash; the same ratio the classic
-    Windows Installer banner/dialog-bitmap convention uses (234 DLU &rarr; 312 px is exact; 370 DLU &rarr;
-    493 px is <code>370 &times; 4&frasl;3</code> rounded to the nearest pixel). Convert <code>Width</code>
-    and <code>Height</code> separately &mdash; round each DLU value &times; 4&frasl;3 to the nearest pixel
-    on its own axis. Reusing a canonical pixel figure for one axis (493 is well known) while leaving the
-    other axis in raw DLU (58) silently stretches the image on the unconverted axis; this is exactly what
-    the pre-beta.6 <code>BannerBitmap</code> guidance did (493x58 instead of the correct 493x77 &mdash; see
-    the beta.6 release notes).
+    The stock 370x270 <strong>Installer Unit</strong> dialog canvas (<code>Layouts.Standard370x270</code>)
+    converts to pixels at an <strong>approximate 4/3 ratio applied to both axes independently</strong>
+    &mdash; the same approximation the classic Windows Installer banner/dialog-bitmap convention reflects
+    (234 units &rarr; 312 px is exact; 370 units &rarr; 493 px is <code>370 &times; 4&frasl;3</code>
+    rounded to the nearest pixel). An Installer Unit is <em>not</em> a Windows dialog unit despite the
+    similar name &mdash; per the MSI Dialog Table reference, <code>Dialog</code>/<code>Control</code>
+    table <code>Width</code>/<code>Height</code> values are Installer Units, approximately 1/12 the
+    height of the 10-point MS Sans Serif font. 4/3 is only an approximation of the ratio between
+    Installer Units and pixels at typical rendering, not an exact defined conversion, so treat the
+    Pixels column below as the classic, widely-documented WiX/MSI figures for these specific sizes
+    rather than a formula to re-derive other sizes from.
+</p>
+
+<p>
+    The <code>Banner</code> region's height was previously authored as <strong>58</strong> &mdash; the
+    banner's classic <em>pixel</em> height &mdash; instead of <strong>44</strong>, its correct Installer
+    Unit height (WiX's own <code>InstallDirDlg.wxs</code> gives both <code>BannerBitmap</code> and
+    <code>BannerLine</code> a height of 44 units). That mistake put a pixel value into an Installer Unit
+    field, so the region rendered at 493x77 px instead of the intended 493x58 px &mdash; see the beta.7
+    release notes. The table below reflects the corrected 44-unit region.
+</p>
+
+<p>
+    The same release also adds a new <code>BannerLine</code> region: a horizontal <code>Line</code>
+    separator control sitting at the <code>Banner</code> region's own bottom edge (Installer Unit Y=44),
+    mirroring WiX's own <code>InstallDirDlg.wxs</code> <code>BannerBitmap</code>/<code>BannerLine</code>
+    pair. Every interior wizard-page dialog places it via <code>DialogFooter.BannerLine()</code>; the
+    exterior <code>WelcomeDlg</code>/<code>ExitDlg</code> do not, since they paint a full-canvas
+    <code>DialogBitmap</code> instead of a distinct <code>Banner</code> strip.
 </p>
 
 <table class="api-table">
-    <thead><tr><th>Region / control</th><th>DLU (X, Y, W, H)</th><th>Pixels (X, Y, W, H)</th><th>Source</th></tr></thead>
+    <thead><tr><th>Region / control</th><th>Installer Units (X, Y, W, H)</th><th>Pixels (X, Y, W, H)</th><th>Source</th></tr></thead>
     <tbody>
         <tr><td>Canvas</td><td>0, 0, 370, 270</td><td>0, 0, 493, 360</td><td><code>Layouts.Standard370x270</code></td></tr>
-        <tr><td><code>Banner</code> region (banner bitmap)</td><td>0, 0, 370, 58</td><td>0, 0, 493, 77</td><td><code>Layouts.cs</code> &mdash; <code>Standard370x270.Regions["Banner"]</code></td></tr>
-        <tr><td>Welcome/Exit dialog bitmap (<code>DialogBitmap</code>)</td><td>0, 0, 370, 234</td><td>0, 0, 493, 312</td><td><code>DialogComposer.BuildDialogBitmapControl</code> &mdash; height is the <code>BottomLine</code> region's Y</td></tr>
-        <tr><td><code>TitleRow</code> region (dialog title text)</td><td>15, 6, 200, 15</td><td>20, 8, 267, 20</td><td><code>Layouts.cs</code> &mdash; <code>Standard370x270.Regions["TitleRow"]</code></td></tr>
-        <tr><td><code>Description</code> control (most interior dialogs)</td><td>25, 23, 280, 15&ndash;20</td><td>33, 31, 373, 20&ndash;27</td><td>e.g. <code>InstallDirDlgBuilder.cs</code>, <code>SetupTypeDlgBuilder.cs</code>, <code>CustomizeDlgBuilder.cs</code></td></tr>
-        <tr><td>Synthesized <code>HeaderIcon</code></td><td>346, 6, 16, 16</td><td>461, 8, 21, 21</td><td><code>DialogComposer.BuildHeaderIconControl</code> &mdash; top-right of <code>Banner</code>, Y aligned to <code>TitleRow</code></td></tr>
+        <tr><td><code>Banner</code> region (banner bitmap)</td><td>0, 0, 370, 44</td><td>0, 0, 493, 58 <em>(classic figure; 44&times;4&frasl;3 rounds to 59)</em></td><td><code>Layouts.cs:27</code> &mdash; <code>Standard370x270.Regions["Banner"].Bounds</code></td></tr>
+        <tr><td><code>BannerLine</code> region (separator below the banner)</td><td>0, 44, 370, 0</td><td>0, 59, 493, 0</td><td><code>Layouts.cs:43</code> &mdash; <code>Standard370x270.Regions["BannerLine"].Bounds</code>; placed via <code>DialogFooter.BannerLine()</code> on every interior wizard dialog (License, InstallDir, Customize, SetupType, InstallScope, Progress, MsiRMFilesInUse)</td></tr>
+        <tr><td>Welcome/Exit dialog bitmap (<code>DialogBitmap</code>)</td><td>0, 0, 370, 234</td><td>0, 0, 493, 312</td><td><code>DialogComposer.cs:369</code> (<code>BuildDialogBitmapControl</code>) &mdash; height is the <code>BottomLine</code> region's Y</td></tr>
+        <tr><td><code>TitleRow</code> region (dialog title text)</td><td>15, 6, 200, 15</td><td>20, 8, 267, 20</td><td><code>Layouts.cs:33</code> &mdash; <code>Standard370x270.Regions["TitleRow"].Bounds</code></td></tr>
+        <tr><td><code>Description</code> control (most interior dialogs)</td><td>25, 23, 280, 15&ndash;20</td><td>33, 31, 373, 20&ndash;27</td><td>e.g. <code>InstallDirDlgBuilder.cs:98-101</code>, <code>SetupTypeDlgBuilder.cs</code>, <code>CustomizeDlgBuilder.cs</code></td></tr>
+        <tr><td>Synthesized <code>HeaderIcon</code></td><td>346, 6, 16, 16</td><td>461, 8, 21, 21</td><td><code>DialogComposer.cs:410-411</code> (<code>BuildHeaderIconControl</code>) &mdash; top-right of <code>Banner</code>, Y aligned to <code>TitleRow</code></td></tr>
     </tbody>
 </table>
 
 <p>
+    The <code>Description</code>, <code>TitleRow</code>, and <code>HeaderIcon</code> rows above are
+    unchanged by the <code>Banner</code> height correction, but for different reasons.
+    <code>Description</code> is placed with absolute <code>OverrideX</code>/<code>OverrideY</code>
+    coordinates inside <code>ContentArea</code> (see <code>AbsoluteRegionLayout</code>), independent of
+    the <code>Banner</code> region's bounds. <code>HeaderIcon</code> is not a <code>PlacedControl</code>
+    at all &mdash; it never goes through <code>AbsoluteRegionLayout</code>. <code>DialogComposer</code>'s
+    <code>BuildHeaderIconControl</code> derives its X directly from the <code>Banner</code> region's own
+    <code>X + Width</code> (<code>DialogComposer.cs:410</code>) and its Y from <code>TitleRow</code>. So
+    <code>HeaderIcon</code>'s X <em>is</em> Banner-relative &mdash; it only held still here because this
+    correction changed <code>Banner</code>'s Height, not its X or Width; a custom <code>DialogLayout</code>
+    that narrows the <code>Banner</code> region moves it. Only the <code>Banner</code> row's own W/H
+    numbers move from this specific fix.
+</p>
+
+<p>
     The <code>Description</code> row above is the placement most interior dialogs share
-    (<code>OverrideX=25, OverrideY=23, OverrideWidth=280</code> DLU); <code>OverrideHeight</code> varies by
-    dialog &mdash; 15 DLU on <code>InstallDirDlg</code>/<code>SetupTypeDlg</code>/<code>CustomizeDlg</code>,
+    (<code>OverrideX=25, OverrideY=23, OverrideWidth=280</code> Installer Units);
+    <code>OverrideHeight</code> varies by dialog &mdash; 15 units on
+    <code>InstallDirDlg</code>/<code>SetupTypeDlg</code>/<code>CustomizeDlg</code>,
     20 on <code>ExitDlg</code>/<code>InstallScopeDlg</code>, 40 on <code>WelcomeDlg</code>.
     <code>LicenseAgreementDlg</code> has no <code>Description</code> control at all &mdash; its
-    <code>ContentArea</code> is filled by the scrollable license text instead, starting at DLU (20, 60) /
-    px (27, 80).
+    <code>ContentArea</code> is filled by the scrollable license text instead, starting at Installer Unit
+    (20, 60) / px (27, 80). <code>ContentArea</code>'s own Y=60 origin sits 16 units below the corrected
+    <code>Banner</code> region's Y=44 bottom edge, matching WiX's own gap between <code>BannerLine</code>
+    (Y=44) and <code>InstallDirDlg.wxs</code>'s first content control, <code>FolderLabel</code> (Y=60) —
+    the correction does not require moving <code>ContentArea</code>, <code>TitleRow</code>, or any
+    <code>Description</code>/<code>HeaderIcon</code> placement.
 </p>
 
 <p>
@@ -9355,23 +9399,27 @@ public interface IDialogStepBuilder
     interior dialog (<code>Kind="RestartManager"</code>, has a <code>TitleRow</code>, so it gets a banner
     like the others), and it shares <code>OverrideY=23</code>/<code>OverrideWidth=280</code>/
     <code>OverrideHeight=20</code> with the general row above &mdash; but its <code>OverrideX</code> is
-    <strong>20</strong> DLU (27 px), not 25. Its <code>Description</code> control therefore spans DLU
-    20&ndash;300 / px 27&ndash;400, <em>narrower</em> than the general row's DLU 25&ndash;305 / px
-    33&ndash;406, not wider. The safe-zone conclusion below is unaffected by this: the RestartManager
-    dialog's <code>Description</code> right edge (400 px) still falls short of the 406&ndash;461 px strip,
-    so that strip stays clear on every interior dialog, including this one.
+    <strong>20</strong> Installer Units (27 px), not 25. Its <code>Description</code> control therefore
+    spans Installer Units 20&ndash;300 / px 27&ndash;400, <em>narrower</em> than the general row's
+    Installer Units 25&ndash;305 / px 33&ndash;406, not wider. The safe-zone conclusion below is
+    unaffected by this: the RestartManager dialog's <code>Description</code> right edge (400 px) still
+    falls short of the 406&ndash;461 px strip, so that strip stays clear on every interior dialog,
+    including this one.
 </p>
 
 <p>
-    <strong>Practical safe zone for custom banner art:</strong> on the 493x77 px banner, the
+    <strong>Practical safe zone for custom banner art:</strong> on the 493x58 px banner, the
     <code>Description</code> text on interior dialogs occupies roughly <strong>x 33&ndash;406</strong> px
-    (DLU 25&ndash;305), and a synthesized <code>HeaderIcon</code> &mdash; when <code>HeaderIcon(key)</code>
-    is set &mdash; occupies roughly <strong>x 461&ndash;482</strong> px (DLU 346&ndash;362) at the banner's
-    top-right, vertically aligned with the title. That leaves a clear vertical strip of roughly
-    <strong>x 406&ndash;461 px (&asymp;55 px wide)</strong> free of both. Counter-intuitively, the dialog's
-    own title sits at the <strong>left</strong> edge of the banner (<code>TitleRow</code>, DLU X=15 / px
-    X=20, drawn in front of the banner bitmap) &mdash; so custom branding art composed to avoid the title
-    belongs on the <strong>right</strong> side of the banner, not the left where a logo would usually go.
+    (Installer Units 25&ndash;305), and a synthesized <code>HeaderIcon</code> &mdash; when
+    <code>HeaderIcon(key)</code> is set &mdash; occupies roughly <strong>x 461&ndash;482</strong> px
+    (Installer Units 346&ndash;362) at the banner's top-right, vertically aligned with the title. That
+    leaves a clear vertical strip of roughly <strong>x 406&ndash;461 px (&asymp;55 px wide)</strong> free
+    of both. Counter-intuitively, the dialog's own title sits at the <strong>left</strong> edge of the
+    banner (<code>TitleRow</code>, Installer Unit X=15 / px X=20, drawn in front of the banner bitmap)
+    &mdash; so custom branding art composed to avoid the title belongs on the <strong>right</strong> side
+    of the banner, not the left where a logo would usually go. Both the <code>Description</code> and
+    <code>HeaderIcon</code> X ranges above are unchanged by the <code>Banner</code> height correction;
+    only the banner bitmap's own vertical extent (77 &rarr; 58 px) shrinks, so this safe zone is unaffected.
 </p>
 
 </section>

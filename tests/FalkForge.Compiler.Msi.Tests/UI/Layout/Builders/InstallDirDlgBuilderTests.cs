@@ -21,10 +21,27 @@ public sealed class InstallDirDlgBuilderTests
     }
 
     [Fact]
-    public void Build_placement_count_matches_legacy()
+    public void Build_placement_count_matches_WiX()
     {
-        // TitleRow, ContentArea (Description, FolderLabel, Folder, ChangeFolder), BottomLine, ButtonRow.
-        Assert.Equal(4, InstallDirDlgBuilder.Build().Placements.Length);
+        // TitleRow, BannerLine, ContentArea (Description, FolderLabel, Folder, ChangeFolder),
+        // BottomLine, ButtonRow. 5, not the legacy 4 — BannerLine is a new region added to match
+        // WiX's own InstallDirDlg.wxs BannerBitmap/BannerLine pair.
+        Assert.Equal(5, InstallDirDlgBuilder.Build().Placements.Length);
+    }
+
+    [Fact]
+    public void Compose_banner_line_geometry_pins_presence_and_position()
+    {
+        // WiX's InstallDirDlg.wxs places BannerLine at X=0, Y=44 (the Banner region's own bottom
+        // edge) so the gap before ContentArea (Y=60) reads as a deliberate separator.
+        var model = DialogComposer.Compose(InstallDirDlgBuilder.Build(), Layouts.Standard370x270);
+        var line = model.Controls.Single(c => c.Name == "BannerLine");
+
+        Assert.Equal(MsiControlType.Line, line.Type);
+        Assert.Equal(0, line.X);
+        Assert.Equal(44, line.Y);
+        Assert.Equal(370, line.Width);
+        Assert.Equal(0, line.Height);
     }
 
     [Fact]
