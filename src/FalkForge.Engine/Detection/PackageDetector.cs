@@ -21,7 +21,10 @@ public sealed class PackageDetector
         _registry = registry;
         _msiDetector = new MsiDetector(registry);
         _relatedBundleDetector = new RelatedBundleDetector();
-        _searchEvaluator = fileSystem is not null ? new SearchConditionEvaluator(fileSystem) : null;
+        // registry (not just fileSystem) must reach the evaluator: EvaluateRegistryValue short-circuits to
+        // Failure("Registry provider not available") when its registry is null, so a RegistryValue search
+        // condition (e.g. NetFx472's Release DWORD check) would silently never match without this.
+        _searchEvaluator = fileSystem is not null ? new SearchConditionEvaluator(fileSystem, registry) : null;
     }
 
     public DetectionResult Detect(InstallerManifest manifest)
@@ -30,16 +33,28 @@ public sealed class PackageDetector
         var features = new List<FeatureState>();
         var hasSearchOverride = false;
 
-        // Check each package for installation state
+        // Check each package for installation state. Prerequisites (IsPrerequisite) are excluded
+        // from BOTH folds below: a prerequisite's presence says nothing about whether the bundle's
+        // own product is installed. On a fresh machine, a SearchOnly prerequisite like
+        // BuiltInPrerequisites.NetFx472() detects Installed against pre-existing OS/runtime state
+        // (e.g. any Win10/11 box already satisfies the NetFx472 registry check) even though the
+        // product itself has never been installed. Folding that into the bundle-level aggregate, or
+        // letting it suppress the MSI version-correction pass below via hasSearchOverride, would
+        // report the whole bundle Installed and route a first-time user into maintenance mode
+        // instead of a fresh install. Per-package results (DetectPerPackage/DetectPackageStates)
+        // still report prerequisites individually -- Planner.OrderWithPrerequisites relies on that
+        // to skip an already-installed prerequisite -- only the bundle-level aggregate ignores them.
         foreach (var package in manifest.Packages)
         {
+            if (package.IsPrerequisite) continue;
+
             var packageState = DetectPackage(package);
             if (packageState != InstallState.NotInstalled && state == InstallState.NotInstalled)
             {
                 state = packageState;
             }
 
-            // Track if any package uses non-default detection that overrides registry
+            // Track if any non-prerequisite package uses non-default detection that overrides registry
             if (package.DetectionMode != DetectionMode.Default)
             {
                 hasSearchOverride = true;
@@ -53,6 +68,10 @@ public sealed class PackageDetector
         {
             foreach (var package in manifest.Packages)
             {
+                // Same exclusion as the fold above: an MSI-type prerequisite (e.g.
+                // BuiltInPrerequisites.OdbcDriver17()) must not have its ProductCode/version feed
+                // the bundle-level aggregate either.
+                if (package.IsPrerequisite) continue;
                 if (package.Type != PackageType.MsiPackage) continue;
 
                 var productCode = package.Properties.GetValueOrDefault("ProductCode");

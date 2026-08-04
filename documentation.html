@@ -4983,7 +4983,7 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>FileExists(string path)</code></td><td><code>SearchConditionBuilder</code></td><td>Detects presence of a file at the specified path.</td></tr>
       <tr><td><code>FileVersion(string path, string comparison, string version)</code></td><td><code>SearchConditionBuilder</code></td><td>Compares a file's version against an expected version (e.g., <code>"&gt;="</code>, <code>"14.0.0"</code>).</td></tr>
       <tr><td><code>DirectoryExists(string path)</code></td><td><code>SearchConditionBuilder</code></td><td>Detects presence of a directory.</td></tr>
-      <tr><td><code>RegistryExists(RegistryRoot, string key, string? valueName)</code></td><td><code>SearchConditionBuilder</code></td><td>Detects presence of a registry key or value. Used for prerequisite detection.</td></tr>
+      <tr><td><code>RegistryExists(RegistryRoot, string key, string? valueName)</code></td><td><code>SearchConditionBuilder</code></td><td>Detects presence of a registry key or value, regardless of the value's registry type (REG_SZ, REG_DWORD, ...). Used for prerequisite detection.</td></tr>
       <tr><td><code>RegistryValue(RegistryRoot, string key, string valueName, string comparison, string expected)</code></td><td><code>SearchConditionBuilder</code></td><td>Compares a registry value against an expected value. Supports version comparisons (e.g., <code>"&gt;="</code>, <code>"="</code>).</td></tr>
     </tbody>
   </table>
@@ -4999,6 +4999,31 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
     back as <code>C:\Program Files\App</code> (or similar), never the literal placeholder. Write the
     <code>expected</code> argument of <code>RegistryValue()</code> as the expanded form you expect on
     the target machine, not the placeholder text stored in the registry.
+  </div>
+  <div class="note">
+    <strong>REG_DWORD comparisons:</strong> the builder takes <code>expected</code> as a string regardless
+    of the target value's actual registry type — there is no separate "numeric" comparison call. At
+    evaluation time, <code>SearchConditionEvaluator</code> first tries to read the value as a string; if
+    that comes back null (which happens both when the value is genuinely absent AND when it exists but is
+    a REG_DWORD, since a string-typed read cannot tell those apart), it falls back to a numeric read and
+    compares <code>expected</code> as an integer. This is why <code>BuiltInPrerequisites.NetFx472()</code>'s
+    <code>Release &gt;= 461808</code> and <code>VCRedist14x64()</code>'s <code>Installed = 1</code> — both
+    REG_DWORD values on a real machine — work with an ordinary numeric-looking string literal. REG_QWORD,
+    REG_BINARY, and REG_MULTI_SZ are <strong>not</strong> covered by this fallback and are still reported as
+    absent; if the comparison value cannot be parsed as an integer once a REG_DWORD is found, evaluation
+    fails loudly instead of reporting a silent non-match.
+  </div>
+  <div class="note">
+    <strong>REG_DWORD values &gt;= 0x80000000 read as negative.</strong> The numeric read is a signed
+    32-bit <code>int</code>, so a stored value at or above <code>0x80000000</code> (2147483648) comes back
+    negative. With a <code>&gt;=</code> comparison this fails safe (the sign-flipped value reads as
+    smaller than the threshold, so the search condition reports not-satisfied and the prerequisite is
+    treated as missing -- an over-install, not a security gap). With <code>&lt;</code> or <code>&lt;=</code>
+    it fails <strong>open</strong>: the sign-flipped value wrongly compares as smaller, the condition
+    reports satisfied, and a prerequisite that should still install gets silently skipped. No FalkForge
+    built-in prerequisite currently authors a threshold in that range, but a custom
+    <code>RegistryValue()</code> condition against a value that can reach it should not use
+    <code>&lt;</code>/<code>&lt;=</code>.
   </div>
 
   <!-- 9.3b PackageGroupBuilder -->

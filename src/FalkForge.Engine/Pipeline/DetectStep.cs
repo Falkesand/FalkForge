@@ -31,6 +31,7 @@ internal sealed class DetectStep : IDetectStep
     private readonly IPlatformServices? _platform;
     private readonly ISystemClock? _clock;
     private readonly bool _elevationCompanionAvailable;
+    private readonly IFileSystemProvider? _fileSystem;
 
     public DetectStep(
         InstallerManifest manifest,
@@ -41,7 +42,8 @@ internal sealed class DetectStep : IDetectStep
         VariableStore? variableStore = null,
         IPlatformServices? platform = null,
         ISystemClock? clock = null,
-        bool elevationCompanionAvailable = false)
+        bool elevationCompanionAvailable = false,
+        IFileSystemProvider? fileSystem = null)
     {
         _manifest = manifest;
         _registry = registry;
@@ -52,6 +54,7 @@ internal sealed class DetectStep : IDetectStep
         _platform = platform;
         _clock = clock;
         _elevationCompanionAvailable = elevationCompanionAvailable;
+        _fileSystem = fileSystem;
     }
 
     /// <inheritdoc/>
@@ -79,18 +82,30 @@ internal sealed class DetectStep : IDetectStep
                 BuiltInVariables.Populate(_variableStore, _platform, _clock, _elevationCompanionAvailable);
             }
 
-            var detector = new PackageDetector(_registry);
+            // fileSystem (when registered via InstallerPipelineBuilder.WithFileSystem) enables the
+            // two-arg PackageDetector constructor, which is what actually builds a SearchConditionEvaluator
+            // and makes SearchOnly/Combined package detection (and its RegistryValue search conditions,
+            // e.g. the NetFx472/VCRedist14x64 built-ins) reachable. The one-arg overload below left
+            // _searchEvaluator permanently null.
+            var detector = new PackageDetector(_registry, _fileSystem);
             var detection = detector.Detect(_manifest);
             ctx.Detection = detection;
 
             // Per-package detection notifications, emitted in manifest chain order between the
-            // overall Detecting phase-change and the aggregate detection log. Observational.
-            foreach (var package in detector.DetectPackageStates(_manifest))
+            // overall Detecting phase-change and the aggregate detection log. Also captured into
+            // ctx.DetectedPackageStates so PlanStep can skip prerequisites already detected as
+            // installed instead of reinstalling them on every run (Planner.OrderWithPrerequisites).
+            var packageStates = detector.DetectPackageStates(_manifest);
+            var detectedStates = new Dictionary<string, InstallState>(packageStates.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (var package in packageStates)
             {
+                detectedStates[package.PackageId] = package.State;
                 await _uiChannel.SendAsync(
                     new PipelineEvent.DetectPackageComplete(package.PackageId, package.State, package.Version),
                     ct);
             }
+
+            ctx.DetectedPackageStates = detectedStates;
 
             // Related-bundle detection: emit a per-related-bundle notification for each match.
             // Best-effort — a detection failure is logged and does not fail the detect phase.

@@ -27,6 +27,7 @@ public sealed class InstallerPipelineBuilder
     // ──────────────────────────────────────────────────────────────────────────
     private InstallerManifest? _manifest;
     private IRegistry? _registry;
+    private FalkForge.Engine.Detection.IFileSystemProvider? _fileSystem;
     private PackageExecutor? _packageExecutor;
     private VariableStore? _variableStore;
     private IPlatformServices? _platformServices;
@@ -91,6 +92,20 @@ public sealed class InstallerPipelineBuilder
     public InstallerPipelineBuilder WithRegistry(IRegistry registry)
     {
         _registry = registry;
+        return this;
+    }
+
+    /// <summary>
+    /// Registers the <see cref="FalkForge.Engine.Detection.IFileSystemProvider"/> used by
+    /// <see cref="DetectStep"/> to build a <see cref="FalkForge.Engine.Detection.PackageDetector"/> that
+    /// can evaluate <c>SearchOnly</c>/<c>Combined</c> package <see cref="FalkForge.Engine.Protocol.Manifest.SearchCondition"/>s
+    /// (file, directory, and registry probes). Not registering one leaves search-condition detection
+    /// permanently disabled for this pipeline — every such package reports <c>NotInstalled</c> — the same
+    /// as before this method existed.
+    /// </summary>
+    public InstallerPipelineBuilder WithFileSystem(FalkForge.Engine.Detection.IFileSystemProvider fileSystem)
+    {
+        _fileSystem = fileSystem;
         return this;
     }
 
@@ -256,7 +271,7 @@ public sealed class InstallerPipelineBuilder
         IDetectStep? detectStep = (_manifest is not null && _registry is not null)
             ? new DetectStep(
                 _manifest, _registry, uiChannel, _updateChecker, _updateService,
-                _variableStore, _platformServices, _clock, _elevationCompanionAvailable)
+                _variableStore, _platformServices, _clock, _elevationCompanionAvailable, _fileSystem)
             : null;
 
         IPlanStep? planStep = (_manifest is not null)

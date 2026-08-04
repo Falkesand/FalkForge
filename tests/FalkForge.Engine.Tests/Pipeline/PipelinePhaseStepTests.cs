@@ -323,6 +323,141 @@ public sealed class PipelinePhaseStepTests
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // DetectStep — search-condition detection reaches production. Regression for the bug where
+    // PackageDetector's SearchConditionEvaluator was only ever built by the two-arg constructor
+    // (fileSystem, registry) with a registry, but DetectStep only ever called PackageDetector's
+    // one-arg constructor — so _searchEvaluator stayed permanently null and every SearchOnly /
+    // Combined package (e.g. BuiltInPrerequisites.NetFx472()) always reported NotInstalled
+    // regardless of what was actually on the machine. Every prior search-condition test news up
+    // PackageDetector's two-arg form directly — which proves the evaluator logic works, but not
+    // that production ever reaches it. This test goes through the real construction path
+    // (InstallerPipelineBuilder -> DetectStep -> PackageDetector) instead.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Builder_ChainPackageWithDWordRegistrySearchCondition_DetectsInstalled()
+    {
+        // Mirrors BuiltInPrerequisites.NetFx472(): a chain (non-MSI) prerequisite package,
+        // DetectionMode.SearchOnly, one RegistryValue search condition against a REG_DWORD
+        // ("Release" >= 461808).
+        var registry = new MockRegistry()
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\Vendor\Runtime")
+            .SetDWordValue(RegistryRoot.LocalMachine, @"SOFTWARE\Vendor\Runtime", "Release", 461808);
+        var fileSystem = new MockFileSystemProvider();
+
+        var package = new PackageInfo
+        {
+            Id = "Runtime472",
+            Type = PackageType.ExePackage,
+            DisplayName = "Test Runtime",
+            SourcePath = @"C:\fake\runtime.exe",
+            Sha256Hash = "DEADBEEF",
+            Vital = true,
+            IsPrerequisite = true,
+            DetectionMode = DetectionMode.SearchOnly,
+            SearchConditions =
+            [
+                new SearchCondition
+                {
+                    Type = SearchConditionType.RegistryValue,
+                    Path = @"HKLM\SOFTWARE\Vendor\Runtime",
+                    Value = "Release",
+                    Comparison = ">=:461808"
+                }
+            ]
+        };
+
+        var manifest = SimpleManifest(package);
+        await using var channel = new FakeUiChannel();
+
+        await using var pipeline = new InstallerPipelineBuilder()
+            .WithManifest(manifest)
+            .WithRegistry(registry)
+            .WithFileSystem(fileSystem)
+            .WithUiChannel(channel)
+            .Build();
+
+        var result = await pipeline.DetectAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        // Assert on the PER-PACKAGE detection outcome, not the bundle-level aggregate: this
+        // manifest's only package is a prerequisite, and a prerequisite's presence must not
+        // decide whether the bundle's own product is installed (see the regression test below
+        // for the aggregate-side assertion). This proves the search-condition detection itself
+        // fired correctly without re-encoding the aggregate-fold bug as intent.
+        var packageEvent = channel.SentEvents.OfType<PipelineEvent.DetectPackageComplete>().Single();
+        Assert.Equal("Runtime472", packageEvent.PackageId);
+        Assert.Equal(InstallState.Installed, packageEvent.State);
+    }
+
+    [Fact]
+    public async Task Builder_DetectedInstalledPrerequisite_IsSkippedAtPlanTime()
+    {
+        // Regression for the third gap behind the search-condition wiring above: PlanStep never
+        // forwarded ctx.DetectedPackageStates into Planner.CreatePlan's detectedPackageStates
+        // parameter, so Planner.OrderWithPrerequisites' "skip prerequisites already installed"
+        // branch was dead — a detected-installed prerequisite was still planned (and reinstalled)
+        // on every run. Runs the real Detect -> Plan sequence through InstallerPipelineBuilder.
+        var registry = new MockRegistry()
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\Vendor\Runtime")
+            .SetDWordValue(RegistryRoot.LocalMachine, @"SOFTWARE\Vendor\Runtime", "Release", 461808);
+        var fileSystem = new MockFileSystemProvider();
+
+        var prereq = new PackageInfo
+        {
+            Id = "Runtime472",
+            Type = PackageType.ExePackage,
+            DisplayName = "Test Runtime",
+            SourcePath = @"C:\fake\runtime.exe",
+            Sha256Hash = "DEADBEEF",
+            Vital = true,
+            IsPrerequisite = true,
+            DetectionMode = DetectionMode.SearchOnly,
+            SearchConditions =
+            [
+                new SearchCondition
+                {
+                    Type = SearchConditionType.RegistryValue,
+                    Path = @"HKLM\SOFTWARE\Vendor\Runtime",
+                    Value = "Release",
+                    Comparison = ">=:461808"
+                }
+            ]
+        };
+
+        var manifest = SimpleManifest(prereq, ExePackage("MainApp"));
+        await using var channel = new FakeUiChannel();
+
+        await using var pipeline = new InstallerPipelineBuilder()
+            .WithManifest(manifest)
+            .WithRegistry(registry)
+            .WithFileSystem(fileSystem)
+            .WithUiChannel(channel)
+            .Build();
+
+        var detectResult = await pipeline.DetectAsync(CancellationToken.None);
+        Assert.True(detectResult.IsSuccess);
+
+        // Regression: a fresh machine has NEVER installed MainApp, but any Win10/11 box already
+        // satisfies the NetFx472-style prerequisite's search condition. The prerequisite being
+        // Installed must NOT fold into the bundle-level aggregate — only MainApp's own state
+        // decides that. Before the fix, the prerequisite's InstallState.Installed won the
+        // "first non-NotInstalled wins" fold and the bundle wrongly reported Installed, which
+        // sends a first-time user straight into maintenance mode instead of a fresh install.
+        Assert.Equal(InstallState.NotInstalled, detectResult.Value.State);
+        var prereqEvent = channel.SentEvents
+            .OfType<PipelineEvent.DetectPackageComplete>()
+            .Single(e => e.PackageId == "Runtime472");
+        Assert.Equal(InstallState.Installed, prereqEvent.State);
+
+        var planResult = await pipeline.PlanAsync(InstallRequest(), CancellationToken.None);
+
+        Assert.True(planResult.IsSuccess, planResult.IsFailure ? planResult.Error.Message : null);
+        Assert.DoesNotContain(planResult.Value.Actions, a => a.PackageId == "Runtime472");
+        Assert.Contains(planResult.Value.Actions, a => a.PackageId == "MainApp");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // DetectStep
     // ──────────────────────────────────────────────────────────────────────────
 

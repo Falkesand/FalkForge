@@ -71,6 +71,26 @@ public sealed class WindowsRegistry : IRegistry
         }
     }
 
+    public Result<int?> TryGetDWordValue(RegistryRoot rootKey, string subKey, string valueName)
+    {
+        try
+        {
+            using var key = GetRootKey(rootKey).OpenSubKey(subKey);
+            var value = key?.GetValue(valueName) as int?;
+            return Result<int?>.Success(value);
+        }
+        catch (ArgumentException ex) when (ex is not ArgumentOutOfRangeException)
+        {
+            return Result<int?>.Failure(ErrorKind.Validation,
+                $"Invalid registry key name under '{rootKey}\\{subKey}': {ex.Message}");
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        {
+            return Result<int?>.Failure(ErrorKind.SecurityError,
+                $"Failed to read registry value '{valueName}' under '{rootKey}\\{subKey}': {ex.Message}");
+        }
+    }
+
     public Result<bool> TryValueExists(RegistryRoot rootKey, string subKey, string valueName)
     {
         try

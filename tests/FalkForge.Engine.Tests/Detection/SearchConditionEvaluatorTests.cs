@@ -406,6 +406,202 @@ public sealed class SearchConditionEvaluatorTests
         Assert.Equal(ErrorKind.DetectionError, result.Error.Kind);
     }
 
+    // --- REG_DWORD comparison (BuiltInPrerequisites.NetFx472 shape) ---
+    // The real bug: EvaluateRegistryComparison used to read the actual value with a string-only accessor,
+    // which reports SUCCESS with null for a REG_DWORD (the .NET Framework "Release" value is always a
+    // DWORD, never a string) — indistinguishable from the value being absent. NetFx472() therefore reported
+    // "not installed" on every machine, including ones that have the framework, which drove an unexpected
+    // elevation + a silent install failure (HandleExitCode maps a redist's "already installed" non-zero
+    // exit to ExitFailed). The fix falls back to a numeric read when the string read comes back null.
+
+    [Fact]
+    public void RegistryValue_DWordCompare_NetFx472Shape_AtThreshold_ReportsInstalled()
+    {
+        var fs = new MockFileSystemProvider();
+        var registry = new MockRegistry()
+            .SetDWordValue(RegistryRoot.LocalMachine,
+                @"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full", "Release", 533509);
+        var evaluator = new SearchConditionEvaluator(fs, registry);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.RegistryValue,
+            Path = @"HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full",
+            Value = "Release",
+            Comparison = ">=:461808"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void RegistryValue_DWordCompare_NetFx472Shape_BelowThreshold_ReportsNotInstalled()
+    {
+        var fs = new MockFileSystemProvider();
+        var registry = new MockRegistry()
+            .SetDWordValue(RegistryRoot.LocalMachine,
+                @"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full", "Release", 378389); // .NET 4.5
+        var evaluator = new SearchConditionEvaluator(fs, registry);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.RegistryValue,
+            Path = @"HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full",
+            Value = "Release",
+            Comparison = ">=:461808"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void RegistryValue_DWordCompare_ValueGenuinelyAbsent_ReportsNotInstalled()
+    {
+        var fs = new MockFileSystemProvider();
+        var registry = new MockRegistry()
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full");
+        var evaluator = new SearchConditionEvaluator(fs, registry);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.RegistryValue,
+            Path = @"HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full",
+            Value = "Release",
+            Comparison = ">=:461808"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void RegistryValue_DWordCompare_ReadFailure_PropagatesAsFailure_NotAbsent()
+    {
+        var fs = new MockFileSystemProvider();
+        var registry = new MockRegistry()
+            .SetDWordValue(RegistryRoot.LocalMachine,
+                @"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full", "Release", 533509)
+            .FailReadsUnder(@"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full");
+        var evaluator = new SearchConditionEvaluator(fs, registry);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.RegistryValue,
+            Path = @"HKLM\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full",
+            Value = "Release",
+            Comparison = ">=:461808"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
+    [Fact]
+    public void RegistryValue_DWordCompare_EqualsOperator_ReturnsTrue()
+    {
+        // BuiltInPrerequisites.VCRedist14x64 shape: "Installed" = 1, also a REG_DWORD on a real machine.
+        var fs = new MockFileSystemProvider();
+        var registry = new MockRegistry()
+            .SetDWordValue(RegistryRoot.LocalMachine,
+                @"SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64", "Installed", 1);
+        var evaluator = new SearchConditionEvaluator(fs, registry);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.RegistryValue,
+            Path = @"HKLM\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64",
+            Value = "Installed",
+            Comparison = "=:1"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void RegistryValue_DWordCompare_NonIntegerExpectedValue_ReturnsFailure()
+    {
+        // Pins the string-vs-numeric decision: when the registry value is genuinely numeric (DWORD) but
+        // the author-supplied comparison literal cannot be parsed as an integer, that is an authoring
+        // mismatch — report it loudly as a Failure rather than silently comparing as "not equal" forever.
+        var fs = new MockFileSystemProvider();
+        var registry = new MockRegistry()
+            .SetDWordValue(RegistryRoot.LocalMachine, @"SOFTWARE\App", "Release", 533509);
+        var evaluator = new SearchConditionEvaluator(fs, registry);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.RegistryValue,
+            Path = @"HKLM\SOFTWARE\App",
+            Value = "Release",
+            Comparison = ">=:not-a-number"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.DetectionError, result.Error.Kind);
+    }
+
+    // --- "exists" comparison against a non-string value (same type-blindness, different code path) ---
+
+    [Fact]
+    public void RegistryExists_ValueNameExists_DWordType_ReturnsTrue()
+    {
+        var fs = new MockFileSystemProvider();
+        var registry = new MockRegistry()
+            .SetDWordValue(RegistryRoot.LocalMachine, @"SOFTWARE\App", "Installed", 1);
+        var evaluator = new SearchConditionEvaluator(fs, registry);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.RegistryValue,
+            Path = @"HKLM\SOFTWARE\App",
+            Value = "Installed",
+            Comparison = "exists"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void RegistryExists_ReadFailure_PropagatesAsFailure_NotAbsent()
+    {
+        var fs = new MockFileSystemProvider();
+        var registry = new MockRegistry()
+            .AddKey(RegistryRoot.LocalMachine, @"SOFTWARE\App")
+            .FailReadsUnder(@"SOFTWARE\App");
+        var evaluator = new SearchConditionEvaluator(fs, registry);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.RegistryValue,
+            Path = @"HKLM\SOFTWARE\App",
+            Value = "Version",
+            Comparison = "exists"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
     [Fact]
     public void ProductSearch_UnsupportedType_ReturnsFailure()
     {
