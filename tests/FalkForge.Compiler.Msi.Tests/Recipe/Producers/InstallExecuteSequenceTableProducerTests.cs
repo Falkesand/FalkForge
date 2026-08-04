@@ -845,6 +845,100 @@ public sealed class InstallExecuteSequenceTableProducerTests
         }
     }
 
+    // ── SEQ001: author-scheduled action collides with baseline ────────────────
+
+    [Fact]
+    public void Produce_execute_sequence_action_named_FindRelatedProducts_fails_with_SEQ001()
+    {
+        // FindRelatedProducts only joins the baseline when the Upgrade table is emitted
+        // (MajorUpgrade here) — see SeqFindRelatedProducts. Hand-scheduling it by name is the
+        // exact issue #65 workaround beta.6 obsoleted; it must now fail loudly with SEQ001
+        // instead of silently double-inserting a row PrimaryKeyValidator would reject later.
+        RecipeBuildContext context = new(
+            MakeResolved(new PackageModel
+            {
+                Name = "P", Manufacturer = "M", Version = new Version(1, 0, 0),
+                UpgradeCode = Guid.NewGuid(),
+                MajorUpgrade = new MajorUpgradeModel
+                {
+                    Schedule = RemoveExistingProductsSchedule.AfterInstallValidate,
+                },
+                ExecuteSequenceActions = new List<SequenceActionModel>
+                {
+                    new SequenceActionModel
+                    {
+                        ActionName = "FindRelatedProducts",
+                        Table = SequenceTable.InstallExecuteSequence,
+                        Condition = null,
+                        Position = new ActionPosition.AfterAction("AppSearch"),
+                    },
+                },
+            }),
+            new DictionaryStreamRegistry());
+
+        InstallExecuteSequenceTableProducer producer = new();
+        Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("SEQ001", result.Error.Message);
+        Assert.Contains("FindRelatedProducts", result.Error.Message);
+    }
+
+    [Fact]
+    public void Produce_execute_sequence_action_named_InstallFiles_fails_with_SEQ001()
+    {
+        // A second baseline name (unconditional, no MajorUpgrade needed) proves the guard is
+        // not special-cased to FindRelatedProducts.
+        RecipeBuildContext context = new(
+            MakeResolved(new PackageModel
+            {
+                Name = "P", Manufacturer = "M", Version = new Version(1, 0, 0),
+                ExecuteSequenceActions = new List<SequenceActionModel>
+                {
+                    new SequenceActionModel
+                    {
+                        ActionName = "InstallFiles",
+                        Table = SequenceTable.InstallExecuteSequence,
+                        Condition = null,
+                        Position = new ActionPosition.AtNumber(4000),
+                    },
+                },
+            }),
+            new DictionaryStreamRegistry());
+
+        InstallExecuteSequenceTableProducer producer = new();
+        Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("SEQ001", result.Error.Message);
+        Assert.Contains("InstallFiles", result.Error.Message);
+    }
+
+    [Fact]
+    public void Produce_execute_sequence_action_with_custom_name_is_unaffected_by_SEQ001()
+    {
+        // A genuinely custom action name must still succeed — SEQ001 only fires on a literal
+        // baseline-name collision.
+        ImmutableArray<RecipeRow> rows = ProduceRows(MakeResolved(new PackageModel
+        {
+            Name = "P", Manufacturer = "M", Version = new Version(1, 0, 0),
+            ExecuteSequenceActions = new List<SequenceActionModel>
+            {
+                new SequenceActionModel
+                {
+                    ActionName = "MyCompanyCustomAction",
+                    Table = SequenceTable.InstallExecuteSequence,
+                    Condition = null,
+                    Position = new ActionPosition.AfterAction("AppSearch"),
+                },
+            },
+        }));
+
+        Assert.Contains("MyCompanyCustomAction", ActionNames(rows));
+    }
+
     // ── Combined fanin ────────────────────────────────────────────────────────
 
     [Fact]

@@ -365,6 +365,64 @@ public sealed class InstallUISequenceTableProducerTests
         }
     }
 
+    // ── SEQ001: author-scheduled action collides with baseline ────────────────
+
+    [Fact]
+    public void Produce_ui_sequence_action_named_FindRelatedProducts_fails_with_SEQ001()
+    {
+        // FindRelatedProducts only joins the UI baseline when the Upgrade table is emitted
+        // (MajorUpgrade here) — see SeqFindRelatedProducts. Hand-scheduling it by name is the
+        // exact issue #65 workaround beta.6 obsoleted; it must now fail loudly with SEQ001
+        // instead of silently double-inserting a row PrimaryKeyValidator would reject later.
+        ResolvedPackage resolved = MakeResolved(
+            dialogSet: MsiDialogSet.None,
+            uiActions: new[] { MakeAction("FindRelatedProducts", new ActionPosition.AfterAction("AppSearch")) },
+            majorUpgrade: new MajorUpgradeModel { Schedule = RemoveExistingProductsSchedule.AfterInstallValidate });
+
+        RecipeBuildContext context = new(resolved, new DictionaryStreamRegistry());
+        InstallUISequenceTableProducer producer = new();
+        Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("SEQ001", result.Error.Message);
+        Assert.Contains("FindRelatedProducts", result.Error.Message);
+    }
+
+    [Fact]
+    public void Produce_ui_sequence_action_named_AppSearch_fails_with_SEQ001()
+    {
+        // A second baseline name (unconditional, no MajorUpgrade needed) proves the guard is
+        // not special-cased to FindRelatedProducts.
+        ResolvedPackage resolved = MakeResolved(
+            dialogSet: MsiDialogSet.None,
+            uiActions: new[] { MakeAction("AppSearch", new ActionPosition.AtNumber(50)) });
+
+        RecipeBuildContext context = new(resolved, new DictionaryStreamRegistry());
+        InstallUISequenceTableProducer producer = new();
+        Result<ImmutableArray<RecipeRow>> result = producer.Produce(context);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+        Assert.Contains("SEQ001", result.Error.Message);
+        Assert.Contains("AppSearch", result.Error.Message);
+    }
+
+    [Fact]
+    public void Produce_ui_sequence_action_with_custom_name_is_unaffected_by_SEQ001()
+    {
+        // A genuinely custom action name must still succeed — SEQ001 only fires on a literal
+        // baseline-name collision.
+        SequenceActionModel custom = MakeAction("MyCompanyCustomAction", new ActionPosition.AfterAction("AppSearch"));
+        ResolvedPackage resolved = MakeResolved(
+            dialogSet: MsiDialogSet.None,
+            uiActions: new[] { custom });
+
+        ImmutableArray<RecipeRow> rows = ProduceRows(resolved);
+
+        Assert.Contains("MyCompanyCustomAction", ActionNames(rows));
+    }
+
     // ── Dialog-flow rows (firstDialog/Progress/Exit) ────────────────────────
     // Regression: InstallUISequenceTableProducer must emit three dialog-flow rows
     // when DialogSet != None — matching legacy DialogEmitter.EmitInstallUISequence.
