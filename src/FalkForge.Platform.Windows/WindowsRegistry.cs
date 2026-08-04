@@ -39,6 +39,11 @@ public sealed class WindowsRegistry : IRegistry
             IReadOnlyList<string> names = key?.GetSubKeyNames() ?? [];
             return Result<IReadOnlyList<string>>.Success(names);
         }
+        catch (ArgumentException ex) when (ex is not ArgumentOutOfRangeException)
+        {
+            return Result<IReadOnlyList<string>>.Failure(ErrorKind.Validation,
+                $"Invalid registry key name under '{rootKey}\\{subKey}': {ex.Message}");
+        }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
         {
             return Result<IReadOnlyList<string>>.Failure(ErrorKind.SecurityError,
@@ -53,6 +58,11 @@ public sealed class WindowsRegistry : IRegistry
             using var key = GetRootKey(rootKey).OpenSubKey(subKey);
             var value = key?.GetValue(valueName) as string;
             return Result<string?>.Success(value);
+        }
+        catch (ArgumentException ex) when (ex is not ArgumentOutOfRangeException)
+        {
+            return Result<string?>.Failure(ErrorKind.Validation,
+                $"Invalid registry key name under '{rootKey}\\{subKey}': {ex.Message}");
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
         {
@@ -70,6 +80,11 @@ public sealed class WindowsRegistry : IRegistry
                 name => string.Equals(name, valueName, StringComparison.OrdinalIgnoreCase));
             return Result<bool>.Success(exists);
         }
+        catch (ArgumentException ex) when (ex is not ArgumentOutOfRangeException)
+        {
+            return Result<bool>.Failure(ErrorKind.Validation,
+                $"Invalid registry key name under '{rootKey}\\{subKey}': {ex.Message}");
+        }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
         {
             return Result<bool>.Failure(ErrorKind.SecurityError,
@@ -83,6 +98,11 @@ public sealed class WindowsRegistry : IRegistry
         {
             using var key = GetRootKey(rootKey).OpenSubKey(subKey);
             return Result<bool>.Success(key is not null);
+        }
+        catch (ArgumentException ex) when (ex is not ArgumentOutOfRangeException)
+        {
+            return Result<bool>.Failure(ErrorKind.Validation,
+                $"Invalid registry key name under '{rootKey}\\{subKey}': {ex.Message}");
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
         {

@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using FalkForge;
 using FalkForge.Platform.Windows;
 using Microsoft.Win32;
 using Xunit;
@@ -303,5 +304,60 @@ public sealed class WindowsRegistryTests : IDisposable
         var invalidRoot = (RegistryRoot)999;
         Assert.Throws<ArgumentOutOfRangeException>(
             () => _registry.TryReadSubKeyNames(invalidRoot, _subKey));
+    }
+
+    // ─── Containment: over-long key name component (RegistryKey.OpenSubKey throws
+    // ArgumentException, not one of Unauthorized/Security/IOException) ───────────
+
+    // RegistryKey.OpenSubKey throws ArgumentException when a single path component exceeds
+    // 255 characters ("Registry key names should not be greater than 255 characters.").
+    private static readonly string OverLongKeyNameComponent = new('A', 256);
+
+    [Fact]
+    public void TryKeyExists_OverLongKeyNameComponent_ReturnsFailureNotException()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        var subKey = $@"{_subKey}\{OverLongKeyNameComponent}";
+
+        var result = _registry.TryKeyExists(RegistryRoot.CurrentUser, subKey);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+    }
+
+    [Fact]
+    public void TryGetStringValue_OverLongKeyNameComponent_ReturnsFailureNotException()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        var subKey = $@"{_subKey}\{OverLongKeyNameComponent}";
+
+        var result = _registry.TryGetStringValue(RegistryRoot.CurrentUser, subKey, "V");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+    }
+
+    [Fact]
+    public void TryValueExists_OverLongKeyNameComponent_ReturnsFailureNotException()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        var subKey = $@"{_subKey}\{OverLongKeyNameComponent}";
+
+        var result = _registry.TryValueExists(RegistryRoot.CurrentUser, subKey, "V");
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
+    }
+
+    [Fact]
+    public void TryReadSubKeyNames_OverLongKeyNameComponent_ReturnsFailureNotException()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        var subKey = $@"{_subKey}\{OverLongKeyNameComponent}";
+
+        var result = _registry.TryReadSubKeyNames(RegistryRoot.CurrentUser, subKey);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.Validation, result.Error.Kind);
     }
 }

@@ -316,6 +316,77 @@ public sealed class SearchConditionEvaluatorTests
     }
 
     [Fact]
+    public void RegistryExists_KeyReadFails_ReturnsFailure()
+    {
+        // An ACL-denied/unreadable key (e.g. HKLM\SECURITY, a vendor key with tight ACLs) must
+        // surface as a Result Failure, not throw and not report the key as absent. This is what
+        // routes SearchConditionEvaluator through IRegistry.TryKeyExists instead of the bare
+        // KeyExists, whose WindowsRegistry implementation lets the underlying SecurityException
+        // escape uncaught.
+        var fs = new MockFileSystemProvider();
+        var registry = new MockRegistry().FailReadsUnder(@"SOFTWARE\App");
+        var evaluator = new SearchConditionEvaluator(fs, registry);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.RegistryValue,
+            Path = @"HKLM\SOFTWARE\App",
+            Comparison = "exists"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
+    [Fact]
+    public void RegistryExists_ValueReadFails_ReturnsFailure()
+    {
+        // Same as above, but for the value-name branch (routes through TryGetStringValue instead
+        // of the bare GetStringValue).
+        var fs = new MockFileSystemProvider();
+        var registry = new MockRegistry().FailReadsUnder(@"SOFTWARE\App");
+        var evaluator = new SearchConditionEvaluator(fs, registry);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.RegistryValue,
+            Path = @"HKLM\SOFTWARE\App",
+            Value = "Version",
+            Comparison = "exists"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
+    [Fact]
+    public void RegistryValue_ComparisonReadFails_ReturnsFailure()
+    {
+        // The version/string comparison branch reads via GetStringValue too (line ~106 in the
+        // production file) — must fail closed the same way as the "exists" branch above.
+        var fs = new MockFileSystemProvider();
+        var registry = new MockRegistry().FailReadsUnder(@"SOFTWARE\App");
+        var evaluator = new SearchConditionEvaluator(fs, registry);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.RegistryValue,
+            Path = @"HKLM\SOFTWARE\App",
+            Value = "Version",
+            Comparison = ">=:2.0.0"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
+    [Fact]
     public void RegistryValue_InvalidPath_ReturnsFailure()
     {
         var fs = new MockFileSystemProvider();
