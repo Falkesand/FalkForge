@@ -25,6 +25,14 @@ public sealed class InstallScopeDlgBuilderTests
     }
 
     [Fact]
+    public void Build_placement_count_matches_WiX()
+    {
+        // TitleRow, BannerLine, ContentArea, BottomLine, ButtonRow. BannerLine is a region added
+        // to match WiX's own InstallDirDlg.wxs BannerBitmap/BannerLine pair.
+        Assert.Equal(5, InstallScopeDlgBuilder.Build().Placements.Length);
+    }
+
+    [Fact]
     public void Build_first_default_cancel_controls_match_legacy()
     {
         var content = InstallScopeDlgBuilder.Build();

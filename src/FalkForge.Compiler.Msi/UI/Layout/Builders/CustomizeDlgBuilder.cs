@@ -54,6 +54,7 @@ internal static class CustomizeDlgBuilder
                             OverrideHeight = 15,
                         }),
                 },
+                DialogFooter.BannerLine(),
                 new RegionPlacement
                 {
                     RegionName = "ContentArea",

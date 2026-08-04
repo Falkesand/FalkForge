@@ -21,6 +21,14 @@ public sealed class MsiRMFilesInUseDlgBuilderTests
     }
 
     [Fact]
+    public void Build_placement_count_matches_WiX()
+    {
+        // TitleRow, BannerLine, ContentArea, BottomLine, ButtonRow. BannerLine is a region added
+        // to match WiX's own InstallDirDlg.wxs BannerBitmap/BannerLine pair.
+        Assert.Equal(5, MsiRMFilesInUseDlgBuilder.Build().Placements.Length);
+    }
+
+    [Fact]
     public void Build_list_control_binds_to_FileInUseProcess_property()
     {
         var content = MsiRMFilesInUseDlgBuilder.Build();

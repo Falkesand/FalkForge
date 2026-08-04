@@ -66,6 +66,7 @@ internal static class ProgressDlgBuilder
                             OverrideHeight = 15,
                         }),
                 },
+                DialogFooter.BannerLine(),
                 new RegionPlacement
                 {
                     RegionName = "ContentArea",

@@ -21,9 +21,12 @@ public sealed class SetupTypeDlgBuilderTests
     }
 
     [Fact]
-    public void Build_placement_count_matches_legacy()
+    public void Build_placement_count_matches_WiX()
     {
-        Assert.Equal(4, SetupTypeDlgBuilder.Build().Placements.Length);
+        // TitleRow, BannerLine, ContentArea, BottomLine, ButtonRow. 5, not the legacy 4 —
+        // BannerLine is a new region added to match WiX's own InstallDirDlg.wxs
+        // BannerBitmap/BannerLine pair.
+        Assert.Equal(5, SetupTypeDlgBuilder.Build().Placements.Length);
     }
 
     [Fact]

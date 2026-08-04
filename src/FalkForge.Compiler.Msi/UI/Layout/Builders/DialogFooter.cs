@@ -3,8 +3,8 @@ using System.Collections.Immutable;
 namespace FalkForge.Compiler.Msi.UI.Layout.Builders;
 
 /// <summary>
-/// Shared building blocks for the standard wizard-dialog footer: the BottomLine separator and
-/// the Cancel/Next/Back push buttons, plus their conventional event wiring.
+/// Shared building blocks for the standard wizard dialog: the BannerLine and BottomLine
+/// separators and the Cancel/Next/Back push buttons, plus their conventional event wiring.
 /// </summary>
 /// <remarks>
 /// Every full-canvas wizard dialog (Welcome, License, InstallDir, Customize, Progress, Exit,
@@ -24,6 +24,24 @@ internal static class DialogFooter
             new PlacedControl
             {
                 Name = "BottomLine",
+                Type = "Line",
+            }),
+    };
+
+    /// <summary>
+    /// The BannerLine separator region, sitting at the Banner region's own bottom edge. Used by
+    /// interior wizard-page dialogs only (License, InstallDir, Customize, SetupType, InstallScope,
+    /// Progress, MsiRMFilesInUse) — the exterior Welcome/Exit dialogs paint a full-canvas
+    /// <c>DialogBitmap</c> background instead of a distinct <c>Banner</c> strip, so a line here
+    /// would cut across that artwork rather than separating anything.
+    /// </summary>
+    public static RegionPlacement BannerLine() => new()
+    {
+        RegionName = "BannerLine",
+        Controls = ImmutableArray.Create(
+            new PlacedControl
+            {
+                Name = "BannerLine",
                 Type = "Line",
             }),
     };

@@ -84,18 +84,20 @@ sequence before calling `Compose`.
 Single source of truth for all stock dialog DLU coordinates.
 File: `src/FalkForge.Compiler.Msi/UI/Layout/Layouts.cs`
 
-For the pixel-equivalent sizes (DLU-to-pixel conversion is 4/3 on both axes independently) and the
-resulting text-safe zones for custom banner art, see `documentation.html` §14 ("MSI Dialog Templates" →
-"Dialog Customization API" → "Bitmap Dimensions and Text Safe Zones") — this table is the DLU source of
-truth for stock region coordinates; that section derives pixel sizes from it and combines them with
-`Description` placements from the individual dialog builders and `HeaderIcon` placement from
-`DialogComposer` to document safe zones, and should not be treated as a second, independently-maintained
-source of the DLU numbers themselves.
+For the pixel-equivalent sizes (Installer-Unit-to-pixel conversion is an *approximate* 4/3 on both axes
+independently — Installer Units are not Windows dialog units despite the similar name; see the MSI
+Dialog Table reference) and the resulting text-safe zones for custom banner art, see `documentation.html`
+§14 ("MSI Dialog Templates" → "Dialog Customization API" → "Bitmap Dimensions and Text Safe Zones") —
+this table is the Installer Unit source of truth for stock region coordinates; that section derives pixel
+sizes from it and combines them with `Description` placements from the individual dialog builders and
+`HeaderIcon` placement from `DialogComposer` to document safe zones, and should not be treated as a
+second, independently-maintained source of the Installer Unit numbers themselves.
 
 | Region | X | Y | Width | Height | Policy | Typical occupants |
 |--------|---|---|-------|--------|--------|-------------------|
-| `Banner` | 0 | 0 | 370 | 58 | `SingleControl` | Banner bitmap control |
+| `Banner` | 0 | 0 | 370 | 44 | `SingleControl` | Banner bitmap control |
 | `TitleRow` | 15 | 6 | 200 | 15 | `Absolute` | Bold title `Text` control |
+| `BannerLine` | 0 | 44 | 370 | 0 | `SingleControl` | Horizontal `Line` separator below the banner (interior wizard pages only — see below) |
 | `ContentArea` | 15 | 60 | 340 | 165 | `Absolute` | Description text, path edit, feature tree, progress bar, scrollable license text |
 | `BottomLine` | 0 | 234 | 370 | 0 | `SingleControl` | Horizontal `Line` separator |
 | `ButtonRow` | 0 | 243 | 360 | 17 | `RightPacked` | `PushButton` controls (Cancel, Back, Next/Install/Finish) |
@@ -104,8 +106,19 @@ source of the DLU numbers themselves.
 `RegionDefaults`: `ChildWidth = 56`, `ChildHeight = 17`, `Gap = 8` DLU. Per-control
 `OverrideWidth` overrides the default when a button needs extra room.
 
+`BannerLine` mirrors WiX's own `InstallDirDlg.wxs` `BannerBitmap`/`BannerLine` pair — WiX places a
+Line control at Y=44 (the Banner region's own bottom edge) so the 16-unit gap before `ContentArea`
+reads as a deliberate separator rather than bare dialog background. `DialogFooter.BannerLine()`
+(mirroring the existing `DialogFooter.BottomLine()` pattern) places it via `RegionPlacement`, and
+every interior wizard-page builder (License, InstallDir, Customize, SetupType, InstallScope,
+Progress, MsiRMFilesInUse) declares it — the exterior Welcome/Exit dialogs do not, since they paint
+a single full-canvas `DialogBitmap` background instead of a distinct `Banner` strip, and a line at
+Y=44 would cut across that artwork rather than separating anything. `BannerLine`'s Width is
+deliberately set to 370, not WiX's 373, to stay internally consistent with this repo's own
+`BottomLine` convention (see the beta.7 release notes).
+
 No builder, template, or emitter outside `Layouts.cs` contains hardcoded DLU coordinates
-for these five regions.
+for these six regions.
 
 ---
 
@@ -243,7 +256,7 @@ raw file path. DLG003 fails the build if a key does not resolve to a registered 
 
 | Verb | Effect |
 |------|--------|
-| `BannerBitmap(key)` | Interior wizard pages (any non-Welcome/Exit dialog that declares a `TitleRow` placement — License, InstallDir, Customize, SetupType, InstallScope, Progress; excludes the `CancelDlg`/`BrowseDlg` modals, which place no `TitleRow`): if the dialog already has a `Bitmap`-typed control, its `Text` is replaced with `key`; otherwise a synthetic full-width `Bitmap` control (`BannerBmp`, sized to the layout's `Banner` region — 370x58 in the stock layout) is inserted first so later controls draw in front of it. No-op on exterior/modal dialogs. |
+| `BannerBitmap(key)` | Interior wizard pages (any non-Welcome/Exit dialog that declares a `TitleRow` placement — License, InstallDir, Customize, SetupType, InstallScope, Progress; excludes the `CancelDlg`/`BrowseDlg` modals, which place no `TitleRow`): if the dialog already has a `Bitmap`-typed control, its `Text` is replaced with `key`; otherwise a synthetic full-width `Bitmap` control (`BannerBmp`, sized to the layout's `Banner` region — 370x44 in the stock layout) is inserted first so later controls draw in front of it. No-op on exterior/modal dialogs. |
 | `DialogBitmap(key)` | Inserts a synthetic full-canvas `Bitmap` control (`DialogBmp`, 370x234, classic `WixUI_Bmp_Dialog` convention) on the exterior `WelcomeDlg`/`ExitDlg` dialogs of every stock template, `Text` set to `key`. No-op when unset; excluded from `BannerBitmap`'s sweep by control name so the two verbs never collide when both are set. |
 | `HeaderIcon(key)` | Same interior-wizard-page scope as `BannerBitmap`. If the dialog already has an `Icon`-typed control, its `Text` is replaced with `key`; otherwise a synthetic 16x16 `Icon` control (`HeaderIcon`) is inserted at the top-right of the `Banner` region, vertically aligned with `TitleRow` — "next to the dialog title" — drawn in front of any synthesized banner. No-op on exterior/modal dialogs. |
 | `WindowTitle(title)` | Overrides `MsiDialogModel.Title` on every composed dialog |

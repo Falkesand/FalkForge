@@ -130,6 +130,7 @@ internal static class MsiRMFilesInUseDlgBuilder
                             OverrideHeight = 15,
                         }),
                 },
+                DialogFooter.BannerLine(),
                 new RegionPlacement
                 {
                     RegionName = "ContentArea",

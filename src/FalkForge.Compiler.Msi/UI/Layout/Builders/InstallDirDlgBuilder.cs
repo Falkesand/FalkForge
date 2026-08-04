@@ -86,6 +86,7 @@ internal static class InstallDirDlgBuilder
                             OverrideHeight = 15,
                         }),
                 },
+                DialogFooter.BannerLine(),
                 new RegionPlacement
                 {
                     RegionName = "ContentArea",

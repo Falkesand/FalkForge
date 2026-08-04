@@ -373,9 +373,9 @@ internal static class DialogComposer
 
     private static MsiControlModel BuildBannerBitmapControl(string bannerBitmapPath, DialogLayout layout)
     {
-        // Sized to the layout's own Banner region (370x58 DLU in the stock layout — the same
-        // region documented in dialog-template-architecture.md). Fail loud on a missing region;
-        // see BuildDialogBitmapControl.
+        // Sized to the layout's own Banner region (370x44 Installer Units in the stock layout —
+        // the same region documented in dialog-template-architecture.md). Fail loud on a missing
+        // region; see BuildDialogBitmapControl.
         Rect bounds = RequireRegion(layout, "Banner").Bounds;
 
         return new MsiControlModel
