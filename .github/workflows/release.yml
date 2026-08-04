@@ -228,15 +228,39 @@ jobs:
           # Collect file paths for upload
           $files = Get-ChildItem -Path $distDir -File | ForEach-Object { $_.FullName }
 
-          # A tag with a semver pre-release suffix (e.g. v0.5.0-beta.5) must publish as a
+          # A tag with a semver pre-release suffix (e.g. v0.5.0-beta.6) must publish as a
           # GitHub pre-release, or GitHub labels it the repo's "Latest release" and
           # recommends a beta to every visitor over the actual latest stable build.
-          $prereleaseArgs = if ($tag -match '^v\d+\.\d+\.\d+-') { @('--prerelease') } else { @() }
+          #
+          # NOTE: `[string[]]$x = if (...) { @('a') } else { @() }` is NOT safe here — when
+          # the taken branch is the empty-array one, PowerShell's pipeline output unrolling
+          # collapses it to $null (not an empty array) before the [string[]] cast ever sees
+          # it, and splatting a $null array variable passes ONE phantom empty-string
+          # argument to gh instead of zero. Assign the empty default first, then reassign
+          # inside a plain `if` block, so the empty case never round-trips through an
+          # if/else-as-expression.
+          [string[]]$prereleaseArgs = @()
+          if ($tag -match '^v\d+\.\d+\.\d+-') { $prereleaseArgs = @('--prerelease') }
+
+          # Use the hand-maintained release notes for this tag when one exists, so the audit
+          # warnings and migration guidance in docs/release-notes/*.md — never read by
+          # pack-docs.ps1's markdown-excluded doc bundle — actually reach the GitHub Release
+          # page upgraders read. Falls back to --generate-notes (commit-title auto-summary)
+          # so a future tag with no matching notes file still creates a release instead of
+          # failing the job.
+          $notesFile = "docs/release-notes/$tag.md"
+          [string[]]$notesArgs = if (Test-Path $notesFile) {
+            Write-Host "Using release notes from $notesFile"
+            @('--notes-file', $notesFile)
+          } else {
+            Write-Host "::warning::No release notes file found at $notesFile - falling back to --generate-notes"
+            @('--generate-notes')
+          }
 
           gh release create $tag `
             --repo "${{ github.repository }}" `
             --title "FalkForge $tag" `
-            --generate-notes `
+            @notesArgs `
             @prereleaseArgs `
             $files
 

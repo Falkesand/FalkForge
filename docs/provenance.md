@@ -683,11 +683,12 @@ once plan support is confirmed or the repository is made public.
 | INT007 | A signature is required on this path (e.g. update) but the manifest carries none |
 | INT008 | Bundle key-epoch is below the highest epoch this machine has accepted (downgrade/replay) — dormant, see §3 |
 | INT009 | A signature is required but the engine's effective trusted set is empty (fail closed) |
-| SBM001 | Failed to compute SHA-256 hash for SBOM component |
-| SBM002 | Failed to write SBOM output file |
 | SBM003 | SPDX output requested but a file component has no SHA-1 digest (SPDX 2.3 §8.4 makes it mandatory). Supply `sha1` on the component or request `SbomFormat.CycloneDx` |
 | SBM004 | An SBOM component carries a digest that is not shaped like a hash (SHA-256 must be 64 hex characters, SHA-1 40). A checksum field is an integrity claim, so it is never serialized unexamined |
 | PLN001 | Detection phase failed during plan-only mode |
 | PLN002 | Planning phase failed during plan-only mode |
 | PLN003 | Failed to serialize plan to JSON |
 | PLN004 | Dry-run mode blocked: one or more extensions do not support it |
+
+`SBM001`/`SBM002` are not implemented — no source occurrence emits either code today (verified against
+`src/FalkForge.Core/Sbom`). Not listed above; do not treat them as reachable diagnostics.

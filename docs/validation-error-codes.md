@@ -4,7 +4,7 @@ Reference for every diagnostic code emitted by validators, builders, decompilers
 
 Historically auto-generated; the extraction script has been retired — this file is now hand-maintained. Keep entries in sync with the validation rule sources (`src/FalkForge.Core/Validation/...` and the other `Source` columns below).
 
-**Total codes:** 239 across 54 categories.
+**Total codes:** 255 across 54 categories.
 
 ## Categories at a Glance
 
@@ -35,6 +35,7 @@ Historically auto-generated; the extraction script has been retired — this fil
 | JSN | JSON config loader | `src/FalkForge.Cli` |
 | LOC | Localization | `src/FalkForge.Localization` |
 | MDT | Media template | `src/FalkForge.Core/Validation` |
+| MSIX | MSIX package | `src/FalkForge.Compiler.Msix` |
 | MSM | Merge module (MSM) | `src/FalkForge.Core/Validation` |
 | MSP | Patch (MSP) | `src/FalkForge.Core/Validation` |
 | MST | Transform (MST) | `src/FalkForge.Core/Validation` |
@@ -54,7 +55,6 @@ Historically auto-generated; the extraction script has been retired — this fil
 | SCT | Service control | `src/FalkForge.Core/Validation` |
 | SDP | Service dependency | `src/FalkForge.Core/Validation` |
 | SGN | Signing | `src/FalkForge.Core/Validation` |
-| SHA | SHA hashing | `src/FalkForge.Core/Sbom` |
 | SHC | Shortcut | `src/FalkForge.Core/Validation` |
 | SQL | SQL extension | `src/FalkForge.Extensions.Sql` |
 | STU | Studio | `src/FalkForge.Studio/Shell` |
@@ -315,6 +315,25 @@ Historically auto-generated; the extraction script has been retired — this fil
 | MDT003 | MaximumCabinetSizeInMB must not be negative | `src/FalkForge.Core/Validation/RemainingRules.cs` |
 | MDT004 | MaximumUncompressedMediaSize must not be negative | `src/FalkForge.Core/Validation/RemainingRules.cs` |
 
+## MSIX — MSIX package
+
+| Code | Message | Source |
+|------|---------|--------|
+| MSIX001 | Package Name is required | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX002 | Publisher is required | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX003 | Publisher must start with 'CN=' (certificate subject format) | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX004 | Version must have 4 parts (Major.Minor.Build.Revision) | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX005 | At least one Application is required | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX006 | DisplayName is required | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX007 | PublisherDisplayName is required | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX008 | MSIX packages must be signed. Provide SigningOptions | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX010 | Application Id is required | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX011 | Application Executable is required | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX012 | Invalid MinWindowsVersion: <x> | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX013 | File type association name '<x>' is invalid. Use lowercase letters, digits, '.', '-' or '_' | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX014 | File type '<x>' in association '<x>' is invalid (zero file types declared, missing leading dot, over 64 characters, extra dot, uppercase, or a reserved character) | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+| MSIX015 | Protocol name '<x>' is invalid. Use the scheme alone in lowercase, 2-39 characters (e.g. 'contoso', not 'contoso://') | `src/FalkForge.Compiler.Msix/MsixValidator.cs` |
+
 ## MSM — Merge module (MSM)
 
 | Code | Message | Source |
@@ -339,6 +358,7 @@ Historically auto-generated; the extraction script has been retired — this fil
 |------|---------|--------|
 | MST001 | Transform BaseMsiPath is required | `src/FalkForge.Core/Validation/TransformValidator.cs` |
 | MST002 | Transform TargetMsiPath is required | `src/FalkForge.Core/Validation/TransformValidator.cs` |
+| MST003 | Transform property name must be a valid PUBLIC MSI identifier ([A-Z_][A-Z0-9_.]*, ALL UPPERCASE) | `src/FalkForge.Core/Validation/TransformValidator.cs` |
 
 ## MUP — MajorUpgrade
 
@@ -400,6 +420,7 @@ Historically auto-generated; the extraction script has been retired — this fil
 |------|---------|--------|
 | PRP001 | Secure property name must be uppercase (a lowercase letter makes SecureCustomProperties never include it) | `src/FalkForge.Core/Validation/PropertyRules.cs` |
 | PRP002 | Property name is reserved (SecureCustomProperties, AdminProperties, MsiHiddenProperties are compiler-computed) | `src/FalkForge.Core/Validation/PropertyRules.cs` |
+| PRP003 | Property marked IsSecure/IsAdmin/IsHidden must not contain ';' or whitespace (these flags write the name into a semicolon-delimited list property) | `src/FalkForge.Core/Validation/PropertyRules.cs` |
 
 ## QEX — QuietExec (Util)
 
