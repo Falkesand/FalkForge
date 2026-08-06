@@ -1,3 +1,4 @@
+using FalkForge.Builders;
 using FalkForge.Compiler.Bundle.Builders;
 using Xunit;
 
@@ -96,6 +97,204 @@ public sealed class BundleBuilderTests
             .Build();
 
         Assert.Equal(code, model.UpgradeCode);
+    }
+
+    // F7: a random Guid.NewGuid() UpgradeCode per build (the pre-fix default) means upgrade
+    // detection can never match a previously installed build of the same bundle -- worse than
+    // the MSI ProductCode gap, which at least let a first install work. Default (no
+    // Reproducible() call) must derive deterministically, matching PackageBuilder's UpgradeCode.
+    [Fact]
+    public void Build_UpgradeCode_IsDeterministicAcrossBuilds()
+    {
+        var model1 = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Build();
+
+        var model2 = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Build();
+
+        Assert.Equal(model1.UpgradeCode, model2.UpgradeCode);
+    }
+
+    [Fact]
+    public void Build_BundleId_IsDeterministicAcrossBuilds()
+    {
+        var model1 = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Build();
+
+        var model2 = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Build();
+
+        Assert.Equal(model1.BundleId, model2.BundleId);
+    }
+
+    [Fact]
+    public void Build_DifferentNameOrManufacturer_ProducesDifferentUpgradeCode()
+    {
+        var model1 = new BundleBuilder()
+            .Name("Bundle1")
+            .Manufacturer("TestCo")
+            .Build();
+
+        var model2 = new BundleBuilder()
+            .Name("Bundle2")
+            .Manufacturer("TestCo")
+            .Build();
+
+        Assert.NotEqual(model1.UpgradeCode, model2.UpgradeCode);
+    }
+
+    // F1: BundleBuilder and PackageBuilder previously derived UpgradeCode from the same
+    // namespace (GuidUtility.FalkForgeNamespace) and a byte-identical key ("{Name}::{Manufacturer}"),
+    // so a bundle and an MSI sharing a name and manufacturer -- the ordinary case, e.g. a bundle
+    // named "MyApp"/"Acme" wrapping an MSI named "MyApp"/"Acme" -- derived ONE UpgradeCode for two
+    // separately-installed, separately-uninstalled artifacts. A "bundle::" key discriminator
+    // (matching the "component::" precedent in ComponentResolver.cs) keeps the two identity
+    // spaces disjoint.
+    [Fact]
+    public void Build_UpgradeCode_DiffersFromPackageBuilderUpgradeCode_ForSameNameAndManufacturer()
+    {
+        var bundleModel = new BundleBuilder()
+            .Name("MyApp")
+            .Manufacturer("Acme")
+            .Build();
+
+        var packageModel = new PackageBuilder { Name = "MyApp", Manufacturer = "Acme" }.Build();
+
+        Assert.NotEqual(packageModel.UpgradeCode, bundleModel.UpgradeCode);
+    }
+
+    // UpgradeCode identifies the product across versions (mirrors PackageBuilder's UpgradeCode,
+    // which deliberately excludes Version): a version bump must not orphan the upgrade chain.
+    [Fact]
+    public void Build_UpgradeCode_SameAcrossVersions()
+    {
+        var modelV1 = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Version("1.0.0")
+            .Build();
+
+        var modelV2 = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Version("2.0.0")
+            .Build();
+
+        Assert.Equal(modelV1.UpgradeCode, modelV2.UpgradeCode);
+    }
+
+    // BundleId identifies one specific build (mirrors ProductCode's version-specific role).
+    [Fact]
+    public void Build_BundleId_DiffersForDifferentVersion()
+    {
+        var modelV1 = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Version("1.0.0")
+            .Build();
+
+        var modelV2 = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Version("2.0.0")
+            .Build();
+
+        Assert.NotEqual(modelV1.BundleId, modelV2.BundleId);
+    }
+
+    // BundleModel has no Architecture equivalent, but Scope changes the compiled/installed
+    // artifact the same way Architecture+Scope changed ProductCode identity: CacheLayout
+    // resolves a different install root per InstallScope (EngineSession.BindToPipe), so a
+    // PerMachine and a PerUser build of the same Name/Manufacturer/Version must not collide.
+    [Fact]
+    public void Build_BundleId_DiffersForDifferentScope()
+    {
+        var modelMachine = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Scope(InstallScope.PerMachine)
+            .Build();
+
+        var modelUser = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Scope(InstallScope.PerUser)
+            .Build();
+
+        Assert.NotEqual(modelMachine.BundleId, modelUser.BundleId);
+    }
+
+    // UpgradeCode excludes Scope (same rationale as excluding Version): a PerUser and a
+    // PerMachine build of the same product stay one upgrade family, matching how PackageBuilder's
+    // UpgradeCode also excludes Architecture and Scope.
+    [Fact]
+    public void Build_UpgradeCode_SameAcrossScope()
+    {
+        var modelMachine = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Scope(InstallScope.PerMachine)
+            .Build();
+
+        var modelUser = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Scope(InstallScope.PerUser)
+            .Build();
+
+        Assert.Equal(modelMachine.UpgradeCode, modelUser.UpgradeCode);
+    }
+
+    // Unlike PackageBuilder's ProductCode (which clamps to msiVersion = Major.Minor.Build because
+    // PropertyTableProducer writes Version.ToString(3)), ManifestGenerator writes model.Version
+    // into InstallerManifest verbatim -- nothing truncates or normalizes it. So BundleId must key
+    // on the raw authored string: "1.0" and "1.0.0" are two distinct recorded values and must
+    // produce two distinct BundleIds (no MSI-style 3-field normalization applies here).
+    [Fact]
+    public void Build_BundleId_TwoComponentVersion_DiffersFromThreeComponentEquivalent()
+    {
+        var modelShort = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Version("1.0")
+            .Build();
+
+        var modelLong = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Version("1.0.0")
+            .Build();
+
+        Assert.NotEqual(modelShort.BundleId, modelLong.BundleId);
+    }
+
+    // Same rationale: a 4th (Revision) component is part of the raw string ManifestGenerator
+    // records, so -- unlike PackageBuilder's NonReproducible_ProductCode_IgnoresRevisionComponent
+    // -- a bundle's Revision component DOES change identity here.
+    [Fact]
+    public void Build_BundleId_FourComponentVersion_DiffersFromThreeComponentEquivalent()
+    {
+        var model3 = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Version("1.0.0")
+            .Build();
+
+        var model4 = new BundleBuilder()
+            .Name("TestBundle")
+            .Manufacturer("TestCo")
+            .Version("1.0.0.100")
+            .Build();
+
+        Assert.NotEqual(model3.BundleId, model4.BundleId);
     }
 
     [Fact]

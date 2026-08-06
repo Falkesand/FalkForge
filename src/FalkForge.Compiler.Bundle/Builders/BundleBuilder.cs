@@ -374,14 +374,38 @@ public sealed class BundleBuilder
 
     public BundleModel Build()
     {
-        var upgradeCode = _upgradeCode ?? (_reproducibleOptions is not null
-            ? GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, $"{_name}::{_manufacturer}")
-            : Guid.NewGuid());
+        // UpgradeCode identifies this bundle across all versions and scopes -- it is the key
+        // RelatedBundleDetector (and, eventually, self-registration) uses to find a previously
+        // installed build of the SAME product so an upgrade can be detected. Deriving it from a
+        // fresh Guid.NewGuid() per build (the pre-fix behavior) meant no two builds ever shared an
+        // UpgradeCode, so upgrade detection could never match anything -- worse than the MSI
+        // ProductCode gap this mirrors, because that one at least let a first install work.
+        // Always deterministic by default (no Reproducible() gate), matching PackageBuilder's
+        // UpgradeCode derivation in shape: Name::Manufacturer only, excluding Version and Scope so
+        // a version bump or an x86-vs-x64-style scope rebuild of the same product stays one family.
+        // A "bundle::" key discriminator (matching the "component::" precedent in
+        // ComponentResolver.cs) keeps this identity space disjoint from PackageBuilder's: without
+        // it, a bundle and an MSI sharing a Name and Manufacturer -- the ordinary case, e.g. a
+        // bundle named "MyApp"/"Acme" wrapping an MSI named "MyApp"/"Acme" -- would derive ONE
+        // UpgradeCode for two separately-installed, separately-uninstalled artifacts.
+        var upgradeCode = _upgradeCode ??
+                           GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace,
+                               $"bundle::{_name}::{_manufacturer}");
 
-        var bundleId = _bundleId ?? (_reproducibleOptions is not null
-            ? GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace,
-                $"{_name}::{_manufacturer}::{_version}")
-            : Guid.NewGuid());
+        // BundleId identifies this specific build (mirrors ProductCode's version-specific role).
+        // ManifestGenerator writes model.Version into InstallerManifest verbatim -- unlike the MSI
+        // side, nothing truncates or normalizes it -- so keying on the raw authored string here
+        // matches exactly what ends up recorded; "1.0", "1.0.0", and "1.0.0.100" are three distinct
+        // literal strings and therefore three distinct BundleIds, which is correct because they are
+        // three distinct recorded values (there is no ProductVersion-style 3-field ceiling to align
+        // with). Scope is included because BundleModel has no Architecture equivalent, but Scope
+        // does change the compiled/installed artifact the same way Architecture+Scope did for
+        // ProductCode (CacheLayout resolves a different install root per InstallScope in
+        // EngineSession.BindToPipe) -- a PerMachine and a PerUser build of the same
+        // Name/Manufacturer/Version must not collide on one BundleId.
+        var bundleId = _bundleId ??
+                       GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace,
+                           $"bundle::{_name}::{_manufacturer}::{_version}::{ScopeToken(_scope)}");
 
         return new BundleModel
         {
@@ -425,4 +449,13 @@ public sealed class BundleBuilder
             ReproducibleOptions = _reproducibleOptions
         };
     }
+
+    // Explicit switch, not scope.ToString(), so a future enum-member rename cannot silently
+    // change an already-shipped BundleId. Same rationale as PackageBuilder.ScopeToken.
+    private static string ScopeToken(InstallScope scope) => scope switch
+    {
+        InstallScope.PerMachine => "machine",
+        InstallScope.PerUser => "user",
+        _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, "Unknown InstallScope value.")
+    };
 }

@@ -4885,8 +4885,8 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>Name(string name)</code></td><td><code>BundleBuilder</code></td><td>Sets the bundle display name.</td></tr>
       <tr><td><code>Manufacturer(string manufacturer)</code></td><td><code>BundleBuilder</code></td><td>Sets the bundle manufacturer.</td></tr>
       <tr><td><code>Version(string version)</code></td><td><code>BundleBuilder</code></td><td>Sets the bundle version string. Default: <code>"1.0.0"</code>.</td></tr>
-      <tr><td><code>BundleId(Guid id)</code></td><td><code>BundleBuilder</code></td><td>Sets the bundle identifier. Default: auto-generated GUID.</td></tr>
-      <tr><td><code>UpgradeCode(Guid code)</code></td><td><code>BundleBuilder</code></td><td>Sets the upgrade code for related bundle detection. Default: auto-generated GUID.</td></tr>
+      <tr><td><code>BundleId(Guid id)</code></td><td><code>BundleBuilder</code></td><td>Sets the bundle identifier. Default: deterministic, derived from Name + Manufacturer + Version + Scope.</td></tr>
+      <tr><td><code>UpgradeCode(Guid code)</code></td><td><code>BundleBuilder</code></td><td>Sets the upgrade code for related bundle detection. Default: deterministic, derived from Name + Manufacturer only (stable across Version and Scope changes).</td></tr>
       <tr><td><code>Scope(InstallScope scope)</code></td><td><code>BundleBuilder</code></td><td>Sets the install scope. Default: <code>InstallScope.PerMachine</code>.</td></tr>
       <tr><td><code>Chain(Action&lt;ChainBuilder&gt; configure)</code></td><td><code>BundleBuilder</code></td><td>Configures the package installation chain. Adds packages and chain items (including rollback boundaries).</td></tr>
       <tr><td><code>UseBuiltInUI(string? licenseFile, string? logoFile, string? themeColor, string? watermarkImage, string? bannerImage, string? bannerIcon)</code></td><td><code>BundleBuilder</code></td><td>Uses the built-in WPF installer UI with optional customization for license, logo, theme color, watermark, banner, and banner icon.</td></tr>
@@ -4910,6 +4910,45 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>Build()</code></td><td><code>BundleModel</code></td><td>Builds and returns the final <code>BundleModel</code> for compilation.</td></tr>
     </tbody>
   </table>
+
+  <div class="note">
+    <strong><code>BundleId</code> and <code>UpgradeCode</code> are deterministic by default.</strong>
+    <code>UpgradeCode</code> identifies this bundle across every version and scope &mdash; it's the key
+    the engine's related-bundle detection matches a new build against a previously installed one, so it
+    must stay identical release over release. It's derived from <code>Name + Manufacturer</code> only,
+    the same two inputs as <code>PackageBuilder.UpgradeCode</code> on the MSI side (&sect;8.2), but
+    namespaced with a <code>"bundle::"</code> key prefix so a bundle and an MSI sharing the same
+    <code>Name</code> and <code>Manufacturer</code> &mdash; the ordinary case, e.g. a bundle wrapping
+    an MSI of the same product &mdash; derive two distinct <code>UpgradeCode</code>s instead of
+    colliding on one. <code>BundleId</code>
+    identifies one specific build (mirrors <code>ProductCode</code>'s version-specific role) and is
+    derived from <code>Name + Manufacturer + Version + Scope</code>; unlike the MSI side, the
+    <code>Version</code> string is not truncated or normalized before hashing &mdash;
+    <code>ManifestGenerator</code> writes <code>BundleModel.Version</code> into
+    <code>InstallerManifest</code> verbatim, so <code>"1.0"</code>, <code>"1.0.0"</code>, and
+    <code>"1.0.0.100"</code> are three distinct recorded values and therefore three distinct
+    <code>BundleId</code>s. <code>Scope</code> is folded into the <code>BundleId</code> key because it
+    changes the installed artifact (a different cache root per <code>InstallScope</code> in
+    <code>EngineSession.BindToPipe</code>), the same way <code>Architecture</code>+<code>Scope</code>
+    change <code>ProductCode</code>; there is no bundle-level <code>Architecture</code> to fold in. Call
+    <code>.BundleId(...)</code> / <code>.UpgradeCode(...)</code> explicitly to pin either value (e.g. when
+    migrating an existing bundle) &mdash; an explicit value always wins over the derived one.
+  </div>
+
+  <div class="note">
+    <strong>An update feed author must pin <code>BundleId</code> explicitly.</strong>
+    <code>BundleId</code> is <em>version-specific</em> by derivation (<code>Name + Manufacturer +
+    Version + Scope</code>), but <code>UpdateFeedParser</code> treats <code>bundleId</code> in a
+    published update feed as a <em>cross-version product key</em>: it rejects the feed with
+    <code>UPD003</code> whenever the running bundle's own <code>InstallerManifest.BundleId</code>
+    doesn't match the feed's fixed value. Left on the default derivation, every version bump mints a
+    new <code>BundleId</code>, so the very next release the feed points at fails that check. Call
+    <code>.BundleId(...)</code> with one fixed GUID before configuring <code>.UpdateFeed(...)</code>
+    so the identifier stays constant across every version you publish. <code>BundleId</code> also
+    names the machine-wide install mutex (<code>Global\FalkForge_Install_&lt;BundleId&gt;</code> in
+    <code>InstanceLock</code>) and the package cache root (<code>CacheLayout.GetBundlePath</code>);
+    pinning it does not change either of those beyond making them stable across versions too.
+  </div>
 
   <!-- 9.2 ChainBuilder -->
   <h3 id="bundle-chain-builder">9.2 ChainBuilder</h3>
