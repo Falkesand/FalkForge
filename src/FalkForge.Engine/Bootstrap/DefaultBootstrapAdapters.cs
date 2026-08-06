@@ -18,7 +18,7 @@ using FalkForge.Platform.Windows;
 internal sealed class DefaultPreUIPrerequisiteDetector : IPreUIPrerequisiteDetector
 {
     private readonly PreUIPrerequisiteDetector _inner =
-        new(new WindowsRegistry(), WindowsFileSystemProvider.Instance);
+        new(new WindowsRegistry(), WindowsFileSystemProvider.Instance, new WindowsEnvironment());
 
     public List<PreUIPackageInfo> FindMissing(IReadOnlyList<PreUIPackageInfo> declared)
         => _inner.FindMissing(declared);

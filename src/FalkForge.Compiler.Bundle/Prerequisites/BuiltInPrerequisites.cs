@@ -112,8 +112,13 @@ public static class BuiltInPrerequisites
     /// This prerequisite runs before the managed WPF UI process is spawned — the UI is a
     /// framework-dependent net10.0-windows application and cannot start without this runtime.
     ///
-    /// Detection: Registry HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App,
-    /// value "10.0.0" equals "10.0.0".
+    /// Detection: enumerates the version-named subdirectories under
+    /// <c>&lt;dotnet-root&gt;\shared\Microsoft.WindowsDesktop.App</c> for one at or above 10.0.0.
+    /// NOT registry-based: <c>HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\...</c> is
+    /// absent on machines with an otherwise fully working, non-MSI .NET install (verified on a real
+    /// machine with the 10.0.8/10.0.10 Desktop Runtime installed and that registry subtree entirely
+    /// missing), so no registry shape can be relied on for this check. See
+    /// <see cref="SearchConditionType.SharedFrameworkVersion"/> for the full detection contract.
     ///
     /// Returns a <c>(string SourcePath, Action&lt;PreUIPackageBuilder&gt; Configure)</c> tuple
     /// for direct use with <c>BundleBuilder.PreUIPrerequisite(sourcePath, configure)</c>.
@@ -135,11 +140,6 @@ public static class BuiltInPrerequisites
             .Id("DotNet10Desktop")
             .DisplayName(".NET 10 Desktop Runtime (x64)")
             .Arguments("/quiet /norestart")
-            .SearchCondition(sc => sc.RegistryValue(
-                RegistryRoot.LocalMachine,
-                @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App",
-                "10.0.0",
-                "=",
-                "10.0.0")));
+            .SearchCondition(sc => sc.SharedFrameworkVersion("Microsoft.WindowsDesktop.App", "10.0.0")));
     }
 }

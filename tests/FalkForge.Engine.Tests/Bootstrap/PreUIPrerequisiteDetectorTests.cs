@@ -17,7 +17,10 @@ public sealed class PreUIPrerequisiteDetectorTests
     // Helpers
     // ──────────────────────────────────────────────────────────────────────────
 
-    private static PreUIPackageInfo BuildRegistryPrereq(string id = "DotNet10Desktop") =>
+    // Mirrors BuiltInPrerequisites.DotNet10DesktopAsPreUI's actual emitted condition shape (see
+    // BuiltInPrerequisitesTests in FalkForge.Compiler.Bundle.Tests for the production-method coverage
+    // this project cannot reach directly — Engine.Tests has no reference to Compiler.Bundle).
+    private static PreUIPackageInfo BuildDotNetDesktopPrereq(string id = "DotNet10Desktop") =>
         new()
         {
             Id = id,
@@ -29,10 +32,9 @@ public sealed class PreUIPrerequisiteDetectorTests
             [
                 new SearchCondition
                 {
-                    Type = SearchConditionType.RegistryValue,
-                    Path = @"HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App",
-                    Value = "10.0.0",
-                    Comparison = ">=:10.0.0"
+                    Type = SearchConditionType.SharedFrameworkVersion,
+                    Path = "Microsoft.WindowsDesktop.App",
+                    Value = "10.0.0"
                 }
             ]
         };
@@ -42,34 +44,37 @@ public sealed class PreUIPrerequisiteDetectorTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void DetectsMissing_WhenRegistryAbsent()
+    public void DetectsMissing_WhenSharedFrameworkDirectoryAbsent()
     {
-        // Arrange — registry has no .NET 10 key at all
+        // Arrange — no DOTNET_ROOT, no sharedhost registry value, no shared-framework directory: the
+        // resolved dotnet root cannot be determined at all, exactly like a machine with neither
+        // environment variable nor registry override set.
         var registry = new MockRegistry();
         var fs = new MockFileSystemProvider();
         var detector = new PreUIPrerequisiteDetector(registry, fs);
-        var prereq = BuildRegistryPrereq();
+        var prereq = BuildDotNetDesktopPrereq();
 
         // Act
         var missing = detector.FindMissing([prereq]);
 
-        // Assert — prereq must appear in missing list because registry key absent
+        // Assert — prereq must appear in missing list because no matching version directory was found
         Assert.Contains(missing, p => p.Id == prereq.Id);
     }
 
     [Fact]
-    public void DetectsInstalled_WhenRegistryPresent()
+    public void DetectsInstalled_WhenSharedFrameworkDirectoryPresent()
     {
-        // Arrange — registry has matching version value
-        var registry = new MockRegistry()
-            .SetStringValue(
-                RegistryRoot.LocalMachine,
-                @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App",
-                "10.0.0",
-                "10.0.0");
-        var fs = new MockFileSystemProvider();
-        var detector = new PreUIPrerequisiteDetector(registry, fs);
-        var prereq = BuildRegistryPrereq();
+        // Arrange — the real on-disk shape: a version-named subdirectory under
+        // <dotnet-root>\shared\Microsoft.WindowsDesktop.App, NOT a registry value. This is what
+        // "matches what actually exists on disk" (see docs/release-notes/v0.5.0-beta.7.md) means —
+        // the prior version of this test mocked a registry value name+data pair that no real machine
+        // has ever produced.
+        var registry = new MockRegistry();
+        var fs = new MockFileSystemProvider()
+            .WithDirectory(@"C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\10.0.10");
+        var environment = new MockEnvironment().SetVariable("DOTNET_ROOT", @"C:\Program Files\dotnet");
+        var detector = new PreUIPrerequisiteDetector(registry, fs, environment);
+        var prereq = BuildDotNetDesktopPrereq();
 
         // Act
         var missing = detector.FindMissing([prereq]);
@@ -121,16 +126,14 @@ public sealed class PreUIPrerequisiteDetectorTests
     [Fact]
     public void FindMissing_AllConditionsMustPass_ForInstalled()
     {
-        // Two conditions: registry key present BUT file condition fails.
+        // Two conditions: shared-framework directory present BUT file condition fails.
         // Prereq must be reported as missing because not ALL conditions pass.
-        var registry = new MockRegistry()
-            .SetStringValue(
-                RegistryRoot.LocalMachine,
-                @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App",
-                "10.0.0",
-                "10.0.0");
-        var fs = new MockFileSystemProvider(); // no file added → FileExists will return false
-        var detector = new PreUIPrerequisiteDetector(registry, fs);
+        var registry = new MockRegistry();
+        var fs = new MockFileSystemProvider()
+            .WithDirectory(@"C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\10.0.10");
+            // no file added → FileExists will return false
+        var environment = new MockEnvironment().SetVariable("DOTNET_ROOT", @"C:\Program Files\dotnet");
+        var detector = new PreUIPrerequisiteDetector(registry, fs, environment);
 
         var prereq = new PreUIPackageInfo
         {
@@ -143,10 +146,9 @@ public sealed class PreUIPrerequisiteDetectorTests
             [
                 new SearchCondition
                 {
-                    Type = SearchConditionType.RegistryValue,
-                    Path = @"HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App",
-                    Value = "10.0.0",
-                    Comparison = ">=:10.0.0"
+                    Type = SearchConditionType.SharedFrameworkVersion,
+                    Path = "Microsoft.WindowsDesktop.App",
+                    Value = "10.0.0"
                 },
                 new SearchCondition
                 {

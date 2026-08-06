@@ -23,6 +23,29 @@ internal sealed class WindowsFileSystemProvider : IFileSystemProvider
     public bool DirectoryExists(string path) => Directory.Exists(path);
 
     /// <inheritdoc/>
+    public IReadOnlyList<string> GetDirectories(string path)
+    {
+        if (!Directory.Exists(path))
+            return [];
+
+        try
+        {
+            return Directory.GetDirectories(path);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            // Directory.Exists only needs traverse + read-attributes on the parent -- a directory
+            // whose ACL denies list access (a hardened enterprise image is a real example) still
+            // passes that check above and then throws UnauthorizedAccessException here. A directory
+            // removed between the Exists check and this call throws DirectoryNotFoundException,
+            // a subtype of IOException. Both degrade to the same empty result the "missing
+            // directory" branch above already returns, matching this interface's never-throw
+            // contract and the WindowsRegistry.TryKeyExists precedent for ACL-denied reads.
+            return [];
+        }
+    }
+
+    /// <inheritdoc/>
     public Version? GetFileVersion(string path)
     {
         try

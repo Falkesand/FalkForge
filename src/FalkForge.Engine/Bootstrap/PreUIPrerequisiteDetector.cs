@@ -22,9 +22,16 @@ public sealed class PreUIPrerequisiteDetector
     /// </summary>
     /// <param name="registry">Registry abstraction for registry-based conditions.</param>
     /// <param name="fileSystemProvider">File system abstraction for file/directory conditions.</param>
-    public PreUIPrerequisiteDetector(IRegistry registry, IFileSystemProvider fileSystemProvider)
+    /// <param name="environment">
+    /// Environment abstraction consulted by <see cref="SearchConditionType.SharedFrameworkVersion"/>
+    /// conditions (e.g. <c>BuiltInPrerequisites.DotNet10DesktopAsPreUI</c>) to resolve the
+    /// <c>DOTNET_ROOT</c> environment variable and the default <c>%ProgramFiles%\dotnet</c> location.
+    /// Optional: every other condition type ignores it, so a caller with no
+    /// <see cref="IEnvironment"/> available can omit it.
+    /// </param>
+    public PreUIPrerequisiteDetector(IRegistry registry, IFileSystemProvider fileSystemProvider, IEnvironment? environment = null)
     {
-        _evaluator = new SearchConditionEvaluator(fileSystemProvider, registry);
+        _evaluator = new SearchConditionEvaluator(fileSystemProvider, registry, environment);
     }
 
     /// <summary>

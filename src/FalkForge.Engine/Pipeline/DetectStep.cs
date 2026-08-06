@@ -86,8 +86,10 @@ internal sealed class DetectStep : IDetectStep
             // two-arg PackageDetector constructor, which is what actually builds a SearchConditionEvaluator
             // and makes SearchOnly/Combined package detection (and its RegistryValue search conditions,
             // e.g. the NetFx472/VCRedist14x64 built-ins) reachable. The one-arg overload below left
-            // _searchEvaluator permanently null.
-            var detector = new PackageDetector(_registry, _fileSystem);
+            // _searchEvaluator permanently null. _platform?.Environment threads IEnvironment through so a
+            // SharedFrameworkVersion condition (e.g. DotNet10DesktopAsPreUI) can resolve DOTNET_ROOT /
+            // %ProgramFiles% on this path too, not only on PreUIPrerequisiteDetector's.
+            var detector = new PackageDetector(_registry, _fileSystem, _platform?.Environment);
             var detection = detector.Detect(_manifest);
             ctx.Detection = detection;
 

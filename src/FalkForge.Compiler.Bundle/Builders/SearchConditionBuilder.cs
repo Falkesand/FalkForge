@@ -58,6 +58,26 @@ public sealed class SearchConditionBuilder
         return this;
     }
 
+    /// <summary>
+    /// Detects an installed .NET shared framework (e.g. <c>Microsoft.WindowsDesktop.App</c>,
+    /// <c>Microsoft.NETCore.App</c>, <c>Microsoft.AspNetCore.App</c>) at or above
+    /// <paramref name="minimumVersion"/> by enumerating the version-named subdirectories under
+    /// <c>&lt;dotnet-root&gt;\shared\&lt;frameworkName&gt;</c> on the target machine. The installation
+    /// root is resolved at evaluation time (<c>DOTNET_ROOT</c>, then the registry, then the default
+    /// location) -- not baked into the built condition -- so this does not take a path. A prerelease
+    /// directory (e.g. <c>11.0.0-preview.6.26359.118</c>) never satisfies the condition.
+    /// See <see cref="SearchConditionType.SharedFrameworkVersion"/> for why this replaces
+    /// registry-based detection for this scenario.
+    /// </summary>
+    public SearchConditionBuilder SharedFrameworkVersion(string frameworkName, string minimumVersion)
+    {
+        _type = SearchConditionType.SharedFrameworkVersion;
+        _path = frameworkName;
+        _value = minimumVersion;
+        _comparison = null;
+        return this;
+    }
+
     internal SearchCondition Build() => new()
     {
         Type = _type,

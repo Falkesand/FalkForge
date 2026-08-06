@@ -4985,6 +4985,7 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>DirectoryExists(string path)</code></td><td><code>SearchConditionBuilder</code></td><td>Detects presence of a directory.</td></tr>
       <tr><td><code>RegistryExists(RegistryRoot, string key, string? valueName)</code></td><td><code>SearchConditionBuilder</code></td><td>Detects presence of a registry key or value, regardless of the value's registry type (REG_SZ, REG_DWORD, ...). Used for prerequisite detection.</td></tr>
       <tr><td><code>RegistryValue(RegistryRoot, string key, string valueName, string comparison, string expected)</code></td><td><code>SearchConditionBuilder</code></td><td>Compares a registry value against an expected value. Supports version comparisons (e.g., <code>"&gt;="</code>, <code>"="</code>).</td></tr>
+      <tr><td><code>SharedFrameworkVersion(string frameworkName, string minimumVersion)</code></td><td><code>SearchConditionBuilder</code></td><td>Detects an installed .NET shared framework (e.g. <code>"Microsoft.WindowsDesktop.App"</code>) at or above <code>minimumVersion</code> by enumerating version-named subdirectories under <code>&lt;dotnet-root&gt;\shared\&lt;frameworkName&gt;</code> on the target machine. Not registry-based -- see the note below.</td></tr>
     </tbody>
   </table>
   <div class="note">
@@ -5024,6 +5025,31 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
     built-in prerequisite currently authors a threshold in that range, but a custom
     <code>RegistryValue()</code> condition against a value that can reach it should not use
     <code>&lt;</code>/<code>&lt;=</code>.
+  </div>
+  <div class="note">
+    <strong><code>SharedFrameworkVersion()</code> deliberately does not use the registry.</strong>
+    <code>HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\...</code> -- the registry subtree a
+    naive .NET runtime check would reach for -- can be entirely absent on a machine with an otherwise
+    fully working, non-MSI .NET install; a version that IS installed there also appears as a <em>value
+    name</em>, not as value data, so an equality check against the data can never match regardless of
+    key presence. <code>SharedFrameworkVersion()</code> instead enumerates the version-named
+    subdirectories under <code>&lt;dotnet-root&gt;\shared\&lt;frameworkName&gt;</code> -- the same
+    layout the <code>dotnet</code> host itself resolves against, and Microsoft's own documented
+    detection guidance. The <code>dotnet</code> root is resolved on the target machine at evaluation
+    time, in order: the <code>DOTNET_ROOT</code> environment variable; then
+    <code>HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedhost</code>'s <code>Path</code> value
+    (present even where <code>sharedfx</code> is absent); then the default
+    <code>%ProgramFiles%\dotnet</code>. If none resolve, the condition reports "not satisfied" rather
+    than throwing.
+  </div>
+  <div class="note">
+    <strong>A prerelease shared-framework directory never satisfies
+    <code>SharedFrameworkVersion()</code>, even at a higher major version.</strong> A directory name
+    carrying a prerelease/build-metadata suffix (e.g. <code>11.0.0-preview.6.26359.118</code>) is
+    skipped outright: a preview build is not a safe substitute for a required stable runtime -- it
+    carries no compatibility guarantee and can be uninstalled or replaced without notice. A directory
+    name that fails to parse as a version at all (a stray file, an unrelated folder) is likewise
+    skipped, not treated as an error.
   </div>
 
   <!-- 9.3b PackageGroupBuilder -->
@@ -5072,6 +5098,7 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>BuiltInPrerequisites.VCRedist14x64()</code></td><td><code>PackageGroupModel</code></td><td>Visual C++ 2015-2022 Redistributable (x64). Detection: <code>HKLM\...\VC\Runtimes\x64</code>, Installed = 1. Silent: <code>/install /quiet /norestart</code>.</td></tr>
       <tr><td><code>BuiltInPrerequisites.OdbcDriver17()</code></td><td><code>PackageGroupModel</code></td><td>Microsoft ODBC Driver 17 for SQL Server. Detection: <code>HKLM\...\ODBCINST.INI\ODBC Driver 17</code>. Silent MSI install.</td></tr>
       <tr><td><code>BuiltInPrerequisites.SqlExpress2017()</code></td><td><code>PackageGroupModel</code></td><td>SQL Server 2017 Express. Detection: <code>HKLM\...\Instance Names\SQL\SQLEXPRESS</code>. Silent: <code>/QUIET</code>.</td></tr>
+      <tr><td><code>BuiltInPrerequisites.DotNet10DesktopAsPreUI(string sourcePath = "")</code></td><td><code>(string SourcePath, Action&lt;PreUIPackageBuilder&gt; Configure)</code></td><td>.NET 10 Desktop Runtime (x64) as a <strong>pre-UI</strong> prerequisite, installed by the NativeAOT engine before the managed WPF UI process is spawned. Detection: <code>SharedFrameworkVersion("Microsoft.WindowsDesktop.App", "10.0.0")</code>, not registry-based. Silent: <code>/quiet /norestart</code>. Returns a tuple for <code>BundleBuilder.PreUIPrerequisite(sourcePath, configure)</code>, not a <code>PackageGroupModel</code>.</td></tr>
     </tbody>
   </table>
 
