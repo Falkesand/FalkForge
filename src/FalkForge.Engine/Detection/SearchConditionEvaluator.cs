@@ -3,8 +3,19 @@ namespace FalkForge.Engine.Detection;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Platform;
 
-public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem, IRegistry? registry = null)
+public sealed class SearchConditionEvaluator(
+    IFileSystemProvider fileSystem, IRegistry? registry = null, IEnvironment? environment = null)
 {
+    /// <summary>
+    /// Registry key holding the <c>dotnet</c> install root as its <c>Path</c> value. Present on this
+    /// author's dev machine even where the corresponding <c>sharedfx</c> subtree is entirely absent --
+    /// see <see cref="SearchConditionType.SharedFrameworkVersion"/> -- so it is a reliable fallback for
+    /// locating the shared-framework directory even though it cannot itself express "which shared
+    /// frameworks are installed." x64-only, matching every other x64-hardcoded path this evaluator and
+    /// <c>BuiltInPrerequisites</c> already use.
+    /// </summary>
+    private const string SharedHostRegistryKey = @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedhost";
+
     public Result<bool> Evaluate(SearchCondition condition)
     {
         return condition.Type switch
@@ -13,6 +24,7 @@ public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem, IRe
             SearchConditionType.FileVersion => EvaluateFileVersion(condition),
             SearchConditionType.DirectoryExists => fileSystem.DirectoryExists(condition.Path),
             SearchConditionType.RegistryValue => EvaluateRegistryValue(condition),
+            SearchConditionType.SharedFrameworkVersion => EvaluateSharedFrameworkVersion(condition),
             _ => Result<bool>.Failure(ErrorKind.DetectionError, $"Unsupported search condition type: {condition.Type}")
         };
     }
@@ -189,5 +201,100 @@ public sealed class SearchConditionEvaluator(IFileSystemProvider fileSystem, IRe
             "<>" => actualDword != expectedDword,
             _ => Result<bool>.Failure(ErrorKind.DetectionError, $"Unknown comparison operator: {op}")
         };
+    }
+
+    /// <summary>
+    /// Evaluates a <see cref="SearchConditionType.SharedFrameworkVersion"/> condition: true when the
+    /// <c>&lt;dotnet-root&gt;\shared\&lt;condition.Path&gt;</c> directory contains at least one
+    /// version-named subdirectory whose parsed version is &gt;= <c>condition.Value</c>. See the enum
+    /// member's xmldoc for why this reads the filesystem instead of the registry.
+    /// </summary>
+    private Result<bool> EvaluateSharedFrameworkVersion(SearchCondition condition)
+    {
+        if (condition.Value is null || !Version.TryParse(condition.Value, out var minimumVersion))
+            return Result<bool>.Failure(ErrorKind.DetectionError, $"Invalid minimum version: {condition.Value}");
+
+        var dotNetRoot = ResolveDotNetRoot();
+        if (dotNetRoot is null)
+            return false; // no candidate root at all -- not a read error, just nothing to look under
+
+        var sharedFxDirectory = Path.Combine(dotNetRoot, "shared", condition.Path);
+
+        IReadOnlyList<string> versionDirectories;
+        try
+        {
+            versionDirectories = fileSystem.GetDirectories(sharedFxDirectory);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+        {
+            // fileSystem.GetDirectories is contractually never supposed to throw for a read
+            // problem (see IFileSystemProvider.GetDirectories's xmldoc) -- but this pre-UI probe
+            // runs before any dialog exists to report a crash, so a provider that throws anyway
+            // (an ACL-denied shared-framework directory, a TOCTOU race) must degrade instead of
+            // escaping uncaught. Same outcome as the "no version directories found" branch below.
+            versionDirectories = [];
+        }
+
+        foreach (var versionDirectory in versionDirectories)
+        {
+            var versionName = Path.GetFileName(versionDirectory);
+
+            // A prerelease/build-metadata suffix (e.g. "11.0.0-preview.6.26359.118") never satisfies
+            // the condition, regardless of its numeric value -- a preview build of a HIGHER major is
+            // still not a safe substitute for a required STABLE runtime (it can be uninstalled or
+            // replaced without notice, and carries no compatibility guarantee). Skipping on the raw
+            // dash also sidesteps Version.TryParse, which rejects the suffixed string outright.
+            if (versionName.Contains('-', StringComparison.Ordinal))
+                continue;
+
+            // An unparsable directory name (stray file, unrelated folder) is skipped, not a failure --
+            // enumerating a real shared-framework directory must tolerate junk entries.
+            if (!Version.TryParse(versionName, out var installedVersion))
+                continue;
+
+            if (installedVersion >= minimumVersion)
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Resolves the <c>dotnet</c> installation root to search under, trying each candidate in order
+    /// and falling through on a miss (never on an error the environment surfaces as null/failure) so a
+    /// single unreadable source degrades to the next candidate instead of the whole condition:
+    /// <list type="number">
+    ///   <item><description><c>DOTNET_ROOT</c> environment variable -- the official override for a
+    ///   non-default install location, and what the <c>dotnet</c> host itself honors first.</description></item>
+    ///   <item><description><c>HKLM\...\sharedhost</c>'s <c>Path</c> value -- present on a real machine
+    ///   even when the <c>sharedfx</c> subtree used by the old (removed) detection is entirely absent;
+    ///   see this class's <c>SharedHostRegistryKey</c> constant.</description></item>
+    ///   <item><description>The default install location, <c>%ProgramFiles%\dotnet</c>, resolved via
+    ///   <see cref="IEnvironment.GetFolderPath"/> rather than a hardcoded drive letter.</description></item>
+    /// </list>
+    /// Returns <see langword="null"/> when none of the above can be determined (no <paramref
+    /// name="environment"/> injected and no usable registry value) -- the caller treats that the same
+    /// as "directory not found," never as a thrown exception.
+    /// </summary>
+    private string? ResolveDotNetRoot()
+    {
+        var fromEnvironmentVariable = environment?.GetEnvironmentVariable("DOTNET_ROOT");
+        if (!string.IsNullOrWhiteSpace(fromEnvironmentVariable))
+            return fromEnvironmentVariable;
+
+        // GetValueOrDefault() folds both "value absent" and "read failed (e.g. access denied)" into
+        // null -- deliberately: this is one of three fallback candidates, not the final answer, so an
+        // unreadable sharedhost key should fall through to the ProgramFiles default rather than fail
+        // the whole condition the way an ACL-denied read fails closed elsewhere in this evaluator.
+        var fromSharedHostRegistry = registry?
+            .TryGetStringValue(RegistryRoot.LocalMachine, SharedHostRegistryKey, "Path")
+            .GetValueOrDefault();
+        if (!string.IsNullOrWhiteSpace(fromSharedHostRegistry))
+            return fromSharedHostRegistry.TrimEnd('\\');
+
+        if (environment is not null)
+            return Path.Combine(environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet");
+
+        return null;
     }
 }

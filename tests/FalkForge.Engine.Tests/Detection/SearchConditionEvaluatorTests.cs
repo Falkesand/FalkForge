@@ -602,6 +602,295 @@ public sealed class SearchConditionEvaluatorTests
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // SharedFrameworkVersion — folder-enumeration detection for .NET shared frameworks.
+    // Replaces the old (buggy) RegistryValue-based check for BuiltInPrerequisites.DotNet10DesktopAsPreUI;
+    // see SearchConditionType.SharedFrameworkVersion's xmldoc and docs/release-notes/v0.5.0-beta.7.md.
+    // ──────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void SharedFrameworkVersion_DirectoryAtMinimum_ReturnsTrue()
+    {
+        var fs = new MockFileSystemProvider()
+            .WithDirectory(@"C:\dotnet\shared\Microsoft.WindowsDesktop.App\10.0.0");
+        var environment = new MockEnvironment().SetVariable("DOTNET_ROOT", @"C:\dotnet");
+        var evaluator = new SearchConditionEvaluator(fs, environment: environment);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.SharedFrameworkVersion,
+            Path = "Microsoft.WindowsDesktop.App",
+            Value = "10.0.0"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void SharedFrameworkVersion_DirectoryAboveMinimum_ReturnsTrue()
+    {
+        // Real on-disk shape from the machine this fix was verified against: 10.0.10 present, 10.0.0
+        // required.
+        var fs = new MockFileSystemProvider()
+            .WithDirectory(@"C:\dotnet\shared\Microsoft.WindowsDesktop.App\10.0.10");
+        var environment = new MockEnvironment().SetVariable("DOTNET_ROOT", @"C:\dotnet");
+        var evaluator = new SearchConditionEvaluator(fs, environment: environment);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.SharedFrameworkVersion,
+            Path = "Microsoft.WindowsDesktop.App",
+            Value = "10.0.0"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void SharedFrameworkVersion_OnlyOlderDirectoriesPresent_ReturnsFalse()
+    {
+        // Real on-disk shape: 9.0.17 and 8.0.29 present, but the required 10.0.0 is not.
+        var fs = new MockFileSystemProvider()
+            .WithDirectory(@"C:\dotnet\shared\Microsoft.WindowsDesktop.App\9.0.17")
+            .WithDirectory(@"C:\dotnet\shared\Microsoft.WindowsDesktop.App\8.0.29");
+        var environment = new MockEnvironment().SetVariable("DOTNET_ROOT", @"C:\dotnet");
+        var evaluator = new SearchConditionEvaluator(fs, environment: environment);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.SharedFrameworkVersion,
+            Path = "Microsoft.WindowsDesktop.App",
+            Value = "10.0.0"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void SharedFrameworkVersion_NoSharedFxDirectory_ReturnsFalseWithoutThrowing()
+    {
+        var fs = new MockFileSystemProvider(); // dotnet root resolves, but shared\... does not exist
+        var environment = new MockEnvironment().SetVariable("DOTNET_ROOT", @"C:\dotnet");
+        var evaluator = new SearchConditionEvaluator(fs, environment: environment);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.SharedFrameworkVersion,
+            Path = "Microsoft.WindowsDesktop.App",
+            Value = "10.0.0"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void SharedFrameworkVersion_GetDirectoriesThrowsUnauthorizedAccess_ReturnsFalseWithoutThrowing()
+    {
+        // Real trap: Directory.Exists only needs traverse + read-attributes on the parent, so a
+        // hardened enterprise image that denies list access on the shared-framework directory
+        // still passes an existence check and then throws UnauthorizedAccessException on
+        // enumeration. A provider that (mis)behaves this way must not crash this pre-UI probe --
+        // the caller degrades to the same "no version directories found" outcome as the
+        // already-covered NoSharedFxDirectory case, not an escaped exception.
+        var fs = new MockFileSystemProvider()
+            .WithThrowingDirectory(
+                @"C:\dotnet\shared\Microsoft.WindowsDesktop.App",
+                new UnauthorizedAccessException("Access to the path is denied."));
+        var environment = new MockEnvironment().SetVariable("DOTNET_ROOT", @"C:\dotnet");
+        var evaluator = new SearchConditionEvaluator(fs, environment: environment);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.SharedFrameworkVersion,
+            Path = "Microsoft.WindowsDesktop.App",
+            Value = "10.0.0"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void SharedFrameworkVersion_PrereleaseDirectoryOfHigherMajor_NeverSatisfies()
+    {
+        // Real on-disk shape: 11.0.0-preview.6.26359.118 is numerically a higher major than the
+        // required 10.0.0, but a preview build is not a safe substitute for a required stable
+        // runtime -- it must never count, by design (see SearchConditionType.SharedFrameworkVersion).
+        var fs = new MockFileSystemProvider()
+            .WithDirectory(@"C:\dotnet\shared\Microsoft.WindowsDesktop.App\11.0.0-preview.6.26359.118");
+        var environment = new MockEnvironment().SetVariable("DOTNET_ROOT", @"C:\dotnet");
+        var evaluator = new SearchConditionEvaluator(fs, environment: environment);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.SharedFrameworkVersion,
+            Path = "Microsoft.WindowsDesktop.App",
+            Value = "10.0.0"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
+    [Fact]
+    public void SharedFrameworkVersion_UnparsableDirectoryName_IsSkippedNotCrashed()
+    {
+        var fs = new MockFileSystemProvider()
+            .WithDirectory(@"C:\dotnet\shared\Microsoft.WindowsDesktop.App\not-a-version")
+            .WithDirectory(@"C:\dotnet\shared\Microsoft.WindowsDesktop.App\10.0.10");
+        var environment = new MockEnvironment().SetVariable("DOTNET_ROOT", @"C:\dotnet");
+        var evaluator = new SearchConditionEvaluator(fs, environment: environment);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.SharedFrameworkVersion,
+            Path = "Microsoft.WindowsDesktop.App",
+            Value = "10.0.0"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void SharedFrameworkVersion_InvalidMinimumVersion_ReturnsFailure()
+    {
+        var fs = new MockFileSystemProvider();
+        var environment = new MockEnvironment().SetVariable("DOTNET_ROOT", @"C:\dotnet");
+        var evaluator = new SearchConditionEvaluator(fs, environment: environment);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.SharedFrameworkVersion,
+            Path = "Microsoft.WindowsDesktop.App",
+            Value = "not-a-version"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.DetectionError, result.Error.Kind);
+    }
+
+    [Fact]
+    public void SharedFrameworkVersion_RootResolution_PrefersDotNetRootEnvVarOverRegistry()
+    {
+        // Both DOTNET_ROOT and the sharedhost registry Path resolve to DIFFERENT roots; the target
+        // directory only exists under the env-var root, proving the env var is tried first.
+        var fs = new MockFileSystemProvider()
+            .WithDirectory(@"C:\from-env\shared\Microsoft.WindowsDesktop.App\10.0.0");
+        var registry = new MockRegistry()
+            .SetStringValue(
+                RegistryRoot.LocalMachine,
+                @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedhost",
+                "Path",
+                @"C:\from-registry\");
+        var environment = new MockEnvironment().SetVariable("DOTNET_ROOT", @"C:\from-env");
+        var evaluator = new SearchConditionEvaluator(fs, registry, environment);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.SharedFrameworkVersion,
+            Path = "Microsoft.WindowsDesktop.App",
+            Value = "10.0.0"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void SharedFrameworkVersion_RootResolution_FallsBackToSharedHostRegistry()
+    {
+        // No DOTNET_ROOT set; the sharedhost registry key's Path value is the only viable root --
+        // mirrors this fix's own dev machine, where that key exists even though sharedfx does not.
+        var fs = new MockFileSystemProvider()
+            .WithDirectory(@"C:\from-registry\shared\Microsoft.WindowsDesktop.App\10.0.0");
+        var registry = new MockRegistry()
+            .SetStringValue(
+                RegistryRoot.LocalMachine,
+                @"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedhost",
+                "Path",
+                @"C:\from-registry\");
+        var evaluator = new SearchConditionEvaluator(fs, registry);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.SharedFrameworkVersion,
+            Path = "Microsoft.WindowsDesktop.App",
+            Value = "10.0.0"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void SharedFrameworkVersion_RootResolution_FallsBackToProgramFilesDefault()
+    {
+        // No DOTNET_ROOT, no registry at all -- only the %ProgramFiles% default remains.
+        var fs = new MockFileSystemProvider()
+            .WithDirectory(@"C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\10.0.0");
+        var environment = new MockEnvironment()
+            .SetFolderPath(Environment.SpecialFolder.ProgramFiles, @"C:\Program Files");
+        var evaluator = new SearchConditionEvaluator(fs, environment: environment);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.SharedFrameworkVersion,
+            Path = "Microsoft.WindowsDesktop.App",
+            Value = "10.0.0"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value);
+    }
+
+    [Fact]
+    public void SharedFrameworkVersion_RootUnresolvable_ReturnsFalseWithoutThrowing()
+    {
+        // No environment, no registry, no fallback available at all -- degrades to "not installed"
+        // instead of throwing.
+        var fs = new MockFileSystemProvider();
+        var evaluator = new SearchConditionEvaluator(fs);
+
+        var condition = new SearchCondition
+        {
+            Type = SearchConditionType.SharedFrameworkVersion,
+            Path = "Microsoft.WindowsDesktop.App",
+            Value = "10.0.0"
+        };
+
+        var result = evaluator.Evaluate(condition);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value);
+    }
+
     [Fact]
     public void ProductSearch_UnsupportedType_ReturnsFailure()
     {

@@ -16,7 +16,7 @@ public sealed class PackageDetector
     {
     }
 
-    public PackageDetector(IRegistry registry, IFileSystemProvider? fileSystem)
+    public PackageDetector(IRegistry registry, IFileSystemProvider? fileSystem, IEnvironment? environment = null)
     {
         _registry = registry;
         _msiDetector = new MsiDetector(registry);
@@ -24,7 +24,10 @@ public sealed class PackageDetector
         // registry (not just fileSystem) must reach the evaluator: EvaluateRegistryValue short-circuits to
         // Failure("Registry provider not available") when its registry is null, so a RegistryValue search
         // condition (e.g. NetFx472's Release DWORD check) would silently never match without this.
-        _searchEvaluator = fileSystem is not null ? new SearchConditionEvaluator(fileSystem, registry) : null;
+        // environment is optional -- only SharedFrameworkVersion conditions consult it (DOTNET_ROOT /
+        // %ProgramFiles% fallback for BuiltInPrerequisites.DotNet10DesktopAsPreUI-shaped conditions); its
+        // absence still leaves the registry-sharedhost fallback path in SearchConditionEvaluator working.
+        _searchEvaluator = fileSystem is not null ? new SearchConditionEvaluator(fileSystem, registry, environment) : null;
     }
 
     public DetectionResult Detect(InstallerManifest manifest)
