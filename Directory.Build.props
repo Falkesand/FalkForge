@@ -29,6 +29,12 @@
         <LangVersion>latest</LangVersion>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+        <!-- Explicit NuGet audit posture, pinned so it cannot drift silently when the SDK
+             changes its own defaults. Checks every restore against known vulnerability
+             advisories for direct AND transitive packages, down to low severity. -->
+        <NuGetAudit>true</NuGetAudit>
+        <NuGetAuditMode>all</NuGetAuditMode>
+        <NuGetAuditLevel>low</NuGetAuditLevel>
 
         <!-- ============================================================================
              NuGet PACKAGE METADATA — shared by every packable project.
