@@ -32,7 +32,7 @@
          (wired for every test project in tests/Directory.Build.props). -->
     <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="1.9.1" />
     <!-- Container-backed end-to-end tests (Keyfactor SignServer pod); test-only, Docker/Podman-gated -->
-    <PackageVersion Include="Testcontainers" Version="4.6.0" />
+    <PackageVersion Include="Testcontainers" Version="4.14.0" />
     <!-- JSON Schema validator, used ONLY by FalkForge.Core.Tests to check emitted SPDX 2.3 against
          the official SPDX schema vendored under tests/FalkForge.Core.Tests/Assets. Test-only: it is
          never referenced by a src project, so it cannot reach the NativeAOT assemblies. -->
