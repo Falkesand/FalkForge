@@ -267,9 +267,18 @@ Found a bug, have a question, or want to request a feature? Open an issue at
 
 ## License
 
-[PolyForm Perimeter 1.0.0](https://github.com/Falkesand/FalkForge/blob/main/LICENSE.md) -- in plain words: use FalkForge freely to
-build, package, and ship installers for your own or your customers' software,
-commercially or not. The only thing you can't do is take FalkForge itself and offer
-it (or a derivative) as a competing installer/packaging/setup-authoring product.
+[Functional Source License 1.1 with an Apache 2.0 future license](https://github.com/Falkesand/FalkForge/blob/main/LICENSE.md)
+(`FSL-1.1-ALv2`, plus an Additional Grant, so no SPDX expression describes it exactly) -- in plain words: use FalkForge freely to build, package,
+and ship installers for your own or your customers' software, commercially or
+not. An Additional Grant in `LICENSE.md` permits that explicitly, including the
+engine that every bundle embeds. The only thing you can't do is offer FalkForge,
+or something with substantially similar functionality, as a competing installer,
+packaging, or setup-authoring product.
+
+Versions released under FSL convert to the Apache License 2.0 two years after
+they ship. Packages published before the relicense carry the previous PolyForm
+Perimeter terms and do not convert.
+
+FSL is source-available. It is not OSI-approved open source.
 
 Copyright Peter Falkesand.

@@ -44,8 +44,9 @@
         <PackageProjectUrl>https://github.com/Falkesand/FalkForge</PackageProjectUrl>
         <RepositoryUrl>https://github.com/Falkesand/FalkForge.git</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
-        <!-- PolyForm Perimeter 1.0.0 is not an SPDX/OSI expression, so the license file
-             itself is packed into every .nupkg (see the IsPackable ItemGroup below). -->
+        <!-- The licence is FSL-1.1-ALv2 plus an Additional Grant, so no SPDX expression
+             describes it exactly. The file itself is packed into every .nupkg (see the
+             IsPackable ItemGroup below) so the full text, grant included, always ships. -->
         <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageTags>installer;msi;msix;bundle;setup;deployment;windows;wix-alternative</PackageTags>
