@@ -1,94 +1,170 @@
 # FalkForge License
 
-FalkForge is licensed under the PolyForm Perimeter License 1.0.0, reproduced
-verbatim below.
+FalkForge is licensed under the Functional Source License, Version 1.1, ALv2
+Future License (SPDX identifier `FSL-1.1-ALv2`). The licence text is reproduced
+verbatim below, followed by an Additional Grant from the licensor.
 
-Required Notice: Copyright Peter Falkesand (https://github.com/Falkesand/FalkForge)
+Copyright 2026 Peter Falkesand (https://github.com/Falkesand/FalkForge)
 
-**Licensor:** Peter Falkesand.
+## What this means in practice
 
-**The software:** FalkForge — a framework and toolchain for authoring, compiling,
-and running Windows software installers (MSI, MSIX, MSM, MSP, MST, and EXE
-bundles), including its fluent C# API, compilers, runtime engine, UI framework,
-extensions, SDK, and the `forge` command-line tool.
+**The Software** is FalkForge: the fluent C# API, the MSI, MSIX, MSM, MSP, MST
+and bundle compilers, the runtime engine, the UI framework, the extensions, the
+SDK, and the `forge` command-line tool.
 
-**Scope of the Noncompete:** Under the Noncompete and Competition sections below,
-any purpose is permitted except providing to others a product that competes with
-FalkForge — that is, a software installer, packaging, or setup-authoring tool or
-framework marketed as a substitute for the functionality or value of FalkForge.
-Building, packaging, and distributing installers for your own or your customers'
-products with FalkForge is expressly a permitted purpose.
+**You may use FalkForge to build and ship installers for your own or your
+customers' software, commercially or not.** The Additional Grant at the end of
+this file permits that explicitly, as a term of the licence rather than as a
+summary.
+
+**You may not offer FalkForge, or a product with substantially similar
+functionality, as a commercial installer, packaging, or setup-authoring
+product.** The Competing Use definition below sets the exact test, and that test
+turns on functionality, not on how a product is marketed.
+
+**An EXE bundle produced by FalkForge embeds the compiled FalkForge bundle
+engine, and by default the elevation companion as well.** Shipping such a bundle
+redistributes part of the Software, so the Redistribution clause below applies:
+include a copy of these terms or a link to them, and leave the copyright notices
+in place. The Additional Grant permits the distribution itself.
+
+**Each version released under this licence converts to the Apache License,
+Version 2.0 on the second anniversary of its release.** Packages published
+before the relicense carry the previous terms and do not convert.
+
+This summary is not part of the licence, and where it and the terms below differ,
+the terms below govern. The Additional Grant at the end of this file is part of
+the licence.
 
 ---
 
-# PolyForm Perimeter License 1.0.0
+# Functional Source License, Version 1.1, ALv2 Future License
 
-<https://polyformproject.org/licenses/perimeter/1.0.0>
+## Abbreviation
 
-## Acceptance
+FSL-1.1-ALv2
 
-In order to get any license under these terms, you must agree to them as both strict obligations and conditions to all your licenses.
+## Notice
 
-## Copyright License
+Copyright 2026 Peter Falkesand
 
-The licensor grants you a copyright license for the software to do everything you might do with the software that would otherwise infringe the licensor's copyright in it for any permitted purpose.  However, you may only distribute the software according to [Distribution License](#distribution-license) and make changes or new works based on the software according to [Changes and New Works License](#changes-and-new-works-license).
+## Terms and Conditions
 
-## Distribution License
+### Licensor ("We")
 
-The licensor grants you an additional copyright license to distribute copies of the software.  Your license to distribute covers distributing the software with changes and new works permitted by [Changes and New Works License](#changes-and-new-works-license).
+The party offering the Software under these Terms and Conditions.
 
-## Notices
+### The Software
 
-You must ensure that anyone who gets a copy of any part of the software from you also gets a copy of these terms or the URL for them above, as well as copies of any plain-text lines beginning with `Required Notice:` that the licensor provided with the software.  For example:
+The "Software" is each version of the software that we make available under
+these Terms and Conditions, as indicated by our inclusion of these Terms and
+Conditions with the Software.
 
-> Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
+### License Grant
 
-## Changes and New Works License
+Subject to your compliance with this License Grant and the Patents,
+Redistribution and Trademark clauses below, we hereby grant you the right to
+use, copy, modify, create derivative works, publicly perform, publicly display
+and redistribute the Software for any Permitted Purpose identified below.
 
-The licensor grants you an additional copyright license to make changes and new works based on the software for any permitted purpose.
+### Permitted Purpose
 
-## Patent License
+A Permitted Purpose is any purpose other than a Competing Use. A Competing Use
+means making the Software available to others in a commercial product or
+service that:
 
-The licensor grants you a patent license for the software that covers patent claims the licensor can license, or becomes able to license, that you would infringe by using the software.
+1. substitutes for the Software;
 
-## Noncompete
+2. substitutes for any other product or service we offer using the Software
+   that exists as of the date we make the Software available; or
 
-Any purpose is a permitted purpose, except for providing to others any product that competes with the software.
+3. offers the same or substantially similar functionality as the Software.
 
-## Competition
+Permitted Purposes specifically include using the Software:
 
-If you use this software to market a product as a substitute for the functionality or value of the software, it competes with the software. A product may compete regardless how it is designed or deployed. For example, a product may compete even if it provides its functionality via any kind of interface (including services, libraries or plug-ins), even if it is ported to a different platforms or programming languages, and even if it is provided free of charge.
+1. for your internal use and access;
 
-## Fair Use
+2. for non-commercial education;
 
-You may have "fair use" rights for the software under the law. These terms do not limit them.
+3. for non-commercial research; and
 
-## No Other Rights
+4. in connection with professional services that you provide to a licensee
+   using the Software in accordance with these Terms and Conditions.
 
-These terms do not allow you to sublicense or transfer any of your licenses to anyone else, or prevent the licensor from granting licenses to anyone else.  These terms do not imply any other licenses.
+### Patents
 
-## Patent Defense
+To the extent your use for a Permitted Purpose would necessarily infringe our
+patents, the license grant above includes a license under our patents. If you
+make a claim against any party that the Software infringes or contributes to
+the infringement of any patent, then your patent license to the Software ends
+immediately.
 
-If you make any written claim that the software infringes or contributes to infringement of any patent, your patent license for the software granted under these terms ends immediately. If your company makes such a claim, your patent license ends immediately for work on behalf of your company.
+### Redistribution
 
-## Violations
+The Terms and Conditions apply to all copies, modifications and derivatives of
+the Software.
 
-The first time you are notified in writing that you have violated any of these terms, or done anything with the software not covered by your licenses, your licenses can nonetheless continue if you come into full compliance with these terms, and take practical steps to correct past violations, within 32 days of receiving notice.  Otherwise, all your licenses end immediately.
+If you redistribute any copies, modifications or derivatives of the Software,
+you must include a copy of or a link to these Terms and Conditions and not
+remove any copyright notices provided in or with the Software.
 
-## No Liability
+### Disclaimer
 
-***As far as the law allows, the software comes as is, without any warranty or condition, and the licensor will not be liable to you for any damages arising out of these terms or the use or nature of the software, under any kind of legal claim.***
+THE SOFTWARE IS PROVIDED "AS IS" AND WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING WITHOUT LIMITATION WARRANTIES OF FITNESS FOR A PARTICULAR
+PURPOSE, MERCHANTABILITY, TITLE OR NON-INFRINGEMENT.
 
-## Definitions
+IN NO EVENT WILL WE HAVE ANY LIABILITY TO YOU ARISING OUT OF OR RELATED TO THE
+SOFTWARE, INCLUDING INDIRECT, SPECIAL, INCIDENTAL OR CONSEQUENTIAL DAMAGES,
+EVEN IF WE HAVE BEEN INFORMED OF THEIR POSSIBILITY IN ADVANCE.
 
-The **licensor** is the individual or entity offering these terms, and the **software** is the software the licensor makes available under these terms.
+### Trademarks
 
-A **product** can be a good or service, or a combination of them.
+Except for displaying the License Details and identifying us as the origin of
+the Software, you have no right under these Terms and Conditions to use our
+trademarks, trade names, service marks or product names.
 
-**You** refers to the individual or entity agreeing to these terms.
+## Grant of Future License
 
-**Your company** is any legal entity, sole proprietorship, or other kind of organization that you work for, plus all organizations that have control over, are under the control of, or are under common control with that organization.  **Control** means ownership of substantially all the assets of an entity, or the power to direct its management and policies by vote, contract, or otherwise.  Control can be direct or indirect.
+We hereby irrevocably grant you an additional license to use the Software under
+the Apache License, Version 2.0 that is effective on the second anniversary of
+the date we make the Software available. On or after that date, you may use the
+Software under the Apache License, Version 2.0, in which case the following
+will apply:
 
-**Your licenses** are all the licenses granted to you for the software under these terms.
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License.
 
-**Use** means anything you do with the software requiring one of your licenses.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+---
+
+# Additional Grant from the Licensor
+
+This section is part of the licence. It grants permission in addition to the
+Functional Source License terms above. Where this Additional Grant and the
+Permitted Purpose or Competing Use definitions above differ, this Additional
+Grant governs.
+
+Distributing an installer produced by the Software is a Permitted Purpose. This
+includes the FalkForge bundle engine, the elevation companion, and any other part
+of the Software that the compilers embed in their output. This permission applies
+whether or not the installer is distributed commercially, whether or not the
+software that the installer installs is commercial, and whether or not the
+recipient is a licensee of the Software.
+
+The copy of these terms, or the link to them, that the Redistribution clause
+above requires means this file in full, including this Additional Grant.
+
+This permission does not allow offering the Software, or a product with the same
+or substantially similar functionality, to others as an installer, packaging, or
+setup-authoring product. This Additional Grant does not permit it.
+
+Copyright 2026 Peter Falkesand

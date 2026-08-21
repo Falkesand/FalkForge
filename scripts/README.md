@@ -24,11 +24,15 @@ deliberate, reviewed act.
 
 ## License and package metadata
 
-FalkForge ships under the **PolyForm Perimeter License 1.0.0** (`LICENSE.md` at the
-repo root — free for any use except providing a competing installer/packaging/
-setup-authoring product). PolyForm Perimeter is not an SPDX expression, so packages
-use `PackageLicenseFile` and `LICENSE.md` is packed into every `.nupkg`. Shared
-NuGet metadata (authors, URLs, tags, readme) lives in the root
+FalkForge ships under the **Functional Source License 1.1 with an Apache 2.0
+future license** (SPDX `FSL-1.1-ALv2`, `LICENSE.md` at the repo root — free for
+any use except offering a competing installer/packaging/setup-authoring product,
+and converting to Apache 2.0 two years after each release). An Additional Grant
+at the end of `LICENSE.md` explicitly permits distributing installers built with
+FalkForge, including the engine embedded in every bundle. The licence is `FSL-1.1-ALv2` plus that Additional Grant, so no SPDX expression
+describes it exactly. Packages therefore use `PackageLicenseFile` rather than
+`PackageLicenseExpression`, which packs the full text, grant included, into every
+`.nupkg`. Shared NuGet metadata (authors, URLs, tags, readme) lives in the root
 `Directory.Build.props`; packability is deny-by-default there and each shippable
 project opts in with `IsPackable=true`.
 
