@@ -75,8 +75,7 @@ public sealed class SignServerPodSigningE2ETests
         var (runtimeAvailable, reason) = await ContainerRuntime.TryEnsureConfiguredAsync();
         Assert.SkipUnless(runtimeAvailable, $"No Docker/Podman container runtime available: {reason}");
 
-        var container = new ContainerBuilder()
-            .WithImage("keyfactor/signserver-ce:latest")
+        var container = new ContainerBuilder("keyfactor/signserver-ce:latest")
             .WithPortBinding(SignServerHttpPort, assignRandomHostPort: true)
             // The SignServer web root answers 200 once WildFly has deployed the EAR. (The REST /workers
             // endpoint answers 403 without the X-Keyfactor-Requested-With header, which the default
@@ -334,8 +333,10 @@ public sealed class SignServerPodSigningE2ETests
         {
             try
             {
-                using var config = new DockerClientConfiguration(new Uri(dockerHost), defaultTimeout: ProbeTimeout);
-                using var client = config.CreateClient();
+                using var client = new DockerClientBuilder()
+                    .WithEndpoint(new Uri(dockerHost))
+                    .WithTimeout(ProbeTimeout)
+                    .Build();
                 using var cts = new CancellationTokenSource(ProbeTimeout);
                 var info = await client.System.GetSystemInfoAsync(cts.Token).ConfigureAwait(false);
 

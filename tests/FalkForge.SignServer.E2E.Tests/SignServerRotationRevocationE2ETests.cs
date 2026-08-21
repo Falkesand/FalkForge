@@ -252,8 +252,7 @@ public sealed class SignServerRotationRevocationE2ETests
     }
 
     private static IContainer BuildContainer() =>
-        new ContainerBuilder()
-            .WithImage("keyfactor/signserver-ce:latest")
+        new ContainerBuilder("keyfactor/signserver-ce:latest")
             .WithPortBinding(SignServerHttpPort, assignRandomHostPort: true)
             .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(request => request
                 .ForPort(SignServerHttpPort)
