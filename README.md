@@ -275,6 +275,11 @@ engine that every bundle embeds. The only thing you can't do is offer FalkForge,
 or something with substantially similar functionality, as a competing installer,
 packaging, or setup-authoring product.
 
+If you distribute installers built with FalkForge, the bundle embeds the engine, so add a
+third-party notices entry naming FalkForge and linking to `LICENSE.md`. Nothing needs to appear in
+your installer's UI. See the License section of the
+[documentation](https://falkesand.github.io/FalkForge/#license-redistributing).
+
 Versions released under FSL convert to the Apache License 2.0 two years after
 they ship. Packages published before the relicense carry the previous PolyForm
 Perimeter terms and do not convert.
