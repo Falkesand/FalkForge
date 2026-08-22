@@ -39,50 +39,95 @@ file run as SYSTEM — a time-of-check-to-time-of-use (TOCTOU) gap across a priv
 ## Decision
 
 The engine sends the manifest-declared SHA-256 hash across the elevation boundary alongside the
-path, and the elevated side re-verifies it independently before using the file:
+path, and the elevated side re-verifies it independently before using the file. Both crossings call
+one shared helper, `FalkForge.Engine.Protocol.Integrity.HashBoundFile.Open`
+(`src/FalkForge.Engine.Protocol/Integrity/HashBoundFile.cs`), rather than each carrying its own copy
+of open-hash-compare:
 
 - `MsiExecutor` writes `action.Package.Sha256Hash` as a third field in the `MsiInstall` payload
-  (`MsiExecutor.cs:178-184`).
-- `MsiInstallCommand.Execute` opens the file itself with `FileMode.Open, FileAccess.Read,
-  FileShare.Read`, hashes it with `IncrementalHash`, and compares against the sent hash with
-  `CryptographicOperations.FixedTimeEquals` before calling `MsiInstallProductW`
-  (`MsiInstallCommand.cs`, the `Execute` / `InstallLocked` split).
-- `PreUIPrerequisiteInstaller.OpenAndVerifyPayloadHash` does the same for each prerequisite
-  before `_runner.RunAsync` launches it (`PreUIPrerequisiteInstaller.cs`, added method).
+  (`MsiExecutor.cs:181-187`).
+- `MsiInstallCommand.Execute` calls `HashBoundFile.Open(msiPath, expectedHashHex)`, which opens the
+  file with `FileMode.Open, FileAccess.Read, FileShare.Read`, hashes it, and compares against the
+  sent hash with `CryptographicOperations.FixedTimeEquals` (`MsiInstallCommand.cs`, the `Execute` /
+  `InstallLocked` split).
+- `PreUIPrerequisiteInstaller.RunAllAsync` calls the same helper for each prerequisite before
+  `_runner.RunAsync` launches it (`PreUIPrerequisiteInstaller.cs`).
 
 In both cases the `FileStream` opened for hashing is not closed after the hash check. It is held
 open, with `FileShare.Read`, for the entire install call (`MsiInstallCommand`) or the entire child
 process run (`PreUIPrerequisiteInstaller`), and only disposed once that call returns. `FileShare.Read`
-denies every other process write, rename, and delete access to the file for as long as the handle
-is open.
+denies every other process write, rename, and delete access to the file object for as long as the
+handle is open.
 
-Holding the handle is not incidental to the fix — it is the fix. Hashing the file and then closing
-the handle before installing or launching it would still leave a window between the hash check and
-the use of the file. That window is smaller than the original one (cache-time hash to elevated use,
-versus elevated-open to elevated-use), but it is the same class of gap in a smaller box, not a
-closed one. Holding the handle across the entire operation removes the window rather than shrinking
-it: the bytes `MsiInstallProductW` reads, or the bytes the child process image is mapped from, are
-provably the same bytes that were just hashed, because no other process could have touched them in
-between.
+Holding the handle was not, on its own, enough, and this ADR originally claimed otherwise. A handle
+pins the file object it was opened against. It does not pin the reparse points in the path used to
+reach that object. The first version of this fix hashed the file through the held handle and then
+handed the elevated side the original caller-supplied path string, which `MsiInstallProductW` or
+`Process.Start` opens a second time. A same-user process needs no privilege to rename the cache
+directory, drop an NTFS junction of the same name in its place, and repoint that junction to an
+attacker-controlled directory while the hash check runs. Deleting a junction removes only the
+reparse point; it does not touch the file the held handle still points at. So the repoint succeeds
+while the handle is held, and the second open, through the same path string, lands on the
+attacker's file instead of the one that was just hashed. This was verified on this machine: a
+junction repointed while the handle was held, and re-opening the same path string afterwards
+returned the attacker's bytes. `HashBoundFileTests`, `MsiInstallCommandTests` and
+`PreUIPrerequisiteInstallerTests` now build this attack directly against a real NTFS junction
+(`tests/TestJunction.cs`) and assert both that the repoint succeeded and that the consumer still
+read the publisher's bytes.
+
+The fix is two bindings, not one:
+
+- **The handle binds the bytes.** Opening the file once with `FileShare.Read` and holding that
+  handle across the hash and the install/launch means no other process can write, rename, or
+  delete the file object while the handle is open. This part was already true before the round of
+  fixes described above.
+- **`GetFinalPathNameByHandle` binds the identity of the file the consumer opens.** After hashing,
+  `HashBoundFile.Open` calls `GetFinalPathNameByHandle` on the same handle and returns that
+  resolved path, with every reparse point already followed, instead of the caller-supplied string.
+  `MsiInstallCommand` and `PreUIPrerequisiteInstaller` pass the resolved path — not the original
+  one — to `MsiInstallProductW` and to the process runner. A junction repointed between the hash
+  and the install/launch no longer matters, because the second open never goes through the
+  junction again.
+
+Bytes without identity is what this branch shipped first, and a junction repoint defeated it.
 
 ### Rejected alternative: hardening the DACL on the cache directory
 
 Locking down the ACL on the MSI cache or the pre-UI extraction directory the way
 `TrustStateStore.EnsureSecuredDirectory` locks down `%ProgramData%\FalkForge\Trust`
-(`src/FalkForge.Engine.Protocol/Integrity/TrustStateStore.cs:314-352`) does not solve this problem,
-and the comparison to `TrustStateStore` does not transfer.
+(`src/FalkForge.Engine.Protocol/Integrity/TrustStateStore.cs:314-352`) is still rejected, but an
+earlier version of this section got the reason wrong. It claimed no DACL shape can keep a directory's
+own owner out, because the owner always holds implicit `WRITE_DAC`. That claim is false: Windows has
+carried the `OWNER RIGHTS` SID (`S-1-3-4`) since Vista specifically to override an owner's implicit
+`READ_CONTROL` and `WRITE_DAC`. Tested on this machine: as the owner of a directory carrying an
+`OWNER RIGHTS` allow-read ACE and no explicit grant to the owning account, a write into that
+directory failed with `UnauthorizedAccessException`, and rewriting its DACL failed with
+`PrivilegeNotHeldException`. A DACL using `OWNER RIGHTS` can keep a same-user owner out of a
+directory that user's own process created.
 
-`TrustStateStore`'s directory is created and hardened by the *elevated* companion
-(`EnsureSecuredDirectory` seizes ownership to `BUILTIN\Administrators`,
-`TrustStateStore.cs:319-323, 469-507`), so its owner is never the same-user attacker. The MSI cache
-and the pre-UI extraction directory are the opposite: both are created by the engine while it is
-still running unelevated, as the same account the attacker is assumed to control. A directory's
-owner holds `WRITE_DAC` on that directory regardless of what the DACL says
-(`TrustStateStore.IsAclConforming`'s own comment on this at `TrustStateStore.cs:430-433` states the
-same principle for the store it protects). An ACL cannot exclude its own owner. So even if the
-engine set a restrictive DACL on the cache directory at creation time, the same user who created it
-could rewrite that DACL and grant themselves write access back, because they own the object. There
-is no DACL shape that keeps a same-user attacker out of a directory that user's own process created.
+The reasons to reject this alternative still stand, on different grounds:
+
+- A DACL on the cache directory would not have stopped the attack that actually broke this branch.
+  The junction-repoint attack does not write into the target directory at all — it deletes the
+  reparse point and creates a new one next to it, an operation the parent directory's permissions
+  govern, not necessarily the target directory's own DACL. Hardening the leaf directory's DACL does
+  not, by itself, establish that the parent is equally hardened, and for the pre-UI extraction
+  directory in particular the parent is the user's own temp/profile tree, which that user already
+  controls regardless of any DACL FalkForge places on the leaf.
+- `TrustStateStore`'s directory is created and hardened by the *elevated* companion
+  (`EnsureSecuredDirectory` seizes ownership to `BUILTIN\Administrators`,
+  `TrustStateStore.cs:319-323, 469-507`), so its owner is never the same-user attacker. The MSI
+  cache and the pre-UI extraction directory are created by the engine while it is still running
+  unelevated, as the same account the attacker is assumed to control, so the comparison to
+  `TrustStateStore` does not transfer without first re-parenting the directory to an elevated owner
+  — which this branch does not do.
+- Even where an `OWNER RIGHTS` DACL would help, it is defense in depth on top of the actual fix, not
+  a replacement for it. The fix has to bind both the bytes and the identity of the file the
+  consumer opens; a directory ACL binds neither on its own.
+
+This does not close the door on `OWNER RIGHTS` DACL hardening for the cache directory. It is a
+possible future defense-in-depth measure the codebase does not use anywhere yet, not something
+this ADR has ruled out as impossible.
 
 ## Consequences that are not a full fix
 
