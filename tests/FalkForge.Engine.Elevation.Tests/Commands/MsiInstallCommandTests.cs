@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using FalkForge.Engine.Elevation.Commands;
 using FalkForge.Engine.Elevation.Tests.Mocks;
+using FalkForge.Engine.Protocol.Integrity;
 using Xunit;
 
 namespace FalkForge.Engine.Elevation.Tests.Commands;
@@ -13,9 +14,22 @@ public sealed class MsiInstallCommandTests : IDisposable
 
     public MsiInstallCommandTests()
     {
-        _tempMsiPath = Path.Combine(Path.GetTempPath(), $"test_{Guid.NewGuid():N}.msi");
-        File.WriteAllBytes(_tempMsiPath, [0x00]);
+        var raw = Path.Combine(Path.GetTempPath(), $"test_{Guid.NewGuid():N}.msi");
+        File.WriteAllBytes(raw, [0x00]);
+
+        // Path.GetTempPath can hand back a short (8.3) component -- C:\Users\RUNNER~1\... on a CI
+        // runner is the common case. The command now passes MsiInstallProductW the path resolved
+        // from the open handle, which is always the long form, so the test's own copy of the path
+        // is resolved the same way. Otherwise the assertions below compare two different
+        // spellings of one file and fail on machines where the two spellings differ.
+        _tempMsiPath = ResolveFinalPath(raw);
         _command = new MsiInstallCommand(_mockMsiApi);
+    }
+
+    private static string ResolveFinalPath(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return HashBoundFile.TryGetFinalPath(stream.SafeFileHandle) ?? path;
     }
 
     public void Dispose()

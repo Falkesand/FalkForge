@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using FalkForge.Engine.Bootstrap;
 using FalkForge.Engine.Execution;
+using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
 using Xunit;
 
@@ -75,7 +76,26 @@ public sealed class PreUIPrerequisiteInstallerTests : IDisposable
     private PreUIPrerequisiteInstaller MakeInstaller(IProcessRunner runner)
         => new(runner, _extractionDir, logger: null);
 
-    private string PathIn(string relativeSourcePath) => Path.Combine(_extractionDir, "preui", relativeSourcePath);
+    /// <summary>
+    /// The path the installer hands the runner for <paramref name="relativeSourcePath"/>.
+    /// <para>
+    /// The installer now launches the path resolved from the open handle rather than the string
+    /// it composed, so this has to resolve too. Directory.CreateTempSubdirectory sits under
+    /// Path.GetTempPath, which can carry a short (8.3) component -- C:\Users\RUNNER~1\... on a CI
+    /// runner is the common case -- and the resolved form always spells it out in full.
+    /// </para>
+    /// </summary>
+    private string PathIn(string relativeSourcePath)
+    {
+        var combined = Path.Combine(_extractionDir, "preui", relativeSourcePath);
+        return File.Exists(combined) ? ResolveFinalPath(combined) : combined;
+    }
+
+    private static string ResolveFinalPath(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return HashBoundFile.TryGetFinalPath(stream.SafeFileHandle) ?? path;
+    }
 
     // ---------------------------------------------------------------------------
     // Row 16 — happy path: both packages exit 0

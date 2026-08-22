@@ -33,4 +33,12 @@ public enum HashBoundFileStatus
 
     /// <summary>The file's bytes hash to something other than the expected digest.</summary>
     HashMismatch = 5,
+
+    /// <summary>
+    /// The bytes matched, but Windows could not name the file the handle refers to, so the
+    /// consumer cannot be given a path that is proof against a reparse-point swap. This fails
+    /// closed on purpose: handing back the caller-supplied path instead would reinstate the
+    /// redirection the resolution exists to defeat.
+    /// </summary>
+    PathResolutionFailed = 6,
 }

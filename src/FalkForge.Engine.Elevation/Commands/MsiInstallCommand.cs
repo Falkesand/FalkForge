@@ -77,11 +77,29 @@ public sealed class MsiInstallCommand : IElevatedCommand
             return DescribeBindingFailure(msiPath, bound);
 
         using var fileStream = bound.Stream!;
+        var resolvedPath = bound.ResolvedPath!;
+
+        // The raw check above is a cheap fast path, not the authority. It reads the caller's
+        // string, and `//srv/share/x.msi` does not start with a backslash pair even though
+        // Windows normalises it to `\\srv\share\x.msi`. A junction can also point at an SMB
+        // share, and over SMB the FileShare.Read mode is enforced by a server the attacker may
+        // control, so the handle proves nothing there. The resolved path is the one that decides.
+        if (resolvedPath.StartsWith(@"\\", StringComparison.Ordinal))
+            return Result<byte[]>.Failure(ErrorKind.SecurityError, "UNC/network MSI paths are not allowed");
+
+        // MsiInstallProductW does not accept the extended-length form, so a resolved path past
+        // MAX_PATH cannot be installed. Fail closed: falling back to the caller's shorter,
+        // unresolved string would put the reparse points back in the path.
+        if (resolvedPath.Length > HashBoundFile.MaxLegacyPathLength)
+            return Result<byte[]>.Failure(ErrorKind.SecurityError,
+                $"Resolved MSI path is {resolvedPath.Length} characters, longer than the " +
+                $"{HashBoundFile.MaxLegacyPathLength} Windows Installer accepts: {resolvedPath}");
 
         // fileStream keeps FileShare.Read asserted against the file for the entire InstallLocked
         // call, so the bytes MsiInstallProductW reads from disk are provably the bytes just
-        // hashed above.
-        return InstallLocked(msiPath, additionalArgs, onProgress);
+        // hashed above -- and resolvedPath names that exact file with every reparse point already
+        // followed, so re-opening it inside MsiInstallProductW cannot be redirected.
+        return InstallLocked(resolvedPath, additionalArgs, onProgress);
     }
 
     /// <summary>
@@ -102,6 +120,8 @@ public sealed class MsiInstallCommand : IElevatedCommand
                 $"MSI file could not be read: {bound.Detail}"),
             HashBoundFileStatus.HashMismatch => Result<byte[]>.Failure(ErrorKind.SecurityError,
                 $"MSI file hash does not match the manifest-declared hash: {msiPath}"),
+            HashBoundFileStatus.PathResolutionFailed => Result<byte[]>.Failure(ErrorKind.SecurityError,
+                $"MSI file could not be resolved to a real path from its open handle: {msiPath}"),
             // Verified never reaches here (the caller returns early on it), and any status added
             // later must fail closed rather than inherit a message that does not describe it.
             _ => Result<byte[]>.Failure(ErrorKind.SecurityError,

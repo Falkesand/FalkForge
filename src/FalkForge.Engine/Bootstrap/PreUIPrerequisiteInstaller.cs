@@ -68,9 +68,9 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
     private const int ExitCodePathTraversalRejected = -1;
 
     // Sentinel exit code used when the payload's on-disk bytes do not match the
-    // manifest-declared SHA-256 hash, when that hash is malformed, or when the payload
-    // could not be opened at all. Distinct from ExitCodePathTraversalRejected and every
-    // valid Windows exit code.
+    // manifest-declared SHA-256 hash, when that hash is malformed, when the payload could not be
+    // opened at all, or when the path the open handle resolves to is not one this launcher will
+    // execute. Distinct from ExitCodePathTraversalRejected and every valid Windows exit code.
     private const int ExitCodeHashRejected = -2;
 
     /// <summary>
@@ -142,6 +142,27 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
             }
 
             var payloadStream = bound.Stream!;
+            var launchPath = bound.ResolvedPath!;
+
+            // The handle pins the file object, not the reparse points in the path that reached
+            // it. A same-user attacker needs no privilege to rename the preui directory, drop a
+            // junction of the same name in its place, and repoint that junction while the hash
+            // runs -- Process.Start would then resolve the string a second time and launch the
+            // attacker's file. launchPath comes from the handle, with every reparse point already
+            // followed, so the child process is mapped from the bytes that were hashed.
+            //
+            // A resolved path that leaves the local disk, or that no longer fits what
+            // CreateProcessW accepts, fails closed. Falling back to exePath would put the reparse
+            // points straight back into the path.
+            if (launchPath.StartsWith(@"\\", StringComparison.Ordinal) ||
+                launchPath.Length > HashBoundFile.MaxLegacyPathLength)
+            {
+                await payloadStream.DisposeAsync().ConfigureAwait(false);
+                _logger?.Error(Category,
+                    $"Package '{pkg.DisplayName}' payload at '{exePath}' resolves to '{launchPath}', " +
+                    "which is either on a network path or too long to launch. Rejecting.");
+                return new PreUIResult.Failed(pkg, ExitCodeHashRejected);
+            }
 
             int? capturedPid = null;
 
@@ -151,7 +172,7 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
                 try
                 {
                     exitCode = await _runner.RunAsync(
-                        exePath,
+                        launchPath,
                         pkg.Arguments,
                         onProcessStarted: pid => capturedPid = pid,
                         cancellationToken);
@@ -246,6 +267,8 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
             HashBoundFileStatus.HashMismatch =>
                 $"hash does not match the manifest-declared value (expected {expectedHashHex}, " +
                 $"computed {bound.Detail})",
+            HashBoundFileStatus.PathResolutionFailed =>
+                "could not be resolved to a real path from its open handle",
             // Verified never reaches here, and a status added later must produce an honest
             // message rather than inherit one that does not describe it.
             _ => "could not be bound to the manifest-declared hash",

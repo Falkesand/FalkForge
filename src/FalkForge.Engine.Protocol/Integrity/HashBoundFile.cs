@@ -1,7 +1,9 @@
 namespace FalkForge.Engine.Protocol.Integrity;
 
 using System.Buffers;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using Microsoft.Win32.SafeHandles;
 
 /// <summary>
 /// Opens a file, hashes its bytes, and hands the caller the still-open handle so the bytes that
@@ -23,6 +25,15 @@ using System.Security.Cryptography;
 /// </summary>
 public static class HashBoundFile
 {
+    /// <summary>
+    /// The longest path the classic Win32 consumers of a resolved path accept: <c>MAX_PATH</c>
+    /// (260) minus the terminating null. Both <c>MsiInstallProductW</c> and
+    /// <c>CreateProcessW</c> are bounded by it, and neither takes the <c>\\?\</c> form that would
+    /// lift the bound. A caller that resolves a longer path must fail closed rather than fall
+    /// back to the unresolved one.
+    /// </summary>
+    public const int MaxLegacyPathLength = 259;
+
     private const int Sha256ByteLength = 32;
 
     /// <summary>
@@ -97,7 +108,18 @@ public static class HashBoundFile
                 return new HashBoundFileResult(
                     HashBoundFileStatus.HashMismatch, null, null, Convert.ToHexString(actualHash));
 
-            var verified = new HashBoundFileResult(HashBoundFileStatus.Verified, stream, path, null);
+            // Ask Windows which file this handle refers to, and hand THAT path on rather than the
+            // one the caller supplied. The handle pins the file object, not the reparse points in
+            // the path that reached it: a same-user attacker can rename a directory, put a
+            // junction in its place, and repoint that junction while the hash runs, with no
+            // privilege at all. Every re-open of the caller-supplied string then lands on the
+            // attacker's file. The resolved path contains no reparse points, so re-opening it
+            // cannot be redirected.
+            var finalPath = TryGetFinalPath(stream.SafeFileHandle);
+            if (finalPath is null)
+                return new HashBoundFileResult(HashBoundFileStatus.PathResolutionFailed, null, null, null);
+
+            var verified = new HashBoundFileResult(HashBoundFileStatus.Verified, stream, finalPath, null);
             stream = null;
             return verified;
         }
@@ -105,6 +127,78 @@ public static class HashBoundFile
         {
             stream?.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Asks Windows for the path of the file <paramref name="handle"/> refers to, with every
+    /// reparse point already followed and every short (8.3) name already expanded, and returns it
+    /// in the ordinary drive-letter or UNC form.
+    /// </summary>
+    /// <param name="handle">An open file handle.</param>
+    /// <returns>
+    /// The resolved path, or <see langword="null"/> when Windows could not name the file -- which
+    /// happens for a volume with no drive letter, and for a handle to something that is not a
+    /// file on a volume. Callers must fail closed on <see langword="null"/>: falling back to the
+    /// caller-supplied path would reinstate exactly the redirection this call defeats.
+    /// </returns>
+    public static string? TryGetFinalPath(SafeFileHandle handle)
+    {
+        ArgumentNullException.ThrowIfNull(handle);
+
+        // FILE_NAME_NORMALIZED (0x0) | VOLUME_NAME_DOS (0x0). Named rather than inlined as 0 so
+        // the intent is readable: normalized long names, drive-letter volume form.
+        const uint FileNameNormalizedVolumeNameDos = 0x0;
+
+        // 300 chars covers MAX_PATH plus the \\?\ or \\?\UNC\ prefix without touching the heap.
+        Span<char> buffer = stackalloc char[300];
+        var length = NativeFinalPathMethods.GetFinalPathNameByHandle(
+            handle, ref MemoryMarshal.GetReference(buffer), (uint)buffer.Length, FileNameNormalizedVolumeNameDos);
+
+        if (length == 0)
+            return null;
+
+        // On success the return value excludes the terminating null, so it is strictly less than
+        // the buffer length. Anything else means the buffer was too small and the return value is
+        // the required size INCLUDING that null.
+        if (length < (uint)buffer.Length)
+            return StripExtendedLengthPrefix(buffer[..(int)length]);
+
+        var rented = ArrayPool<char>.Shared.Rent((int)length);
+        try
+        {
+            var grown = rented.AsSpan(0, (int)length);
+            var grownLength = NativeFinalPathMethods.GetFinalPathNameByHandle(
+                handle, ref MemoryMarshal.GetReference(grown), (uint)grown.Length, FileNameNormalizedVolumeNameDos);
+
+            if (grownLength == 0 || grownLength >= (uint)grown.Length)
+                return null;
+
+            return StripExtendedLengthPrefix(grown[..(int)grownLength]);
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(rented);
+        }
+    }
+
+    /// <summary>
+    /// Turns the extended-length form Windows returns into the ordinary form. Neither
+    /// <c>MsiInstallProductW</c> nor <see cref="System.Diagnostics.ProcessStartInfo.FileName"/>
+    /// accepts a <c>\\?\</c> path. The UNC form comes back as <c>\\?\UNC\server\share\...</c> and
+    /// has to become <c>\\server\share\...</c>, not <c>\UNC\...</c>.
+    /// </summary>
+    private static string StripExtendedLengthPrefix(ReadOnlySpan<char> path)
+    {
+        const string ExtendedUncPrefix = @"\\?\UNC\";
+        const string ExtendedPrefix = @"\\?\";
+
+        if (path.StartsWith(ExtendedUncPrefix, StringComparison.Ordinal))
+            return string.Concat(@"\\", path[ExtendedUncPrefix.Length..]);
+
+        if (path.StartsWith(ExtendedPrefix, StringComparison.Ordinal))
+            return new string(path[ExtendedPrefix.Length..]);
+
+        return new string(path);
     }
 
     private static void ComputeSha256(Stream source, Span<byte> destination)
