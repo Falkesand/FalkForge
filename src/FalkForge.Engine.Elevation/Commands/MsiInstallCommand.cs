@@ -80,23 +80,27 @@ public sealed class MsiInstallCommand : IElevatedCommand
         // are about to hash are provably the bytes InstallProduct installs below -- closing the
         // handle after hashing and reopening for install would leave the same
         // check-then-use window open in a smaller box.
-        FileStream fileStream;
+        //
+        // fileStream is declared nullable and disposed unconditionally in the outer finally so
+        // the analyzer can prove disposal on every path, including the two catch blocks below
+        // that return before assignment ever happens.
+        FileStream? fileStream = null;
         try
         {
-            fileStream = new FileStream(msiPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        }
-        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
-        {
-            return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"MSI file not found: {msiPath}");
-        }
-        catch (IOException ex)
-        {
-            return Result<byte[]>.Failure(ErrorKind.ExecutionError,
-                $"MSI file could not be opened for exclusive read (in use elsewhere?): {ex.Message}");
-        }
+            try
+            {
+                fileStream = new FileStream(msiPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"MSI file not found: {msiPath}");
+            }
+            catch (IOException ex)
+            {
+                return Result<byte[]>.Failure(ErrorKind.ExecutionError,
+                    $"MSI file could not be opened for exclusive read (in use elsewhere?): {ex.Message}");
+            }
 
-        try
-        {
             Span<byte> actualHash = stackalloc byte[Sha256ByteLength];
             ComputeSha256(fileStream, actualHash);
 
@@ -111,7 +115,7 @@ public sealed class MsiInstallCommand : IElevatedCommand
         }
         finally
         {
-            fileStream.Dispose();
+            fileStream?.Dispose();
         }
     }
 

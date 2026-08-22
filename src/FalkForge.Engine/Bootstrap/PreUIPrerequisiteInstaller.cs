@@ -2,6 +2,7 @@ namespace FalkForge.Engine.Bootstrap;
 
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Security.Cryptography;
 using System.Threading;
@@ -167,7 +168,10 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
             }
             finally
             {
-                await payloadStream.DisposeAsync();
+                // ConfigureAwait(false), not a synchronous Dispose(): this method is async, and
+                // CA1849 flags Stream.Dispose() as a blocking call inside an async method
+                // regardless of whether the stream is read-only.
+                await payloadStream.DisposeAsync().ConfigureAwait(false);
             }
 
             var outcome = HandleExitCode(pkg, exitCode);
@@ -237,6 +241,11 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
     /// returned instead. This method is synchronous by design so the hashing work — which
     /// uses <c>stackalloc</c> spans — never has to survive an <c>await</c> boundary.
     /// </summary>
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope",
+        Justification = "Ownership transfer, not a leak: on success this FileStream is handed back " +
+            "to RunAllAsync via the returned tuple, which holds it open across the elevated launch " +
+            "and disposes it in its own finally block. The mismatch path below disposes it here " +
+            "before returning null, so every path either disposes locally or hands off ownership.")]
     private static (FileStream? Stream, string? Reason) OpenAndVerifyPayloadHash(
         string exePath, string expectedHashHex)
     {
