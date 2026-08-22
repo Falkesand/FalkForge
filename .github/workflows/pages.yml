@@ -4,17 +4,15 @@ name: Deploy Docs to GitHub Pages
 # docs/tutorials/*.html — to GitHub Pages. No markdown, no internal plans/design docs;
 # same HTML-only surface as scripts/pack-docs.ps1 produces for the release zip.
 #
-# GATED: this repo is private pre-launch and GitHub Pages is not enabled yet. There is
-# no workflow expression for "repo is public" / "Pages is enabled", so this workflow is
-# gated behind a repository variable instead — it must run (and be visible as
-# skipped, not failed) even while Pages is off, so it never breaks CI.
+# Both jobs are gated on the PAGES_ENABLED repository variable. GitHub offers no workflow
+# expression for "Pages is enabled", so the variable stands in for one, and the jobs show
+# as skipped rather than failed whenever it is unset.
 #
-# To turn this on at launch:
-#   1. Make the repository public.
-#   2. Settings -> Pages -> Build and deployment -> Source: GitHub Actions.
-#   3. Settings -> Secrets and variables -> Actions -> Variables tab ->
-#      New repository variable: name PAGES_ENABLED, value true.
-# Until step 3 is done, both jobs below are skipped on every run.
+# The gate is currently open. The repository is public, PAGES_ENABLED is true, and Pages
+# builds from GitHub Actions, so every push to main republishes the site.
+#
+# To stop publishing, clear the PAGES_ENABLED variable under
+# Settings -> Secrets and variables -> Actions -> Variables.
 
 on:
   push:

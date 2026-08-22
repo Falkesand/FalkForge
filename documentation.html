@@ -962,6 +962,12 @@
         </div>
       </div>
 
+      <div class="nav-section" data-section="license">
+        <a href="#license" class="nav-section-title">
+          <span class="chevron">&#9656;</span><span class="nav-text">25. License</span>
+        </a>
+      </div>
+
     </div>
   </nav>
 
@@ -979,6 +985,13 @@
   <p>
     FalkForge is a C# framework for building Windows installers &mdash; MSI packages, MSIX app packages,
     and self-extracting EXE bundles. It compiles directly to production-ready output with no external tools required.
+  </p>
+
+  <p>
+    FalkForge is source-available under the Functional Source License 1.1 with an Apache 2.0 future
+    license. Building and shipping installers for your own or your customers' software is permitted,
+    commercially or not. Offering a competing setup-authoring product is not. See
+    <a href="#license">License</a> for the details.
   </p>
 
   <h3>Three Ways to Build Installers</h3>
@@ -14431,6 +14444,51 @@ Tooling &amp; distribution  Cli, Decompiler, Localization, Sdk, Signing.SignServ
     working end to end.
 </p>
 
+</section>
+
+<!-- ============================================================
+     Section 25: License
+     ============================================================ -->
+<section id="license">
+<h2>25. License</h2>
+
+<p>
+    FalkForge ships under the <strong>Functional Source License, Version 1.1, with an Apache 2.0 future
+    license</strong> (SPDX <code>FSL-1.1-ALv2</code>), followed by an Additional Grant from the licensor.
+    The full text lives in
+    <a href="https://github.com/Falkesand/FalkForge/blob/main/LICENSE.md">LICENSE.md</a>.
+</p>
+
+<p>
+    <strong>You may build, package, and ship installers for your own or your customers' software,
+    commercially or not.</strong> The Additional Grant permits this as a term of the license. It covers
+    the bundle engine and the elevation companion that the compiler embeds in every EXE bundle, so
+    distributing a bundle needs no separate permission.
+</p>
+
+<p>
+    <strong>You may not offer FalkForge, or a product with substantially similar functionality, as an
+    installer, packaging, or setup-authoring product.</strong> That is a Competing Use, and the test turns
+    on functionality rather than on how a product is marketed.
+</p>
+
+<p>
+    Each version released under this license converts to the Apache License 2.0 on the second anniversary
+    of its release. Packages published before the relicense, up to and including
+    <code>0.5.0-beta.6</code>, carry the previous PolyForm Perimeter terms and do not convert.
+</p>
+
+<p>
+    Shipping a bundle redistributes part of FalkForge, because an EXE bundle embeds the compiled engine.
+    The Redistribution clause therefore applies. Include a copy of the license terms or a link to them
+    with what you ship, and leave the copyright notices in place.
+</p>
+
+<p>
+    FSL is source-available. It is not OSI-approved open source. This section summarizes the terms. Where
+    it and <a href="https://github.com/Falkesand/FalkForge/blob/main/LICENSE.md">LICENSE.md</a> differ,
+    LICENSE.md governs.
+</p>
 </section>
 
   </main>
