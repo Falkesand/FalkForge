@@ -1,7 +1,7 @@
 namespace FalkForge.Engine.Elevation.Commands;
 
 using System.Buffers;
-using System.Security.Cryptography;
+using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Platform.Windows;
 
 public sealed class MsiInstallCommand : IElevatedCommand
@@ -64,60 +64,49 @@ public sealed class MsiInstallCommand : IElevatedCommand
         if (argsValidation.IsFailure)
             return Result<byte[]>.Failure(argsValidation.Error);
 
-        // Convert has no TryFromHexString overload (verified by reflecting System.Convert on the
-        // net10.0 reference assembly — only FromHexString, which throws, and this
-        // OperationStatus-returning overload exist). bytesWritten != 32 also covers an
-        // empty/too-short hash, since a 0- or partial-length input decodes fewer than 32 bytes.
-        Span<byte> expectedHash = stackalloc byte[Sha256ByteLength];
-        var hexStatus = Convert.FromHexString(expectedHashHex, expectedHash, out _, out var written);
-        if (hexStatus != OperationStatus.Done || written != Sha256ByteLength)
-            return Result<byte[]>.Failure(ErrorKind.SecurityError,
-                "MSI install request carries a malformed expected SHA-256 hash");
-
         // Open the file ourselves and hold the handle for the rest of this call, instead of
         // trusting the unelevated engine's own File.Exists + hash check. FileShare.Read denies
         // other processes write/rename/delete for as long as the handle lives, so the bytes we
         // are about to hash are provably the bytes InstallProduct installs below -- closing the
         // handle after hashing and reopening for install would leave the same
-        // check-then-use window open in a smaller box.
-        //
-        // fileStream is declared nullable and disposed unconditionally in the outer finally so
-        // the analyzer can prove disposal on every path, including the two catch blocks below
-        // that return before assignment ever happens.
-        FileStream? fileStream = null;
-        try
-        {
-            try
-            {
-                fileStream = new FileStream(msiPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            }
-            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
-            {
-                return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"MSI file not found: {msiPath}");
-            }
-            catch (IOException ex)
-            {
-                return Result<byte[]>.Failure(ErrorKind.ExecutionError,
-                    $"MSI file could not be opened for exclusive read (in use elsewhere?): {ex.Message}");
-            }
+        // check-then-use window open in a smaller box. HashBoundFile owns the open-hash-compare
+        // sequence and is shared with the engine's pre-UI prerequisite launcher, which needs the
+        // identical property; the two crossings used to carry drifting copies of it.
+        var bound = HashBoundFile.Open(msiPath, expectedHashHex);
+        if (bound.Status != HashBoundFileStatus.Verified)
+            return DescribeBindingFailure(msiPath, bound);
 
-            Span<byte> actualHash = stackalloc byte[Sha256ByteLength];
-            ComputeSha256(fileStream, actualHash);
+        using var fileStream = bound.Stream!;
 
-            if (!CryptographicOperations.FixedTimeEquals(actualHash, expectedHash))
-                return Result<byte[]>.Failure(ErrorKind.SecurityError,
-                    $"MSI file hash does not match the manifest-declared hash: {msiPath}");
-
-            // fileStream (held open by this method's own finally, below) keeps FileShare.Read
-            // asserted against the file for the entire InstallLocked call, so the bytes
-            // MsiInstallProductW reads from disk are provably the bytes just hashed above.
-            return InstallLocked(msiPath, additionalArgs, onProgress);
-        }
-        finally
-        {
-            fileStream?.Dispose();
-        }
+        // fileStream keeps FileShare.Read asserted against the file for the entire InstallLocked
+        // call, so the bytes MsiInstallProductW reads from disk are provably the bytes just
+        // hashed above.
+        return InstallLocked(msiPath, additionalArgs, onProgress);
     }
+
+    /// <summary>
+    /// Turns a <see cref="HashBoundFile"/> failure into this command's own error wording, so the
+    /// shared helper never has to decide whether a failure is a security failure or an execution
+    /// failure for this particular caller.
+    /// </summary>
+    private static Result<byte[]> DescribeBindingFailure(string msiPath, HashBoundFileResult bound)
+        => bound.Status switch
+        {
+            HashBoundFileStatus.MalformedExpectedHash => Result<byte[]>.Failure(ErrorKind.SecurityError,
+                "MSI install request carries a malformed expected SHA-256 hash"),
+            HashBoundFileStatus.FileNotFound => Result<byte[]>.Failure(ErrorKind.ExecutionError,
+                $"MSI file not found: {msiPath}"),
+            HashBoundFileStatus.OpenFailed => Result<byte[]>.Failure(ErrorKind.ExecutionError,
+                $"MSI file could not be opened for exclusive read (in use elsewhere?): {bound.Detail}"),
+            HashBoundFileStatus.ReadFailed => Result<byte[]>.Failure(ErrorKind.ExecutionError,
+                $"MSI file could not be read: {bound.Detail}"),
+            HashBoundFileStatus.HashMismatch => Result<byte[]>.Failure(ErrorKind.SecurityError,
+                $"MSI file hash does not match the manifest-declared hash: {msiPath}"),
+            // Verified never reaches here (the caller returns early on it), and any status added
+            // later must fail closed rather than inherit a message that does not describe it.
+            _ => Result<byte[]>.Failure(ErrorKind.SecurityError,
+                $"MSI file could not be bound to the manifest-declared hash: {msiPath}"),
+        };
 
     private Result<byte[]> InstallLocked(string msiPath, string additionalArgs, Action<int>? onProgress)
     {
@@ -167,26 +156,6 @@ public sealed class MsiInstallCommand : IElevatedCommand
             if (handler is not null)
                 _msiApi.SetExternalUI(null, 0, IntPtr.Zero);
         }
-    }
-
-    private const int Sha256ByteLength = 32;
-
-    private static void ComputeSha256(Stream source, Span<byte> destination)
-    {
-        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        var buffer = ArrayPool<byte>.Shared.Rent(81920);
-        try
-        {
-            int bytesRead;
-            while ((bytesRead = source.Read(buffer, 0, buffer.Length)) > 0)
-                hasher.AppendData(buffer.AsSpan(0, bytesRead));
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
-
-        hasher.GetHashAndReset(destination);
     }
 
     /// <summary>
