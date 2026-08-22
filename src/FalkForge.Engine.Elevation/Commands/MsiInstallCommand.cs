@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Elevation.Commands;
 
 using System.Buffers;
+using System.Security.Cryptography;
 using FalkForge.Platform.Windows;
 
 public sealed class MsiInstallCommand : IElevatedCommand
@@ -39,22 +40,83 @@ public sealed class MsiInstallCommand : IElevatedCommand
 
     public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
-        using var stream = new MemoryStream(payload);
-        using var reader = new BinaryReader(stream);
-
-        var msiPath = reader.ReadString();
-        var additionalArgs = reader.ReadString();
+        string msiPath, additionalArgs, expectedHashHex;
+        using (var stream = new MemoryStream(payload))
+        using (var reader = new BinaryReader(stream))
+        {
+            try
+            {
+                msiPath = reader.ReadString();
+                additionalArgs = reader.ReadString();
+                expectedHashHex = reader.ReadString();
+            }
+            catch (EndOfStreamException)
+            {
+                return Result<byte[]>.Failure(ErrorKind.SecurityError,
+                    "MSI install request is truncated: expected msiPath, additionalArgs and a SHA-256 hash");
+            }
+        }
 
         if (msiPath.StartsWith(@"\\", StringComparison.Ordinal))
             return Result<byte[]>.Failure(ErrorKind.SecurityError, "UNC/network MSI paths are not allowed");
-
-        if (!File.Exists(msiPath))
-            return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"MSI file not found: {msiPath}");
 
         var argsValidation = ValidateAdditionalArgs(additionalArgs);
         if (argsValidation.IsFailure)
             return Result<byte[]>.Failure(argsValidation.Error);
 
+        // Convert has no TryFromHexString overload (verified by reflecting System.Convert on the
+        // net10.0 reference assembly — only FromHexString, which throws, and this
+        // OperationStatus-returning overload exist). bytesWritten != 32 also covers an
+        // empty/too-short hash, since a 0- or partial-length input decodes fewer than 32 bytes.
+        Span<byte> expectedHash = stackalloc byte[Sha256ByteLength];
+        var hexStatus = Convert.FromHexString(expectedHashHex, expectedHash, out _, out var written);
+        if (hexStatus != OperationStatus.Done || written != Sha256ByteLength)
+            return Result<byte[]>.Failure(ErrorKind.SecurityError,
+                "MSI install request carries a malformed expected SHA-256 hash");
+
+        // Open the file ourselves and hold the handle for the rest of this call, instead of
+        // trusting the unelevated engine's own File.Exists + hash check. FileShare.Read denies
+        // other processes write/rename/delete for as long as the handle lives, so the bytes we
+        // are about to hash are provably the bytes InstallProduct installs below -- closing the
+        // handle after hashing and reopening for install would leave the same
+        // check-then-use window open in a smaller box.
+        FileStream fileStream;
+        try
+        {
+            fileStream = new FileStream(msiPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return Result<byte[]>.Failure(ErrorKind.ExecutionError, $"MSI file not found: {msiPath}");
+        }
+        catch (IOException ex)
+        {
+            return Result<byte[]>.Failure(ErrorKind.ExecutionError,
+                $"MSI file could not be opened for exclusive read (in use elsewhere?): {ex.Message}");
+        }
+
+        try
+        {
+            Span<byte> actualHash = stackalloc byte[Sha256ByteLength];
+            ComputeSha256(fileStream, actualHash);
+
+            if (!CryptographicOperations.FixedTimeEquals(actualHash, expectedHash))
+                return Result<byte[]>.Failure(ErrorKind.SecurityError,
+                    $"MSI file hash does not match the manifest-declared hash: {msiPath}");
+
+            // fileStream (held open by this method's own finally, below) keeps FileShare.Read
+            // asserted against the file for the entire InstallLocked call, so the bytes
+            // MsiInstallProductW reads from disk are provably the bytes just hashed above.
+            return InstallLocked(msiPath, additionalArgs, onProgress);
+        }
+        finally
+        {
+            fileStream.Dispose();
+        }
+    }
+
+    private Result<byte[]> InstallLocked(string msiPath, string additionalArgs, Action<int>? onProgress)
+    {
         MsiExternalUIHandler? handler = null;
 
         if (onProgress is not null)
@@ -82,6 +144,8 @@ public sealed class MsiInstallCommand : IElevatedCommand
             if (handler is not null)
                 _msiApi.SetExternalUI(handler, 0x00000400, IntPtr.Zero);
 
+            // fileStream stays open (held by the caller's try/finally) for the entire call below,
+            // so the bytes MsiInstallProductW reads from disk are the same bytes we just hashed.
             var commandLine = string.IsNullOrEmpty(additionalArgs) ? null : additionalArgs;
             var exitCode = _msiApi.InstallProduct(msiPath, commandLine);
 
@@ -99,6 +163,26 @@ public sealed class MsiInstallCommand : IElevatedCommand
             if (handler is not null)
                 _msiApi.SetExternalUI(null, 0, IntPtr.Zero);
         }
+    }
+
+    private const int Sha256ByteLength = 32;
+
+    private static void ComputeSha256(Stream source, Span<byte> destination)
+    {
+        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = ArrayPool<byte>.Shared.Rent(81920);
+        try
+        {
+            int bytesRead;
+            while ((bytesRead = source.Read(buffer, 0, buffer.Length)) > 0)
+                hasher.AppendData(buffer.AsSpan(0, bytesRead));
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+
+        hasher.GetHashAndReset(destination);
     }
 
     /// <summary>

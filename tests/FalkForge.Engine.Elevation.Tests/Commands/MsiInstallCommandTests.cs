@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using FalkForge.Engine.Elevation.Commands;
 using FalkForge.Engine.Elevation.Tests.Mocks;
 using Xunit;
@@ -246,7 +247,143 @@ public sealed class MsiInstallCommandTests : IDisposable
         Assert.Contains("Access denied by mock", result.Error.Message);
     }
 
+    [Fact]
+    public void Execute_Install_HashMismatch_ReturnsSecurityErrorAndNeverInstalls()
+    {
+        // The declared hash does not match the file's actual bytes — the same shape an attacker
+        // gets by overwriting the cached MSI after the engine hashed it but before the elevated
+        // companion installs it (TOCTOU). The companion must refuse, not install anyway.
+        var wrongHash = new string('0', 64);
+        var payload = BuildPayload(_tempMsiPath, string.Empty, wrongHash);
+
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public void Execute_Install_TwoFieldPayload_ReturnsSecurityErrorInsteadOfThrowing()
+    {
+        // A payload built by a stale (pre-hash-binding) peer, or a truncated/corrupted one,
+        // carries only msiPath + additionalArgs. Reading past the end of the stream must not
+        // throw an unhandled EndOfStreamException — it must fail closed as a typed SecurityError.
+        var payload = BuildLegacyPayload(_tempMsiPath, string.Empty);
+
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public void Execute_Install_EmptyHash_ReturnsSecurityError()
+    {
+        var payload = BuildPayload(_tempMsiPath, string.Empty, string.Empty);
+
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public void Execute_Install_TooShortHash_ReturnsSecurityError()
+    {
+        var payload = BuildPayload(_tempMsiPath, string.Empty, "AABBCC");
+
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public void Execute_Install_WhitespaceOnlyHash_ReturnsSecurityError()
+    {
+        var payload = BuildPayload(_tempMsiPath, string.Empty, new string(' ', 64));
+
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public void Execute_Install_HashNotValidHex_ReturnsSecurityError()
+    {
+        // 64 characters, but not hex digits — Convert.TryFromHexString must reject this rather
+        // than throwing, and the command must turn that rejection into SecurityError.
+        var badHash = new string('G', 64);
+        var payload = BuildPayload(_tempMsiPath, string.Empty, badHash);
+
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public void Execute_Install_MatchingHash_CallsInstallProductWithSamePathAndCommandLine()
+    {
+        var payload = BuildPayload(_tempMsiPath, " INSTALLDIR=\"C:\\App\"");
+
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, _mockMsiApi.InstallProductCallCount);
+        Assert.Equal(_tempMsiPath, _mockMsiApi.LastPackagePath);
+        Assert.Equal(" INSTALLDIR=\"C:\\App\"", _mockMsiApi.LastCommandLine);
+    }
+
+    [Fact]
+    public void Execute_Install_HoldsFileHandleOpen_DuringInstallProduct()
+    {
+        // Pins the TOCTOU fix itself: hashing and then closing the handle before calling
+        // InstallProduct would leave the same window open in a smaller box. The file must stay
+        // locked against writes and deletes for as long as the (mocked) install call runs.
+        Exception? writeAttempt = null;
+        Exception? deleteAttempt = null;
+        _mockMsiApi.OnInstallProductCalled = () =>
+        {
+            writeAttempt = Record.Exception(() =>
+            {
+                using var write = new FileStream(_tempMsiPath, FileMode.Open, FileAccess.Write, FileShare.ReadWrite);
+            });
+            deleteAttempt = Record.Exception(() => File.Delete(_tempMsiPath));
+        };
+
+        var payload = BuildPayload(_tempMsiPath, string.Empty);
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsSuccess);
+        Assert.IsType<IOException>(writeAttempt);
+        Assert.IsType<IOException>(deleteAttempt);
+    }
+
     private static byte[] BuildPayload(string msiPath, string additionalArgs)
+        => BuildPayload(msiPath, additionalArgs, ComputeExpectedHash(msiPath));
+
+    private static byte[] BuildPayload(string msiPath, string additionalArgs, string expectedHash)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream);
+        writer.Write(msiPath);
+        writer.Write(additionalArgs);
+        writer.Write(expectedHash);
+        writer.Flush();
+        return stream.ToArray();
+    }
+
+    // Pre-hash-binding wire format (msiPath + additionalArgs only) — used to prove a truncated
+    // or stale-peer payload fails closed instead of throwing.
+    private static byte[] BuildLegacyPayload(string msiPath, string additionalArgs)
     {
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream);
@@ -254,6 +391,18 @@ public sealed class MsiInstallCommandTests : IDisposable
         writer.Write(additionalArgs);
         writer.Flush();
         return stream.ToArray();
+    }
+
+    private static string ComputeExpectedHash(string msiPath)
+    {
+        // UNC-path and file-not-found tests pass a path that doesn't exist on disk: those cases
+        // are rejected before the hash is ever read (UNC check, then File-not-found), so the
+        // placeholder value never has to be a real hash — it only has to be well-formed hex.
+        if (!File.Exists(msiPath))
+            return new string('A', 64);
+
+        using var stream = File.OpenRead(msiPath);
+        return Convert.ToHexString(SHA256.HashData(stream));
     }
 
     private static uint ReadExitCode(byte[] data)

@@ -28,7 +28,9 @@ public sealed class MsiExecutorElevationTests
                 Type = PackageType.MsiPackage,
                 DisplayName = "Test MSI Package",
                 SourcePath = sourcePath,
-                Sha256Hash = "AABBCCDD",
+                // 64-char hex SHA-256 (of an empty input, verified with `sha256sum`), realistic
+                // enough that a test asserting the wire-format shape (hex, 64 chars) is meaningful.
+                Sha256Hash = "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
                 Properties = props
             },
             Properties = properties ?? new Dictionary<string, string>()
@@ -53,14 +55,17 @@ public sealed class MsiExecutorElevationTests
         Assert.Equal("MsiInstall", mockClient.LastCommandName);
         Assert.NotNull(mockClient.LastPayload);
 
-        // Verify payload contains the source path
+        // Verify payload contains the source path, args, and the manifest-declared hash the
+        // elevated companion binds the file against before installing it.
         using var stream = new MemoryStream(mockClient.LastPayload);
         using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8);
         var msiPath = reader.ReadString();
         var additionalArgs = reader.ReadString();
+        var declaredHash = reader.ReadString();
 
         Assert.Equal(@"C:\packages\TestApp.msi", msiPath);
         Assert.Equal("", additionalArgs); // No additional properties
+        Assert.Equal(action.Package.Sha256Hash, declaredHash);
     }
 
     [Fact]
@@ -161,15 +166,17 @@ public sealed class MsiExecutorElevationTests
         Assert.True(result.IsSuccess);
         Assert.Equal("MsiInstall", mockClient.LastCommandName);
 
-        // Verify payload contains additional args
+        // Verify payload contains additional args and the declared hash
         using var stream = new MemoryStream(mockClient.LastPayload!);
         using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8);
         var msiPath = reader.ReadString();
         var additionalArgs = reader.ReadString();
+        var declaredHash = reader.ReadString();
 
         Assert.Equal(@"C:\packages\TestApp.msi", msiPath);
         Assert.Contains("INSTALLFOLDER=", additionalArgs);
         Assert.Contains("ADDLOCAL=", additionalArgs);
+        Assert.Equal(action.Package.Sha256Hash, declaredHash);
     }
 
     [Fact]

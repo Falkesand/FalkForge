@@ -178,6 +178,13 @@ public sealed partial class MsiExecutor
                     // one that exists on the target machine.
                     writer.Write(action.EffectiveSourcePath);
                     writer.Write(additionalArgs);
+                    // The manifest-declared hash for this package. The elevated companion opens the
+                    // file itself, hashes it, and compares against this value before installing —
+                    // this engine side stays a pure forwarder and does not validate it. Without this
+                    // field, a same-user process could overwrite the cached MSI between the engine's
+                    // own verification and the elevated install (TOCTOU) and have the swapped bytes
+                    // installed as SYSTEM.
+                    writer.Write(action.Package.Sha256Hash);
                 }
                 payload = stream.ToArray();
             }

@@ -22,6 +22,14 @@ internal sealed class MockMsiApi : IMsiApi
     public bool ThrowOnInstall { get; set; }
     public string? ThrowMessage { get; set; }
 
+    /// <summary>
+    /// Runs synchronously from inside <see cref="InstallProduct"/>, before it returns, so a test
+    /// can observe the file-sharing state the caller is holding at the moment the (mocked) MSI
+    /// engine would be reading the file — the same moment a real <c>MsiInstallProductW</c> call
+    /// would be reading it.
+    /// </summary>
+    public Action? OnInstallProductCalled { get; set; }
+
     public uint InstallProduct(string packagePath, string? commandLine)
     {
         if (ThrowOnInstall)
@@ -30,6 +38,7 @@ internal sealed class MockMsiApi : IMsiApi
         InstallProductCallCount++;
         LastPackagePath = packagePath;
         LastCommandLine = commandLine;
+        OnInstallProductCalled?.Invoke();
         return InstallProductReturnCode;
     }
 
