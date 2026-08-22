@@ -14336,11 +14336,15 @@ Tooling &amp; distribution  Cli, Decompiler, Localization, Sdk, Signing.SignServ
             themselves, hash it, and compare against the SHA-256 the Engine sent alongside the path in the
             command payload &mdash; the Elevated side does not trust the Engine's earlier cache-time check.
             The file handle stays open, with <code>FileShare.Read</code>, for the entire install or launch,
-            so the hashed bytes and the bytes actually used are provably the same file open, not two
-            separate ones a same-user process could swap between (see ADR 0011). This does not make the
-            Elevated side independent of the Engine: the hash still comes from the Engine process over the
-            same pipe, so it only closes the window between caching and use, not a compromise of the Engine
-            itself.</td>
+            so no other process can write, rename, or delete the file object while the handle is held. That
+            binds the bytes but not the path: a handle pins the file object, not the reparse points in the
+            path used to reach it, so a same-user process could still repoint a junction under that path
+            between the hash and the use. The Elevated side also resolves the real path from the open
+            handle (<code>GetFinalPathNameByHandle</code>) and installs or launches that resolved path,
+            not the one it was given, so a repoint after the hash has no effect on which file gets used
+            (see ADR 0011). This does not make the Elevated side independent of the Engine: the hash still
+            comes from the Engine process over the same pipe, so it only closes the window between caching
+            and use, not a compromise of the Engine itself.</td>
         </tr>
         <tr>
             <td>Elevation companion identity</td>
