@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Elevation.Commands;
 
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Platform.Windows;
 
@@ -38,6 +39,11 @@ public sealed class MsiInstallCommand : IElevatedCommand
 
     public string Name => "MsiInstall";
 
+    [SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP007:Don't dispose injected",
+        Justification = "The stream is not injected. HashBoundFile.Open creates it and documents that " +
+            "ownership passes to the caller when Status is Verified, which the line directly above the " +
+            "`using` has already established -- on every other status the helper has disposed it itself " +
+            "and hands back null. Nothing else holds a reference, so this `using` is the only disposal.")]
     public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
         string msiPath, additionalArgs, expectedHashHex;
