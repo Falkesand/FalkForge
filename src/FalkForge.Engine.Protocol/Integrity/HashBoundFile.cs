@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Protocol.Integrity;
 
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Microsoft.Win32.SafeHandles;
@@ -55,6 +56,12 @@ public static class HashBoundFile
     /// A <see cref="HashBoundFileResult"/> carrying the open handle on success, and a status plus
     /// plain-language detail on failure. See the disposal contract on <see cref="HashBoundFile"/>.
     /// </returns>
+    [SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP003:Dispose previous before re-assigning",
+        Justification = "There is no previous value to dispose. The only assignment of null to `stream` " +
+            "is the ownership-transfer marker CA2000 asks for by name, and it happens after the stream " +
+            "has been placed in the returned result and immediately before that result is returned, so " +
+            "no code between the two can observe or replace it. Writing this any other way trades this " +
+            "one diagnostic for CA2000 plus IDISP001 (measured on this exact method).")]
     public static HashBoundFileResult Open(string path, string expectedHashHex)
     {
         ArgumentNullException.ThrowIfNull(path);
