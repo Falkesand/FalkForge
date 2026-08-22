@@ -170,4 +170,71 @@ public sealed class HashBoundFileTests : IDisposable
         File.Delete(path);
         Assert.False(File.Exists(path));
     }
+
+    [Fact]
+    public void Open_ResolvedPath_HasNoExtendedLengthPrefix()
+    {
+        // GetFinalPathNameByHandle hands back the \\?\ form. MsiInstallProductW and
+        // Process.Start do not accept that, so the prefix has to come off before the path is
+        // handed on.
+        var path = WritePayload();
+
+        var result = HashBoundFile.Open(path, HashOf(PayloadBytes));
+
+        using var stream = result.Stream;
+        Assert.Equal(HashBoundFileStatus.Verified, result.Status);
+        Assert.NotNull(result.ResolvedPath);
+        Assert.DoesNotContain(@"\\?\", result.ResolvedPath, StringComparison.Ordinal);
+        Assert.Equal(path, result.ResolvedPath, ignoreCase: true);
+    }
+
+    [Fact]
+    public void Open_ResolvedPath_NamesTheRealDirectory_NotTheJunctionItWasOpenedThrough()
+    {
+        // The whole point of resolving from the handle: a caller that re-opens the path string
+        // it passed in follows the junction a second time, and a junction can be repointed
+        // between the two opens. The resolved path names the file the handle actually refers to,
+        // so a second open through it cannot be redirected.
+        var realDir = Directory.CreateDirectory(Path.Combine(_dir, "real")).FullName;
+        var link = Path.Combine(_dir, "link");
+        if (!TestJunction.TryCreate(link, realDir))
+            Assert.Skip("Could not create an NTFS directory junction in this environment.");
+
+        var realFile = Path.Combine(realDir, "payload.bin");
+        File.WriteAllBytes(realFile, PayloadBytes);
+
+        var result = HashBoundFile.Open(Path.Combine(link, "payload.bin"), HashOf(PayloadBytes));
+
+        using var stream = result.Stream;
+        Assert.Equal(HashBoundFileStatus.Verified, result.Status);
+        Assert.Equal(realFile, result.ResolvedPath, ignoreCase: true);
+    }
+
+    [Fact]
+    public void Open_ResolvedPath_SurvivesAJunctionRepointWhileTheHandleIsHeld()
+    {
+        // The attack, end to end. An open handle pins the file object, not the reparse point in
+        // the path, so the repoint below succeeds. Reading the resolved path afterwards must
+        // still yield the bytes that were hashed; reading the path that was passed in yields the
+        // attacker's file.
+        var realDir = Directory.CreateDirectory(Path.Combine(_dir, "real")).FullName;
+        var evilDir = Directory.CreateDirectory(Path.Combine(_dir, "evil")).FullName;
+        var link = Path.Combine(_dir, "link");
+        if (!TestJunction.TryCreate(link, realDir))
+            Assert.Skip("Could not create an NTFS directory junction in this environment.");
+
+        var evilBytes = Encoding.UTF8.GetBytes("attacker-controlled-bytes");
+        File.WriteAllBytes(Path.Combine(realDir, "payload.bin"), PayloadBytes);
+        File.WriteAllBytes(Path.Combine(evilDir, "payload.bin"), evilBytes);
+
+        var junctionedPath = Path.Combine(link, "payload.bin");
+        var result = HashBoundFile.Open(junctionedPath, HashOf(PayloadBytes));
+        using var stream = result.Stream;
+        Assert.Equal(HashBoundFileStatus.Verified, result.Status);
+
+        TestJunction.Repoint(link, evilDir);
+
+        Assert.Equal(evilBytes, File.ReadAllBytes(junctionedPath));
+        Assert.Equal(PayloadBytes, File.ReadAllBytes(result.ResolvedPath!));
+    }
 }

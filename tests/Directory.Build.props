@@ -29,6 +29,9 @@
          IsTestProject (it's a plain console app, not a test host) and has no teardown to guard. -->
     <ItemGroup Condition="'$(IsTestProject)' != 'false'">
         <Compile Include="$(MSBuildThisFileDirectory)TestTemp.cs" Link="TestSupport\TestTemp.cs" />
+        <!-- TestJunction: shared NTFS directory-junction helper, linked in the same way. Tests for
+             the elevation crossings build the real junction-repoint attack with it. -->
+        <Compile Include="$(MSBuildThisFileDirectory)TestJunction.cs" Link="TestSupport\TestJunction.cs" />
         <Using Include="FalkForge.TestSupport" />
     </ItemGroup>
 </Project>
