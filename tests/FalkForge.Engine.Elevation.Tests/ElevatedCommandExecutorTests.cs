@@ -100,4 +100,56 @@ public sealed class ElevatedCommandExecutorTests
         Assert.True(result.Success);
         Assert.Null(result.ResultPayload);
     }
+
+    [Fact]
+    public void Execute_CommandThrows_ReturnsFailureNamingTheCommandInsteadOfPropagating()
+    {
+        var mock = new MockCommand { ExceptionToThrow = new EndOfStreamException("Unable to read beyond the end of the stream.") };
+        var executor = new ElevatedCommandExecutor(new[] { mock });
+        var message = new ElevateExecuteMessage
+        {
+            SequenceId = 5,
+            CommandName = "Mock",
+            CommandPayload = Array.Empty<byte>()
+        };
+
+        var result = executor.Execute(message);
+
+        Assert.False(result.Success);
+        Assert.NotNull(result.ErrorMessage);
+        Assert.Contains("Mock", result.ErrorMessage);
+        Assert.Contains("Unable to read beyond the end of the stream.", result.ErrorMessage);
+    }
+
+    [Fact]
+    public void Execute_CommandThrows_PreservesSequenceIdOnTheFailureResult()
+    {
+        var mock = new MockCommand { ExceptionToThrow = new InvalidOperationException("boom") };
+        var executor = new ElevatedCommandExecutor(new[] { mock });
+        var message = new ElevateExecuteMessage
+        {
+            SequenceId = 12345,
+            CommandName = "Mock",
+            CommandPayload = Array.Empty<byte>()
+        };
+
+        var result = executor.Execute(message);
+
+        Assert.Equal(12345u, result.SequenceId);
+    }
+
+    [Fact]
+    public void Execute_CommandThrowsOperationCanceled_PropagatesRatherThanConvertingToFailure()
+    {
+        var mock = new MockCommand { ExceptionToThrow = new OperationCanceledException() };
+        var executor = new ElevatedCommandExecutor(new[] { mock });
+        var message = new ElevateExecuteMessage
+        {
+            SequenceId = 1,
+            CommandName = "Mock",
+            CommandPayload = Array.Empty<byte>()
+        };
+
+        Assert.Throws<OperationCanceledException>(() => executor.Execute(message));
+    }
 }

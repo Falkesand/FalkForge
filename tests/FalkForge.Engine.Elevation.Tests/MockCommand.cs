@@ -8,11 +8,15 @@ public sealed class MockCommand : IElevatedCommand
     public byte[] ResponsePayload { get; set; } = Array.Empty<byte>();
     public bool ShouldFail { get; set; }
     public string FailureMessage { get; set; } = "Mock failure";
+    public Exception? ExceptionToThrow { get; set; }
     public byte[]? LastPayload { get; private set; }
 
     public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
         LastPayload = payload;
+        if (ExceptionToThrow is not null)
+            throw ExceptionToThrow;
+
         return ShouldFail
             ? Result<byte[]>.Failure(ErrorKind.ExecutionError, FailureMessage)
             : ResponsePayload;
