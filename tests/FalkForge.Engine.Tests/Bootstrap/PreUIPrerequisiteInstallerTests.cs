@@ -474,6 +474,107 @@ public sealed class PreUIPrerequisiteInstallerTests : IDisposable
         Assert.Contains(PathIn("pkg1.exe"), runner.Invocations[0].FileName);
     }
 
+    [Theory]
+    // Every other malformed-hash case is caught by "fewer than 32 bytes decoded" on its own.
+    // These two are not. Convert.FromHexString fills the 32-byte destination from the first 64
+    // characters and stops, so bytesWritten is 32 and only the returned OperationStatus reveals
+    // the trailing junk: NeedMoreData for the odd 65th character, DestinationTooSmall for 66.
+    // The hash below is the payload's real digest, so dropping the status half of the guard turns
+    // both of these into a successful launch -- which is what makes this test able to fail.
+    [InlineData("ZZ")]
+    [InlineData("A")]
+    public async Task RunAllAsync_ReturnsFailed_WhenHashIsLongerThanSixtyFourCharacters(string suffix)
+    {
+        CreatePayloadFile("pkg1.exe");
+        var pkg1 = MakePackage("pkg1", "Overlong Hash Package", sha256Hash: Sha256Hex(DefaultPayloadBytes) + suffix);
+        var runner = new FakeProcessRunner(new Dictionary<string, int>
+        {
+            [PathIn("pkg1.exe")] = 0
+        });
+        var sink = new FakeProgressSink();
+        var installer = MakeInstaller(runner);
+
+        var result = await installer.RunAllAsync([pkg1], sink, CancellationToken.None);
+
+        Assert.Empty(runner.Invocations);
+        Assert.IsType<PreUIResult.Failed>(result);
+    }
+
+    [Fact]
+    public async Task RunAllAsync_JunctionRepointedWhileTheHandleIsHeld_StillLaunchesTheHashedFile()
+    {
+        // The real attack, built end to end. Creating a junction needs no privilege, so an
+        // ordinary same-user process can rename the preui directory, put a junction of the same
+        // name in its place, and repoint that junction while the SHA-256 pass runs. The open
+        // handle does not stop the repoint: it pins the file object, and deleting a junction does
+        // not touch the files under its target. Before the fix, ProcessStartInfo.FileName carried
+        // the composed path string and Windows resolved it a second time, through the attacker's
+        // junction.
+        var realDir = Directory.CreateDirectory(Path.Combine(_extractionDir, "preui-real")).FullName;
+        var evilDir = Directory.CreateDirectory(Path.Combine(_extractionDir, "preui-evil")).FullName;
+        var link = Path.Combine(_extractionDir, "preui");
+        if (!TestJunction.TryCreate(link, realDir))
+            Assert.Skip("Could not create an NTFS directory junction in this environment.");
+
+        var attackerBytes = Encoding.UTF8.GetBytes("attacker-payload");
+        var realPayload = Path.Combine(realDir, "pkg1.exe");
+        File.WriteAllBytes(realPayload, DefaultPayloadBytes);
+        File.WriteAllBytes(Path.Combine(evilDir, "pkg1.exe"), attackerBytes);
+
+        try
+        {
+            await AssertJunctionRepointDoesNotChangeWhatLaunchesAsync(link, evilDir, realPayload, attackerBytes);
+        }
+        finally
+        {
+            // Remove the reparse point before teardown. A recursive delete of a directory that
+            // still contains a junction fails with UnauthorizedAccessException, which would mask
+            // the assertions above behind a teardown crash.
+            if (Directory.Exists(link))
+                Directory.Delete(link);
+        }
+    }
+
+    private async Task AssertJunctionRepointDoesNotChangeWhatLaunchesAsync(
+        string link, string evilDir, string realPayload, byte[] attackerBytes)
+    {
+        var junctionedPath = Path.Combine(link, "pkg1.exe");
+        var resolvedPayload = ResolveFinalPath(realPayload);
+
+        // Both spellings map to exit code 0, so a regression fails on the byte and path
+        // assertions below rather than on the fake runner not recognising the file name.
+        var runner = new FakeProcessRunner(new Dictionary<string, int>
+        {
+            [resolvedPayload] = 0,
+            [junctionedPath] = 0
+        });
+
+        byte[]? launchedBytes = null;
+        var repointSucceeded = false;
+        runner.OnRun = fileName =>
+        {
+            TestJunction.Repoint(link, evilDir);
+            repointSucceeded = true;
+            // Read back through the exact path handed to the runner, at the moment the child
+            // process image would be mapped from it.
+            launchedBytes = File.ReadAllBytes(fileName);
+        };
+
+        var sink = new FakeProgressSink();
+        var installer = MakeInstaller(runner);
+
+        var result = await installer.RunAllAsync([MakePackage("pkg1", "Junctioned Package")], sink, CancellationToken.None);
+
+        Assert.IsType<PreUIResult.Success>(result);
+        // The attack itself has to work, or the test proves nothing about the defence.
+        Assert.True(repointSucceeded);
+        Assert.Equal(attackerBytes, File.ReadAllBytes(junctionedPath));
+        // ...and the launch still saw the publisher's bytes, at the resolved path.
+        Assert.Equal(DefaultPayloadBytes, launchedBytes);
+        Assert.Equal(resolvedPayload, runner.Invocations[0].FileName);
+        Assert.NotEqual(junctionedPath, runner.Invocations[0].FileName);
+    }
+
     [Fact]
     public async Task RunAllAsync_HoldsPayloadHandleOpen_ForWriteAndDeleteDenial_WhileProcessRuns()
     {
