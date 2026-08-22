@@ -30,7 +30,20 @@ public sealed class ElevatedCommandExecutor
             };
         }
 
-        var result = command.Execute(message.CommandPayload, onProgress);
+        Result<byte[]> result;
+        try
+        {
+            result = command.Execute(message.CommandPayload, onProgress);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new ElevateResultMessage
+            {
+                SequenceId = message.SequenceId,
+                Success = false,
+                ErrorMessage = $"Command '{command.Name}' threw an unhandled exception: {ex.Message}"
+            };
+        }
 
         return result.Match(
             payload => new ElevateResultMessage
