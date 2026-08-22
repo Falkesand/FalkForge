@@ -14318,10 +14318,29 @@ Tooling &amp; distribution  Cli, Decompiler, Localization, Sdk, Signing.SignServ
             <td>Elevated command surface</td>
             <td>Given a trusted pipe, what is the Engine actually allowed to ask the Elevated process to
             do?</td>
-            <td>A fixed, whitelisted command set &mdash; MSI install/uninstall, service install, registry
-            write, file write &mdash; dispatched by <code>ElevatedCommandExecutor</code>. There is no
-            "run arbitrary command" verb; an attacker who fully compromises the unprivileged Engine still
-            cannot make the Elevated process do anything outside that list.</td>
+            <td>A fixed, whitelisted command set &mdash; MSI install/uninstall, trust-state advance,
+            dependency registration &mdash; dispatched by <code>ElevatedCommandExecutor</code>. There is
+            no "run arbitrary command" verb; an attacker who fully compromises the unprivileged Engine
+            still cannot make the Elevated process do anything outside that list.
+            <code>ServiceInstallCommand</code>, <code>RegistryWriteCommand</code>, and
+            <code>FileWriteCommand</code> exist in the same assembly but are not registered with
+            <code>ElevatedHost</code>, so nothing on the wire can currently reach them &mdash; a command is
+            only part of the surface once something registers it.</td>
+        </tr>
+        <tr>
+            <td>Elevated payload binding</td>
+            <td>Given a command that installs or launches a file (<code>MsiInstall</code>, and the
+            pre-UI prerequisite launch), are the bytes on disk still the ones the manifest declared, or
+            could they have been swapped since the Engine cached them?</td>
+            <td><code>MsiInstallCommand</code> and <code>PreUIPrerequisiteInstaller</code> open the file
+            themselves, hash it, and compare against the SHA-256 the Engine sent alongside the path in the
+            command payload &mdash; the Elevated side does not trust the Engine's earlier cache-time check.
+            The file handle stays open, with <code>FileShare.Read</code>, for the entire install or launch,
+            so the hashed bytes and the bytes actually used are provably the same file open, not two
+            separate ones a same-user process could swap between (see ADR 0011). This does not make the
+            Elevated side independent of the Engine: the hash still comes from the Engine process over the
+            same pipe, so it only closes the window between caching and use, not a compromise of the Engine
+            itself.</td>
         </tr>
         <tr>
             <td>Elevation companion identity</td>
