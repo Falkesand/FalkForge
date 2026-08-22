@@ -381,6 +381,126 @@ public sealed class MsiInstallCommandTests : IDisposable
         Assert.IsType<IOException>(deleteAttempt);
     }
 
+    [Theory]
+    // Every other malformed-hash case here is caught by "fewer than 32 bytes decoded" on its own.
+    // These two are not. Convert.FromHexString fills the 32-byte destination from the first 64
+    // characters and stops, so bytesWritten is 32 and only the returned OperationStatus reveals
+    // the trailing junk: NeedMoreData for the odd 65th character, DestinationTooSmall for 66.
+    // The hash below is the file's real digest, so dropping the status half of the guard turns
+    // both of these into a successful install -- which is what makes this test able to fail.
+    [InlineData("ZZ")]
+    [InlineData("A")]
+    public void Execute_Install_HashLongerThanSixtyFourCharacters_ReturnsSecurityError(string suffix)
+    {
+        var payload = BuildPayload(_tempMsiPath, string.Empty, ComputeExpectedHash(_tempMsiPath) + suffix);
+
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public void Execute_Install_PassesTheResolvedPathOfTheFileItHashed_NotTheJunctionedInput()
+    {
+        // The assertion that pins the fix. Whatever string the request carried, the path handed
+        // to MsiInstallProductW must name the file whose bytes were hashed, with every reparse
+        // point already followed.
+        var root = Directory.CreateTempSubdirectory("falkforge-msi-junction-").FullName;
+        try
+        {
+            var realDir = Directory.CreateDirectory(Path.Combine(root, "real")).FullName;
+            var link = Path.Combine(root, "cache");
+            if (!TestJunction.TryCreate(link, realDir))
+                Assert.Skip("Could not create an NTFS directory junction in this environment.");
+
+            byte[] publisherBytes = [0x01, 0x02, 0x03];
+            var realMsi = Path.Combine(realDir, "app.msi");
+            File.WriteAllBytes(realMsi, publisherBytes);
+
+            var junctionedPath = Path.Combine(link, "app.msi");
+            var payload = BuildPayload(
+                junctionedPath, string.Empty, Convert.ToHexString(SHA256.HashData(publisherBytes)));
+
+            var result = _command.Execute(payload);
+
+            Assert.True(result.IsSuccess);
+            Assert.Equal(ResolveFinalPath(realMsi), _mockMsiApi.LastPackagePath);
+            Assert.NotEqual(junctionedPath, _mockMsiApi.LastPackagePath);
+        }
+        finally
+        {
+            // Remove the reparse point first. A recursive delete of a directory that still
+            // contains a junction fails with UnauthorizedAccessException, which would leave the
+            // temp tree behind.
+            var junction = Path.Combine(root, "cache");
+            if (Directory.Exists(junction))
+                Directory.Delete(junction);
+            TestTemp.TryDelete(root);
+        }
+    }
+
+    [Fact]
+    public void Execute_Install_JunctionRepointedWhileTheHandleIsHeld_StillInstallsTheHashedFile()
+    {
+        // The real attack, built end to end. Creating a junction needs no privilege, so an
+        // ordinary same-user process can rename the cache directory, put a junction of the same
+        // name in its place, and repoint that junction while the SHA-256 pass runs. The open
+        // handle does not stop the repoint: it pins the file object, and deleting a junction does
+        // not touch the files under its target. Before the fix, MsiInstallProductW re-resolved
+        // the request's path string and got the attacker's file.
+        var root = Directory.CreateTempSubdirectory("falkforge-msi-junction-").FullName;
+        try
+        {
+            var realDir = Directory.CreateDirectory(Path.Combine(root, "real")).FullName;
+            var evilDir = Directory.CreateDirectory(Path.Combine(root, "evil")).FullName;
+            var link = Path.Combine(root, "cache");
+            if (!TestJunction.TryCreate(link, realDir))
+                Assert.Skip("Could not create an NTFS directory junction in this environment.");
+
+            byte[] publisherBytes = [0x01, 0x02, 0x03];
+            byte[] attackerBytes = [0xDE, 0xAD, 0xBE, 0xEF];
+            var realMsi = Path.Combine(realDir, "app.msi");
+            File.WriteAllBytes(realMsi, publisherBytes);
+            File.WriteAllBytes(Path.Combine(evilDir, "app.msi"), attackerBytes);
+
+            var junctionedPath = Path.Combine(link, "app.msi");
+            byte[]? bytesTheInstallerWouldRead = null;
+            bool repointSucceeded = false;
+            _mockMsiApi.OnInstallProductCalled = () =>
+            {
+                TestJunction.Repoint(link, evilDir);
+                repointSucceeded = true;
+                // Read back through the exact path the command handed the MSI engine, at the
+                // moment the engine would open it.
+                bytesTheInstallerWouldRead = File.ReadAllBytes(_mockMsiApi.LastPackagePath!);
+            };
+
+            var payload = BuildPayload(
+                junctionedPath, string.Empty, Convert.ToHexString(SHA256.HashData(publisherBytes)));
+
+            var result = _command.Execute(payload);
+
+            Assert.True(result.IsSuccess);
+            // The attack itself has to work, or the test proves nothing about the defence.
+            Assert.True(repointSucceeded);
+            Assert.Equal(attackerBytes, File.ReadAllBytes(junctionedPath));
+            // ...and the install still saw the publisher's bytes.
+            Assert.Equal(publisherBytes, bytesTheInstallerWouldRead);
+        }
+        finally
+        {
+            // Remove the reparse point first. A recursive delete of a directory that still
+            // contains a junction fails with UnauthorizedAccessException, which would leave the
+            // temp tree behind.
+            var junction = Path.Combine(root, "cache");
+            if (Directory.Exists(junction))
+                Directory.Delete(junction);
+            TestTemp.TryDelete(root);
+        }
+    }
+
     private static byte[] BuildPayload(string msiPath, string additionalArgs)
         => BuildPayload(msiPath, additionalArgs, ComputeExpectedHash(msiPath));
 
