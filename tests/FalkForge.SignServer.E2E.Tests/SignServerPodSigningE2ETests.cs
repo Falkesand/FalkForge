@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Docker.DotNet;
+using Docker.DotNet.NPipe;
 using DotNet.Testcontainers.Builders;
 using DotNet.Testcontainers.Containers;
 using FalkForge.Compiler.Bundle;
@@ -333,10 +334,17 @@ public sealed class SignServerPodSigningE2ETests
         {
             try
             {
-                using var client = new DockerClientBuilder()
-                    .WithEndpoint(new Uri(dockerHost))
-                    .WithTimeout(ProbeTimeout)
-                    .Build();
+                // Docker.DotNet.Enhanced 3.x defaulted the named-pipe connect timeout to 100ms; 4.x moved it to
+                // NPipeTransportOptions.ConnectTimeout and defaults it to 10s, which WithTimeout does not reach.
+                // Without this, the probe pays up to 10s per candidate pipe on a machine with no runtime.
+                var endpoint = new Uri(dockerHost);
+                var builder = new DockerClientBuilder()
+                    .WithEndpoint(endpoint)
+                    .WithTimeout(ProbeTimeout);
+
+                using var client = endpoint.Scheme.Equals("npipe", StringComparison.OrdinalIgnoreCase)
+                    ? builder.WithTransportOptions(new NPipeTransportOptions { ConnectTimeout = ProbeTimeout }).Build()
+                    : builder.Build();
                 using var cts = new CancellationTokenSource(ProbeTimeout);
                 var info = await client.System.GetSystemInfoAsync(cts.Token).ConfigureAwait(false);
 
