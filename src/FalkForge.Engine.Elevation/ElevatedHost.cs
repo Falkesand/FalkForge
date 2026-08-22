@@ -27,9 +27,6 @@ public sealed class ElevatedHost : IAsyncDisposable
         {
             new MsiInstallCommand(msiApi),
             new MsiUninstallCommand(msiApi),
-            new ServiceInstallCommand(),
-            new RegistryWriteCommand(),
-            new FileWriteCommand(),
             // C16: advance the ACL-protected anti-downgrade/revocation store elevated (the non-elevated
             // engine cannot write under the restrictive store ACL).
             new TrustStateAdvanceCommand(),
@@ -37,6 +34,12 @@ public sealed class ElevatedHost : IAsyncDisposable
             // SOFTWARE\Classes\Installer\Dependencies\ — RegistryWriteCommand's allowlist permanently
             // reserves Classes, so this is a separate command with its own narrow allowlist.
             new DependencyRegistrationCommand()
+
+            // ServiceInstallCommand, RegistryWriteCommand and FileWriteCommand stay in this assembly
+            // but are deliberately not registered here: nothing in src/ sends "ServiceInstall",
+            // "RegistryWrite" or "FileWrite" through IElevationClient.SendCommandAsync or
+            // IElevatedCommandGateway.SendCommandAsync. Registering a command is what exposes it to
+            // SYSTEM execution, so an unused command must stay unregistered until something calls it.
         });
     }
 

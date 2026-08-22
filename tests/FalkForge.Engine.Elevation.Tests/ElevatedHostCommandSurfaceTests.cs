@@ -29,11 +29,8 @@ public sealed class ElevatedHostCommandSurfaceTests
         string[] expected =
         [
             "DependencyRegistration",
-            "FileWrite",
             "MsiInstall",
             "MsiUninstall",
-            "RegistryWrite",
-            "ServiceInstall",
             "TrustStateAdvance"
         ];
 
