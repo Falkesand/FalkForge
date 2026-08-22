@@ -1,7 +1,9 @@
 namespace FalkForge.Engine.Bootstrap;
 
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using FalkForge.Diagnostics;
@@ -66,6 +68,14 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
     // unsigned 32-bit values when interpreted as HRESULT, but stored in int).
     private const int ExitCodePathTraversalRejected = -1;
 
+    // Sentinel exit code used when the payload's on-disk bytes do not match the
+    // manifest-declared SHA-256 hash, when that hash is malformed, or when the payload
+    // could not be opened at all. Distinct from ExitCodePathTraversalRejected and every
+    // valid Windows exit code.
+    private const int ExitCodeHashRejected = -2;
+
+    private const int Sha256ByteLength = 32;
+
     /// <summary>
     /// Runs all <paramref name="missing"/> packages sequentially.
     /// Returns a <see cref="PreUIResult"/> discriminated union describing the outcome.
@@ -115,24 +125,49 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
 
             string exePath = resolved;
 
+            // ── Payload hash binding ───────────────────────────────────────────
+            // Containment (above) proves the file sits inside the cache directory. It does
+            // not prove the file is the publisher's file: a same-user process could overwrite
+            // the cached payload between extraction and this elevated launch (TOCTOU) and have
+            // the swapped bytes run elevated. Open the file ourselves, hash it against the
+            // manifest-declared value, and hold the handle open for the entire launch below —
+            // FileShare.Read denies other processes write/rename/delete for as long as the
+            // handle lives, so the bytes the child process image is mapped from are provably
+            // the bytes just hashed. Hashing and then closing the handle before launching would
+            // leave the same window open in a smaller box.
+            var (payloadStream, hashRejectReason) = OpenAndVerifyPayloadHash(exePath, pkg.Sha256Hash);
+            if (payloadStream is null)
+            {
+                _logger?.Error(Category,
+                    $"Package '{pkg.DisplayName}' payload at '{exePath}' {hashRejectReason}. Rejecting.");
+                return new PreUIResult.Failed(pkg, ExitCodeHashRejected);
+            }
+
             int? capturedPid = null;
 
             int exitCode;
             try
             {
-                exitCode = await _runner.RunAsync(
-                    exePath,
-                    pkg.Arguments,
-                    onProcessStarted: pid => capturedPid = pid,
-                    cancellationToken);
-            }
-            catch (OperationCanceledException)
-            {
-                // Kill the child tree before returning so no orphan processes remain.
-                if (capturedPid.HasValue)
-                    _runner.KillTree(capturedPid.Value);
+                try
+                {
+                    exitCode = await _runner.RunAsync(
+                        exePath,
+                        pkg.Arguments,
+                        onProcessStarted: pid => capturedPid = pid,
+                        cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Kill the child tree before returning so no orphan processes remain.
+                    if (capturedPid.HasValue)
+                        _runner.KillTree(capturedPid.Value);
 
-                return new PreUIResult.Cancelled();
+                    return new PreUIResult.Cancelled();
+                }
+            }
+            finally
+            {
+                await payloadStream.DisposeAsync();
             }
 
             var outcome = HandleExitCode(pkg, exitCode);
@@ -190,6 +225,72 @@ public sealed class PreUIPrerequisiteInstaller : IPreUIPrerequisiteInstaller
             $"Package '{pkg.DisplayName}' exited with 3010 (soft reboot deferred). " +
             "Continuing to next prerequisite.");
         return null; // continue
+    }
+
+    /// <summary>
+    /// Opens <paramref name="exePath"/>, hashes it, and compares the digest against
+    /// <paramref name="expectedHashHex"/>. On success, returns the still-open
+    /// <see cref="FileStream"/> (opened with <see cref="FileShare.Read"/>, denying other
+    /// processes write/rename/delete access) so the caller can hold it across the launch —
+    /// see the remarks in <see cref="RunAllAsync"/>. The caller owns disposal.
+    /// On failure, the stream is <see langword="null"/> and a plain-language reason is
+    /// returned instead. This method is synchronous by design so the hashing work — which
+    /// uses <c>stackalloc</c> spans — never has to survive an <c>await</c> boundary.
+    /// </summary>
+    private static (FileStream? Stream, string? Reason) OpenAndVerifyPayloadHash(
+        string exePath, string expectedHashHex)
+    {
+        // Convert has no TryFromHexString overload (only the throwing FromHexString(string) and
+        // this OperationStatus-returning span overload exist on .NET 10). A status other than
+        // Done, or fewer than 32 bytes written, means a malformed hash — that single guard also
+        // covers empty, too-short, too-long and non-hex input. A malformed hash must fail
+        // closed, the same as a mismatch: it must never be treated as "skip the check".
+        Span<byte> expectedHash = stackalloc byte[Sha256ByteLength];
+        var hexStatus = Convert.FromHexString(expectedHashHex, expectedHash, out _, out var written);
+        if (hexStatus != OperationStatus.Done || written != Sha256ByteLength)
+            return (null, $"has a malformed Sha256Hash (expected 64 hex chars, got '{expectedHashHex}')");
+
+        FileStream stream;
+        try
+        {
+            stream = new FileStream(exePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException
+                                       or UnauthorizedAccessException or IOException)
+        {
+            return (null, $"could not be opened: {ex.Message}");
+        }
+
+        Span<byte> actualHash = stackalloc byte[Sha256ByteLength];
+        ComputeSha256(stream, actualHash);
+
+        if (!CryptographicOperations.FixedTimeEquals(actualHash, expectedHash))
+        {
+            stream.Dispose();
+            return (null,
+                $"hash does not match the manifest-declared value (expected {expectedHashHex}, " +
+                $"computed {Convert.ToHexString(actualHash)})");
+        }
+
+        return (stream, null);
+    }
+
+    private static void ComputeSha256(Stream source, Span<byte> destination)
+    {
+        using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = ArrayPool<byte>.Shared.Rent(81920);
+        try
+        {
+            int bytesRead;
+            while ((bytesRead = source.Read(buffer, 0, buffer.Length)) > 0)
+                hasher.AppendData(buffer.AsSpan(0, bytesRead));
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+
+        hasher.GetHashAndReset(destination);
     }
 
     /// <summary>

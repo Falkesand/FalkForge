@@ -1,6 +1,10 @@
 namespace FalkForge.Engine.Tests.Bootstrap;
 
+using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using FalkForge.Engine.Bootstrap;
@@ -9,32 +13,69 @@ using FalkForge.Engine.Protocol.Manifest;
 using Xunit;
 
 /// <summary>
-/// TDD spec for PreUIPrerequisiteInstaller — rows 16-19 of the Phase 3 plan.
+/// TDD spec for PreUIPrerequisiteInstaller — rows 16-19 of the Phase 3 plan, plus the
+/// payload hash-binding tests that close the TOCTOU gap between extraction and the
+/// elevated launch (fix/elevated-payload-hash-binding).
 /// </summary>
-public sealed class PreUIPrerequisiteInstallerTests
+public sealed class PreUIPrerequisiteInstallerTests : IDisposable
 {
+    // A real temp directory per test instance (xUnit constructs a fresh instance per [Fact]),
+    // because RunAllAsync now opens and hashes the payload file for real — the old "C:\extract"
+    // placeholder path never had to exist on disk before this change.
+    private readonly string _extractionDir = Directory.CreateTempSubdirectory("falkforge-preui-").FullName;
+
+    private static readonly byte[] DefaultPayloadBytes = Encoding.UTF8.GetBytes("preui-test-payload");
+
+    public void Dispose()
+    {
+        try
+        {
+            Directory.Delete(_extractionDir, recursive: true);
+        }
+        catch (IOException)
+        {
+            // Best-effort cleanup; a locked handle on a slow CI disk must not fail the test run.
+        }
+    }
+
     // ---------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------
 
+    private static string Sha256Hex(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
+
+    /// <summary>
+    /// Writes <paramref name="bytes"/> (or <see cref="DefaultPayloadBytes"/>) to
+    /// <c>{extractionDir}/preui/{relativeSourcePath}</c> and returns the full path, so the
+    /// payload the installer opens is the exact payload the test's hash was computed from.
+    /// </summary>
+    private string CreatePayloadFile(string relativeSourcePath, byte[]? bytes = null)
+    {
+        var fullPath = Path.Combine(_extractionDir, "preui", relativeSourcePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        File.WriteAllBytes(fullPath, bytes ?? DefaultPayloadBytes);
+        return fullPath;
+    }
+
     private static PreUIPackageInfo MakePackage(
         string id = "pkg1",
         string displayName = "Test Package",
-        PreUIRebootBehavior rebootBehavior = PreUIRebootBehavior.IgnoreAndContinue)
+        PreUIRebootBehavior rebootBehavior = PreUIRebootBehavior.IgnoreAndContinue,
+        string? sha256Hash = null)
         => new()
         {
             Id = id,
             DisplayName = displayName,
             SourcePath = $"{id}.exe",
-            Sha256Hash = new string('A', 64),
+            Sha256Hash = sha256Hash ?? Sha256Hex(DefaultPayloadBytes),
             Arguments = "/quiet /norestart",
             RebootBehavior = rebootBehavior
         };
 
-    private static PreUIPrerequisiteInstaller MakeInstaller(
-        IProcessRunner runner,
-        string extractionDir = @"C:\extract")
-        => new(runner, extractionDir, logger: null);
+    private PreUIPrerequisiteInstaller MakeInstaller(IProcessRunner runner)
+        => new(runner, _extractionDir, logger: null);
+
+    private string PathIn(string relativeSourcePath) => Path.Combine(_extractionDir, "preui", relativeSourcePath);
 
     // ---------------------------------------------------------------------------
     // Row 16 — happy path: both packages exit 0
@@ -44,12 +85,14 @@ public sealed class PreUIPrerequisiteInstallerTests
     public async Task RunAllAsync_RunsAllSuccessfully_WhenAllExitZero()
     {
         // Arrange
+        CreatePayloadFile("pkg1.exe");
+        CreatePayloadFile("pkg2.exe");
         var pkg1 = MakePackage("pkg1", "Package One");
         var pkg2 = MakePackage("pkg2", "Package Two");
         var runner = new FakeProcessRunner(new Dictionary<string, int>
         {
-            [@"C:\extract\preui\pkg1.exe"] = 0,
-            [@"C:\extract\preui\pkg2.exe"] = 0
+            [PathIn("pkg1.exe")] = 0,
+            [PathIn("pkg2.exe")] = 0
         });
         var sink = new FakeProgressSink();
         var installer = MakeInstaller(runner);
@@ -62,8 +105,8 @@ public sealed class PreUIPrerequisiteInstallerTests
 
         // Both packages ran, in order
         Assert.Equal(2, runner.Invocations.Count);
-        Assert.Contains(@"C:\extract\preui\pkg1.exe", runner.Invocations[0].FileName);
-        Assert.Contains(@"C:\extract\preui\pkg2.exe", runner.Invocations[1].FileName);
+        Assert.Contains(PathIn("pkg1.exe"), runner.Invocations[0].FileName);
+        Assert.Contains(PathIn("pkg2.exe"), runner.Invocations[1].FileName);
 
         // Progress sink received at least 0 % and 100 %
         Assert.Contains(0, sink.Percents);
@@ -78,12 +121,14 @@ public sealed class PreUIPrerequisiteInstallerTests
     public async Task RunAllAsync_ContinuesPastReboot3010_WhenBehaviorIsIgnoreAndContinue()
     {
         // Arrange
+        CreatePayloadFile("pkg1.exe");
+        CreatePayloadFile("pkg2.exe");
         var pkg1 = MakePackage("pkg1", "Soft Reboot Package", PreUIRebootBehavior.IgnoreAndContinue);
         var pkg2 = MakePackage("pkg2", "Follow-up Package");
         var runner = new FakeProcessRunner(new Dictionary<string, int>
         {
-            [@"C:\extract\preui\pkg1.exe"] = 3010,
-            [@"C:\extract\preui\pkg2.exe"] = 0
+            [PathIn("pkg1.exe")] = 3010,
+            [PathIn("pkg2.exe")] = 0
         });
         var sink = new FakeProgressSink();
         var installer = MakeInstaller(runner);
@@ -103,13 +148,14 @@ public sealed class PreUIPrerequisiteInstallerTests
     [Fact]
     public async Task RunAllAsync_ReturnsRebootRequired_WhenBehaviorIsBlock_And3010()
     {
-        // Arrange
+        // Arrange — pkg2 never runs, so it needs no payload file on disk.
+        CreatePayloadFile("pkg1.exe");
         var pkg1 = MakePackage("pkg1", "Hard Reboot Package", PreUIRebootBehavior.Block);
         var pkg2 = MakePackage("pkg2", "Should Not Run");
         var runner = new FakeProcessRunner(new Dictionary<string, int>
         {
-            [@"C:\extract\preui\pkg1.exe"] = 3010,
-            [@"C:\extract\preui\pkg2.exe"] = 0
+            [PathIn("pkg1.exe")] = 3010,
+            [PathIn("pkg2.exe")] = 0
         });
         var sink = new FakeProgressSink();
         var installer = MakeInstaller(runner);
@@ -125,6 +171,36 @@ public sealed class PreUIPrerequisiteInstallerTests
     }
 
     // ---------------------------------------------------------------------------
+    // Row 17c — 1641 forced reboot: always stops, regardless of RebootBehavior
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public async Task RunAllAsync_ReturnsRebootRequired_OnForcedReboot1641_EvenWithIgnoreAndContinue()
+    {
+        // Arrange — 1641 must stop the run even though this package's behaviour says
+        // "ignore and continue" (that setting only governs the soft 3010 case).
+        CreatePayloadFile("pkg1.exe");
+        var pkg1 = MakePackage("pkg1", "Forced Reboot Package", PreUIRebootBehavior.IgnoreAndContinue);
+        var pkg2 = MakePackage("pkg2", "Should Not Run");
+        var runner = new FakeProcessRunner(new Dictionary<string, int>
+        {
+            [PathIn("pkg1.exe")] = 1641,
+            [PathIn("pkg2.exe")] = 0
+        });
+        var sink = new FakeProgressSink();
+        var installer = MakeInstaller(runner);
+
+        // Act
+        var result = await installer.RunAllAsync([pkg1, pkg2], sink, CancellationToken.None);
+
+        // Assert
+        var reboot = Assert.IsType<PreUIResult.RebootRequired>(result);
+        Assert.Equal("pkg1", reboot.Package.Id);
+        Assert.Equal(1641, reboot.ExitCode);
+        Assert.Single(runner.Invocations); // pkg2 NOT run
+    }
+
+    // ---------------------------------------------------------------------------
     // Row 18 — cancellation: child killed, result is Cancelled
     // ---------------------------------------------------------------------------
 
@@ -132,10 +208,11 @@ public sealed class PreUIPrerequisiteInstallerTests
     public async Task RunAllAsync_KillsChildAndReturnsCancelled_WhenCancellationRequested()
     {
         // Arrange — runner blocks until released; cancel mid-run
+        CreatePayloadFile("pkg1.exe");
         var pkg = MakePackage("pkg1", "Long Running");
         var runner = new FakeProcessRunner(new Dictionary<string, int>
         {
-            [@"C:\extract\preui\pkg1.exe"] = 0
+            [PathIn("pkg1.exe")] = 0
         }, simulateLongRunning: true);
         var sink = new FakeProgressSink();
         var installer = MakeInstaller(runner);
@@ -160,13 +237,14 @@ public sealed class PreUIPrerequisiteInstallerTests
     [Fact]
     public async Task RunAllAsync_ReturnsFailed_WhenChildExitsNonZero()
     {
-        // Arrange
+        // Arrange — pkg2 never runs, so it needs no payload file on disk.
+        CreatePayloadFile("pkg1.exe");
         var pkg1 = MakePackage("pkg1", "Failing Package");
         var pkg2 = MakePackage("pkg2", "Should Not Run");
         var runner = new FakeProcessRunner(new Dictionary<string, int>
         {
-            [@"C:\extract\preui\pkg1.exe"] = 1603,
-            [@"C:\extract\preui\pkg2.exe"] = 0
+            [PathIn("pkg1.exe")] = 1603,
+            [PathIn("pkg2.exe")] = 0
         });
         var sink = new FakeProgressSink();
         var installer = MakeInstaller(runner);
@@ -183,7 +261,7 @@ public sealed class PreUIPrerequisiteInstallerTests
 
     // ---------------------------------------------------------------------------
     // Security: path-traversal validation (c417601 review — Opus 4.6 critical)
-    // These tests are RED until PreUIPrerequisiteInstaller validates pkg.SourcePath.
+    // These reject before the file is ever opened, so no payload file is needed.
     // ---------------------------------------------------------------------------
 
     [Fact]
@@ -196,7 +274,7 @@ public sealed class PreUIPrerequisiteInstallerTests
         {
             Id = "pkg1", DisplayName = "Traversal Package",
             SourcePath = @"..\..\Windows\System32\evil.exe",
-            Sha256Hash = new string('A', 64), Arguments = "/quiet"
+            Sha256Hash = Sha256Hex(DefaultPayloadBytes), Arguments = "/quiet"
         };
         var runner = new FakeProcessRunner(new Dictionary<string, int>());
         var sink = new FakeProgressSink();
@@ -219,7 +297,7 @@ public sealed class PreUIPrerequisiteInstallerTests
         {
             Id = "pkg1", DisplayName = "Rooted Package",
             SourcePath = @"C:\Windows\System32\notepad.exe",
-            Sha256Hash = new string('A', 64), Arguments = "/quiet"
+            Sha256Hash = Sha256Hex(DefaultPayloadBytes), Arguments = "/quiet"
         };
         var runner = new FakeProcessRunner(new Dictionary<string, int>());
         var sink = new FakeProgressSink();
@@ -241,7 +319,7 @@ public sealed class PreUIPrerequisiteInstallerTests
         {
             Id = "pkg1", DisplayName = "AltStream Package",
             SourcePath = "foo.exe:hidden",
-            Sha256Hash = new string('A', 64), Arguments = "/quiet"
+            Sha256Hash = Sha256Hex(DefaultPayloadBytes), Arguments = "/quiet"
         };
         var runner = new FakeProcessRunner(new Dictionary<string, int>());
         var sink = new FakeProgressSink();
@@ -263,7 +341,7 @@ public sealed class PreUIPrerequisiteInstallerTests
         {
             Id = "pkg1", DisplayName = "DeviceNS Package",
             SourcePath = @"\\?\C:\evil.exe",
-            Sha256Hash = new string('A', 64), Arguments = "/quiet"
+            Sha256Hash = Sha256Hex(DefaultPayloadBytes), Arguments = "/quiet"
         };
         var runner = new FakeProcessRunner(new Dictionary<string, int>());
         var sink = new FakeProgressSink();
@@ -281,15 +359,16 @@ public sealed class PreUIPrerequisiteInstallerTests
     {
         // Intent: confirm the gate doesn't block legitimate simple relative paths.
         // "dotnet-runtime.exe" (no directory separators, no special prefixes) is valid.
+        CreatePayloadFile("dotnet-runtime.exe");
         var legit = new PreUIPackageInfo
         {
             Id = "pkg1", DisplayName = "Legit Package",
             SourcePath = "dotnet-runtime.exe",
-            Sha256Hash = new string('A', 64), Arguments = "/quiet /norestart"
+            Sha256Hash = Sha256Hex(DefaultPayloadBytes), Arguments = "/quiet /norestart"
         };
         var runner = new FakeProcessRunner(new Dictionary<string, int>
         {
-            [@"C:\extract\preui\dotnet-runtime.exe"] = 0
+            [PathIn("dotnet-runtime.exe")] = 0
         });
         var sink = new FakeProgressSink();
         var installer = MakeInstaller(runner);
@@ -298,6 +377,120 @@ public sealed class PreUIPrerequisiteInstallerTests
 
         Assert.IsType<PreUIResult.Success>(result);
         Assert.Single(runner.Invocations);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Payload hash binding (fix/elevated-payload-hash-binding) — closes the same-user
+    // TOCTOU window between extraction and this elevated launch: containment alone only
+    // proves the file sits inside the cache directory, not that it is the publisher's file.
+    // ---------------------------------------------------------------------------
+
+    [Fact]
+    public async Task RunAllAsync_ReturnsFailed_WhenPayloadBytesDoNotMatchHash()
+    {
+        // Arrange — the file on disk is real, but its hash does not match the manifest value,
+        // simulating a same-user process that swapped the payload after extraction.
+        CreatePayloadFile("pkg1.exe", Encoding.UTF8.GetBytes("swapped-bytes"));
+        var pkg1 = MakePackage("pkg1", "Tampered Package", sha256Hash: Sha256Hex(DefaultPayloadBytes));
+        var runner = new FakeProcessRunner(new Dictionary<string, int>
+        {
+            [PathIn("pkg1.exe")] = 0
+        });
+        var sink = new FakeProgressSink();
+        var installer = MakeInstaller(runner);
+
+        // Act
+        var result = await installer.RunAllAsync([pkg1], sink, CancellationToken.None);
+
+        // Assert — rejected, and the process was never started (checked against the fake
+        // runner directly, not just inferred from the return value).
+        Assert.Empty(runner.Invocations);
+        Assert.IsType<PreUIResult.Failed>(result);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("not-hex-and-too-short")]
+    [InlineData("AA")] // valid hex, but only 1 byte — not a 32-byte SHA-256 digest
+    public async Task RunAllAsync_ReturnsFailed_WhenHashIsMalformedOrEmpty(string malformedHash)
+    {
+        // Arrange
+        CreatePayloadFile("pkg1.exe");
+        var pkg1 = MakePackage("pkg1", "Malformed Hash Package", sha256Hash: malformedHash);
+        var runner = new FakeProcessRunner(new Dictionary<string, int>
+        {
+            [PathIn("pkg1.exe")] = 0
+        });
+        var sink = new FakeProgressSink();
+        var installer = MakeInstaller(runner);
+
+        // Act
+        var result = await installer.RunAllAsync([pkg1], sink, CancellationToken.None);
+
+        // Assert — a malformed/empty hash must fail closed, never "skip the check".
+        Assert.Empty(runner.Invocations);
+        Assert.IsType<PreUIResult.Failed>(result);
+    }
+
+    [Fact]
+    public async Task RunAllAsync_Launches_WhenPayloadBytesMatchHash()
+    {
+        // Arrange — matching payload must still launch and still map exit codes as before.
+        CreatePayloadFile("pkg1.exe");
+        var pkg1 = MakePackage("pkg1", "Verified Package");
+        var runner = new FakeProcessRunner(new Dictionary<string, int>
+        {
+            [PathIn("pkg1.exe")] = 0
+        });
+        var sink = new FakeProgressSink();
+        var installer = MakeInstaller(runner);
+
+        // Act
+        var result = await installer.RunAllAsync([pkg1], sink, CancellationToken.None);
+
+        // Assert
+        Assert.IsType<PreUIResult.Success>(result);
+        Assert.Single(runner.Invocations);
+        Assert.Contains(PathIn("pkg1.exe"), runner.Invocations[0].FileName);
+    }
+
+    [Fact]
+    public async Task RunAllAsync_HoldsPayloadHandleOpen_ForWriteAndDeleteDenial_WhileProcessRuns()
+    {
+        // Arrange — this is the test that pins the handle-holding behaviour itself: while the
+        // fake runner's callback is executing (standing in for "the child process is running"),
+        // the payload file must be provably locked against write and delete. Hashing and then
+        // closing the handle before launch would pass every other test here while still leaving
+        // the TOCTOU window open, so this assertion has to run from inside the callback, at the
+        // moment the handle is supposed to be held — not before or after.
+        var payloadPath = CreatePayloadFile("pkg1.exe");
+        var pkg1 = MakePackage("pkg1", "Locked Package");
+        var runner = new FakeProcessRunner(new Dictionary<string, int>
+        {
+            [PathIn("pkg1.exe")] = 0
+        });
+        var sink = new FakeProgressSink();
+        var installer = MakeInstaller(runner);
+
+        runner.OnRun = _ =>
+        {
+            var writeAttempt = Record.Exception(() =>
+            {
+                using var writeStream = new FileStream(payloadPath, FileMode.Open, FileAccess.Write, FileShare.None);
+            });
+            Assert.NotNull(writeAttempt);
+            Assert.IsType<IOException>(writeAttempt);
+
+            var deleteAttempt = Record.Exception(() => File.Delete(payloadPath));
+            Assert.NotNull(deleteAttempt);
+            Assert.IsType<IOException>(deleteAttempt);
+        };
+
+        // Act
+        var result = await installer.RunAllAsync([pkg1], sink, CancellationToken.None);
+
+        // Assert — the run still completed successfully; the lock did not break the launch.
+        Assert.IsType<PreUIResult.Success>(result);
     }
 }
 
@@ -319,6 +512,13 @@ internal sealed class FakeProcessRunner : IProcessRunner
     public List<(string FileName, string Arguments)> Invocations { get; } = [];
     public bool KillTreeWasInvoked { get; private set; }
 
+    /// <summary>
+    /// Invoked synchronously from inside <see cref="RunAsync(string,string,CancellationToken)"/>,
+    /// before the exit code is returned — lets a test observe state (e.g. file locking) while
+    /// the "child process" is standing in as running.
+    /// </summary>
+    public Action<string>? OnRun { get; set; }
+
     public FakeProcessRunner(
         IReadOnlyDictionary<string, int> exitCodes,
         bool simulateLongRunning = false)
@@ -336,6 +536,7 @@ internal sealed class FakeProcessRunner : IProcessRunner
     public async Task<int> RunAsync(string fileName, string arguments, CancellationToken ct)
     {
         Invocations.Add((fileName, arguments));
+        OnRun?.Invoke(fileName);
 
         if (_simulateLongRunning)
         {

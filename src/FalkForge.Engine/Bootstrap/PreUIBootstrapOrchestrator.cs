@@ -21,9 +21,12 @@ using FalkForge.Engine.Protocol.Manifest;
 ///   <item>
 ///     <description>
 ///       <b>Elevated child (<c>--bootstrap-elevated</c> flag set):</b> this IS the elevated
-///       child spawned by an unelevated parent. Re-detect (defence-in-depth) and install.
-///       Return <see cref="PreUIBootstrapOutcome.ExitSuccess"/> (or the appropriate failure
-///       outcome) so the parent's <c>Environment.Exit</c> lets it continue to the UI launch.
+///       child spawned by an unelevated parent. Re-detects whether each prerequisite is
+///       already installed, then installs. Detection reads installed-state markers only, not
+///       payload bytes — <see cref="PreUIPrerequisiteInstaller"/> is what binds the launched
+///       file to the manifest-declared SHA-256 hash. Return
+///       <see cref="PreUIBootstrapOutcome.ExitSuccess"/> (or the appropriate failure outcome)
+///       so the parent's <c>Environment.Exit</c> lets it continue to the UI launch.
 ///     </description>
 ///   </item>
 ///   <item>
@@ -106,8 +109,13 @@ public sealed class PreUIBootstrapOrchestrator
             return PreUIBootstrapOutcome.LaunchUi;
 
         // Path 2 — elevated child (--bootstrap-elevated flag set):
-        //   Re-detect (defence-in-depth against tampering between extraction and elevation)
-        //   then install. Return ExitSuccess/failure so the unelevated parent can continue.
+        //   Re-detect whether each prerequisite is already installed. FindMissing only reads
+        //   installed-state markers (e.g. registry keys under a SearchCondition) — it never
+        //   reads the payload's bytes, so this re-detection is NOT a defence against tampering.
+        //   The payload the child is about to launch is bound to the manifest-declared hash in
+        //   PreUIPrerequisiteInstaller.RunAllAsync, which opens the file, hashes it, and holds
+        //   the handle open for the entire launch. Then install. Return ExitSuccess/failure so
+        //   the unelevated parent can continue.
         if (args.IsBootstrapElevated)
         {
             _logger?.Info(Category, "Running as elevated bootstrap child — detecting and installing.");
