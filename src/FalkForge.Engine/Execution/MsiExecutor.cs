@@ -104,16 +104,10 @@ public sealed partial class MsiExecutor
         return sb.ToString();
     }
 
-    // NOTE: this path is currently DEAD in production. IsSecret(name) below is only ever true for
-    // a variable registered via VariableStore.SetSecret, but SetSecret has ZERO production call
-    // sites today — PlanStep only pushes UiRequest.Plan.Properties into the store via the PLAIN
-    // Set() (Properties.Count > 0 branch), never Properties/SecureProperties into SetSecret. So no
-    // [VAR] reference in an MSI property value is ever expanded in production, secret or
-    // otherwise: this method only resolves secrets, and there are none to resolve. Wiring
-    // PlanStep's request.SecureProperties into store.SetSecret so this activates is tracked
-    // separately and is out of scope here (see PR #51 discussion) — do not assume this method
-    // does anything today just because it compiles and is covered by unit tests that construct
-    // their own secrets directly against the store.
+    // Expands a `[VariableName]` property value to a secret variable's plaintext when the variable
+    // store holds one under that name. Secret properties collected through SetSecureProperty do NOT
+    // travel this path — they never reach the command line at all; they are set through a runtime
+    // transform. This resolves only a `[VAR]` reference an author placed in a plain property value.
     private static string ResolvePropertyValue(string value, VariableStore? variableStore)
     {
         if (variableStore is null || value.Length < 3)

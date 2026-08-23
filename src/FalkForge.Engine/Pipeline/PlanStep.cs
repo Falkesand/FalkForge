@@ -123,11 +123,6 @@ internal sealed class PlanStep : IPlanStep
                 _variableStore.Set(key, value);
         }
 
-        var secretNames = request.SecureProperties.Count > 0
-            ? (IReadOnlySet<string>)new HashSet<string>(
-                request.SecureProperties.Keys, StringComparer.OrdinalIgnoreCase)
-            : null;
-
         var planResult = _planner.CreatePlan(
             manifest: ctx.Manifest,
             detection: ctx.Detection.Value,
@@ -142,7 +137,6 @@ internal sealed class PlanStep : IPlanStep
             userProperties: request.Properties.Count > 0
                 ? request.Properties
                 : null,
-            secretPropertyNames: secretNames,
             // Feeds Planner.OrderWithPrerequisites' "skip prerequisites already installed" branch.
             // Without this, every prerequisite is reinstalled on every run regardless of what
             // DetectStep found (DetectStep populates ctx.DetectedPackageStates; null here — e.g. an
@@ -157,6 +151,16 @@ internal sealed class PlanStep : IPlanStep
             return Result<Unit>.Failure(planResult.Error);
 
         ctx.Plan = planResult.Value;
+
+        // Carry the secret property VALUES to each action so the executor can set them through a runtime
+        // transform. The dictionary is owned by the UI channel for the session; actions share the one
+        // reference and never dispose the SensitiveBytes. Attached to every action uniformly — only the
+        // MSI executor consumes them; other executors ignore them.
+        if (request.SecureProperties.Count > 0)
+        {
+            foreach (var action in planResult.Value.Actions)
+                action.SecureProperties = request.SecureProperties;
+        }
 
         // Per-package plan notifications, derived from the completed plan in chain order.
         // The planner computes the plan as a whole; these observational Begin/Complete pairs
