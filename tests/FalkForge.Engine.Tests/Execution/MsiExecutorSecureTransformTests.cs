@@ -49,7 +49,7 @@ public sealed class MsiExecutorSecureTransformTests : IDisposable
         return result.Value;
     }
 
-    private PlanAction ActionFor(string baseMsi, Dictionary<string, SensitiveBytes> secrets,
+    private static PlanAction ActionFor(string baseMsi, Dictionary<string, SensitiveBytes> secrets,
         Dictionary<string, string>? properties = null) =>
         new()
         {
@@ -97,9 +97,9 @@ public sealed class MsiExecutorSecureTransformTests : IDisposable
         Assert.NotNull(commandLine);
 
         // The transform is on the command line; the secret is not.
-        Assert.Contains("TRANSFORMS=\"", commandLine);
-        Assert.DoesNotContain(password, commandLine);
-        Assert.DoesNotContain("SQLPASSWORD", commandLine);
+        Assert.Contains("TRANSFORMS=\"", commandLine, StringComparison.Ordinal);
+        Assert.DoesNotContain(password, commandLine, StringComparison.Ordinal);
+        Assert.DoesNotContain("SQLPASSWORD", commandLine, StringComparison.Ordinal);
 
         // The generated transform genuinely set the property to the exact special-character password.
         Assert.Equal(password, valueDuringInstall);
@@ -134,8 +134,8 @@ public sealed class MsiExecutorSecureTransformTests : IDisposable
         Assert.NotNull(commandLine);
         // Exactly one TRANSFORMS pair, and it still carries the author's transform.
         Assert.Equal(1, CountOccurrences(commandLine, "TRANSFORMS=\""));
-        Assert.Contains(@"C:\author\lang.mst;", commandLine);
-        Assert.DoesNotContain("hunter2", commandLine);
+        Assert.Contains(@"C:\author\lang.mst;", commandLine, StringComparison.Ordinal);
+        Assert.DoesNotContain("hunter2", commandLine, StringComparison.Ordinal);
     }
 
     private static string ReadTransformedProperty(string baseMsi, string commandLine, string property)

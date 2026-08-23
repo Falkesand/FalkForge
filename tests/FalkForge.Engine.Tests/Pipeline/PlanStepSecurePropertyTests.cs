@@ -49,7 +49,7 @@ public sealed class PlanStepSecurePropertyTests
     public async Task Plan_ForwardsSecurePropertyValuesToEachAction_AndKeepsThemOffProperties()
     {
         var ctx = CtxWith(ManifestWith(MsiPackage()));
-        var channel = new FakeUiChannel();
+        await using var channel = new FakeUiChannel();
         var step = new PlanStep(new Planner(), channel);
 
         var secure = new Dictionary<string, SensitiveBytes>(StringComparer.OrdinalIgnoreCase)

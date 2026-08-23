@@ -67,6 +67,7 @@ public static class MsiTransformGenerator
                 $"Failed to stage a working copy of the base MSI: {ex.Message}");
         }
 
+        var succeeded = false;
         try
         {
             var applyResult = ApplySecretProperties(workingCopy, secrets);
@@ -77,6 +78,7 @@ public static class MsiTransformGenerator
             if (genResult.IsFailure)
                 return Result<string>.Failure(genResult.Error);
 
+            succeeded = true;
             return mstPath;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
@@ -86,9 +88,14 @@ public static class MsiTransformGenerator
         }
         finally
         {
-            // The working copy carries the secret; delete it as soon as the transform is generated. The
-            // transform itself outlives this method (the caller installs with it, then deletes it).
+            // The working copy carries the secret; delete it as soon as the transform is generated. On any
+            // failure delete the transform too — MsiDatabaseGenerateTransform may have created it before a
+            // later step failed, and the caller only tracks it on success, so it would otherwise be an
+            // orphaned secret file. On success the transform outlives this method (the caller installs with
+            // it, then deletes it).
             TryDelete(workingCopy);
+            if (!succeeded)
+                TryDelete(mstPath);
         }
     }
 

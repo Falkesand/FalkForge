@@ -6658,7 +6658,7 @@ public class WelcomePage : InstallerPage&lt;WelcomePageView&gt;
       <tr><td><code>Cancel()</code></td><td><code>void</code></td><td>Cancels the current operation.</td></tr>
       <tr><td><code>ShutdownAsync()</code></td><td><code>Task&lt;int&gt;</code></td><td>Shuts down the engine and returns the process exit code.</td></tr>
       <tr><td><code>SetProperty(string name, string value)</code></td><td><code>void</code></td><td>Sets an MSI property to pass to packages during installation. Only accepted during Initializing, Detecting, or Planning phases. Property names must match <code>^[A-Z_][A-Z0-9_.]*$</code>.</td></tr>
-      <tr><td><code>SetSecureProperty(string name, SensitiveBytes value)</code></td><td><code>void</code></td><td>Sets a secure property transported via named pipe &mdash; never appears on the command line or in logs. The engine consumes the bytes synchronously; the caller disposes after return.</td></tr>
+      <tr><td><code>SetSecureProperty(string name, SensitiveBytes value)</code></td><td><code>void</code></td><td>Sets a secure property. The value travels UI&rarr;engine over the authenticated named pipe, and the engine applies it to the MSI through a runtime-generated transform (<code>TRANSFORMS=</code>) rather than the command line, so it never appears on the command line. The caller disposes after return.</td></tr>
     </tbody>
   </table>
 
@@ -6815,8 +6815,10 @@ public class CompletePage : InstallerPage&lt;CompleteView&gt;
 <p>
     Custom pages can send properties to MSI packages via the engine. Regular properties use
     <code>SetProperty</code>; credentials and secrets use <code>SetSecureProperty</code> with
-    <code>PasswordBridge</code> for secure WPF password collection. Properties are transported
-    over HMAC-SHA256 authenticated named pipes and never appear on the command line.
+    <code>PasswordBridge</code> for secure WPF password collection. Both are carried UI&rarr;engine
+    over HMAC-SHA256 authenticated named pipes. A regular property is passed to the installer on the
+    command line; a secure property is instead applied through a runtime-generated MSI transform
+    (<code>TRANSFORMS=</code>), so its value never appears on the command line or in the installer log.
 </p>
 
 <h4>PasswordBridge</h4>
