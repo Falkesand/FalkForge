@@ -27,6 +27,7 @@ internal static partial class NativeFileMethods
     internal const uint FileShareWrite = 0x00000002;
 
     // Creation dispositions
+    internal const uint CreateNew = 1;
     internal const uint OpenExisting = 3;
     internal const uint OpenAlways = 4;
 

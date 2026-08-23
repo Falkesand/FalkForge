@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using FalkForge.Engine.Elevation.Commands;
+using FalkForge.Engine.Elevation.Interop;
 using Xunit;
 
 namespace FalkForge.Engine.Elevation.Tests.Commands;
@@ -203,6 +204,68 @@ public sealed partial class NoFollowFileWriterTests : IDisposable
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
         Assert.Equal(content, File.ReadAllBytes(targetLong));
     }
+
+    // -------------------------------------------------------------------------
+    // OpenVerifiedNoFollowLeaf: the factored helper Write and the security log share.
+    // These pin the CREATE_NEW behaviour the log depends on, which VerifyHandle cannot provide.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void OpenVerifiedNoFollowLeaf_CreateNew_CreatesFileAndReturnsUsableHandle()
+    {
+        // The helper must hand back a still-open, verified handle the caller can write through.
+        // The security log wraps a StreamWriter over exactly this handle.
+        var targetPath = Path.Combine(_tempDir, "fresh.log");
+
+        var result = NoFollowFileWriter.OpenVerifiedNoFollowLeaf(
+            _tempDir, targetPath, NativeFileMethods.FileShareRead, NativeFileMethods.CreateNew);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
+        using (var stream = new FileStream(result.Value, FileAccess.Write))
+        {
+            stream.Write("MZ"u8);
+        }
+
+        Assert.Equal("MZ"u8.ToArray(), File.ReadAllBytes(targetPath));
+    }
+
+    [Fact]
+    public void OpenVerifiedNoFollowLeaf_CreateNew_RefusesPrePlantedHardLink_TargetUntouched()
+    {
+        // A hard link carries no reparse attribute and resolves to the same final path as the link
+        // name, so VerifyHandle passes it and an OPEN_ALWAYS open would write straight into the
+        // victim file's content. CREATE_NEW is the gate: it fails with ERROR_FILE_EXISTS on the
+        // existing name, so no elevated write can follow the link into the victim.
+        var victimPath = Path.Combine(_tempDir, "victim.dat");
+        var victimContent = "victim original bytes"u8.ToArray();
+        File.WriteAllBytes(victimPath, victimContent);
+
+        var linkPath = Path.Combine(_tempDir, "hardlink.log");
+        if (!TryCreateHardLink(linkPath, victimPath))
+            Assert.Skip("Hard link creation unavailable on this host/volume");
+
+        var result = NoFollowFileWriter.OpenVerifiedNoFollowLeaf(
+            _tempDir, linkPath, NativeFileMethods.FileShareRead, NativeFileMethods.CreateNew);
+
+        Assert.True(result.IsFailure);
+        // The victim's bytes are untouched — the write never followed the hard link.
+        Assert.Equal(victimContent, File.ReadAllBytes(victimPath));
+        // The pre-existing hard link this call did not create is still in place, resolving to
+        // the victim: rejection must not delete a filesystem object this call did not create.
+        Assert.Equal(victimContent, File.ReadAllBytes(linkPath));
+    }
+
+    private static bool TryCreateHardLink(string linkPath, string existingTarget)
+    {
+        return CreateHardLink(linkPath, existingTarget, 0);
+    }
+
+    // The buffer parameters are UTF-16 paths; StringMarshalling.Utf16 keeps this blittable.
+    [LibraryImport("kernel32.dll", EntryPoint = "CreateHardLinkW", SetLastError = true,
+        StringMarshalling = StringMarshalling.Utf16)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static partial bool CreateHardLink(string fileName, string existingFileName, nint securityAttributes);
 
     private static bool TryCreateFileSymlink(string linkPath, string linkTarget)
     {

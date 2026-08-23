@@ -40,6 +40,40 @@ internal static class NoFollowFileWriter
 {
     internal static Result<Unit> Write(string parentDirectory, string targetPath, byte[] content)
     {
+        // Overwrite semantics: OPEN_ALWAYS never truncates at open time, and shareMode 0 denies
+        // any concurrent access for the write's duration. SetLength below drops any trailing
+        // bytes from a pre-existing longer file.
+        var open = OpenVerifiedNoFollowLeaf(
+            parentDirectory, targetPath, shareMode: 0, NativeFileMethods.OpenAlways);
+        if (open.IsFailure)
+            return Result<Unit>.Failure(open.Error);
+
+        // Write through the verified handle only. Path strings are never re-resolved.
+        using var fileHandle = open.Value;
+        using var stream = new FileStream(fileHandle, FileAccess.Write);
+        stream.Write(content);
+        stream.SetLength(content.Length); // Overwrite semantics: drop any trailing old bytes.
+        stream.Flush(flushToDisk: true);
+        return Unit.Value;
+    }
+
+    /// <summary>
+    /// Opens <paramref name="targetPath"/> no-follow under the pinned, verified parent
+    /// <paramref name="parentDirectory"/> and returns the still-open, verified leaf handle for the
+    /// caller to own. The parent is opened no-follow and verified (not a reparse point, true final
+    /// path equals the expected path) to reject an ancestor junction planted after any earlier
+    /// policy walk; it is then released, because the leaf handle is bound to the real file object
+    /// and the disposition already bound its identity, so keeping the parent open buys nothing.
+    /// The leaf is opened with <paramref name="creationDisposition"/> and
+    /// <paramref name="shareMode"/> and the same reparse-attribute + final-path verification. A
+    /// <c>CREATE_NEW</c> disposition additionally refuses a pre-planted hard link or dangling
+    /// symlink, which the post-open verification alone cannot detect. On any failure both handles
+    /// are disposed (a leaf this call created and then rejected is first deleted via its handle);
+    /// on success only the leaf is transferred to the caller.
+    /// </summary>
+    internal static Result<SafeFileHandle> OpenVerifiedNoFollowLeaf(
+        string parentDirectory, string targetPath, uint shareMode, uint creationDisposition)
+    {
         // --- 1. Pin the parent directory by handle (no-follow, no delete sharing). ---
         using var parentHandle = NativeFileMethods.CreateFile(
             parentDirectory,
@@ -51,50 +85,60 @@ internal static class NoFollowFileWriter
             templateFile: 0);
 
         if (parentHandle.IsInvalid)
-            return Result<Unit>.Failure(ErrorKind.ElevationError,
+            return Result<SafeFileHandle>.Failure(ErrorKind.ElevationError,
                 $"File write failed: cannot open parent directory (Win32 error {Marshal.GetLastPInvokeError()})");
 
         var parentCheck = VerifyHandle(parentHandle, parentDirectory,
             "An ancestor directory is a symbolic link or junction and cannot be written through");
         if (parentCheck.IsFailure)
-            return parentCheck;
+            return Result<SafeFileHandle>.Failure(parentCheck.Error);
 
-        // --- 2. Open the target no-follow, without truncating anything at open time. ---
-        using var fileHandle = NativeFileMethods.CreateFile(
-            targetPath,
-            // DELETE is requested so a file created by this call can be removed via the same
-            // handle if post-open verification rejects it.
-            NativeFileMethods.GenericWrite | NativeFileMethods.FileReadAttributes | NativeFileMethods.Delete,
-            shareMode: 0,
-            securityAttributes: 0,
-            NativeFileMethods.OpenAlways,
-            NativeFileMethods.FileFlagOpenReparsePoint,
-            templateFile: 0);
-        var createError = Marshal.GetLastPInvokeError();
-
-        if (fileHandle.IsInvalid)
-            return Result<Unit>.Failure(ErrorKind.ElevationError,
-                $"File write failed: cannot open target file (Win32 error {createError})");
-
-        // OPEN_ALWAYS sets ERROR_ALREADY_EXISTS when the file pre-existed; anything else
-        // means this call created it and may safely delete it again on rejection.
-        var createdByThisCall = createError != NativeFileMethods.ErrorAlreadyExists;
-
-        var targetCheck = VerifyHandle(fileHandle, targetPath,
-            "Target file is a symbolic link and cannot be written to");
-        if (targetCheck.IsFailure)
+        // --- 2. Open the target no-follow. ---
+        // The leaf handle is owned by this local until it is either disposed on a failure path or
+        // transferred to the caller on success; the finally disposes it unless it was transferred
+        // (set to null). DELETE is requested so a file created by this call can be removed via the
+        // same handle if post-open verification rejects it.
+        SafeFileHandle? fileHandle = null;
+        try
         {
-            if (createdByThisCall)
-                DeleteViaHandle(fileHandle);
-            return targetCheck;
-        }
+            fileHandle = NativeFileMethods.CreateFile(
+                targetPath,
+                NativeFileMethods.GenericWrite | NativeFileMethods.FileReadAttributes | NativeFileMethods.Delete,
+                shareMode,
+                securityAttributes: 0,
+                creationDisposition,
+                NativeFileMethods.FileFlagOpenReparsePoint,
+                templateFile: 0);
+            var createError = Marshal.GetLastPInvokeError();
 
-        // --- 3. Write through the verified handle only. ---
-        using var stream = new FileStream(fileHandle, FileAccess.Write);
-        stream.Write(content);
-        stream.SetLength(content.Length); // Overwrite semantics: drop any trailing old bytes.
-        stream.Flush(flushToDisk: true);
-        return Unit.Value;
+            if (fileHandle.IsInvalid)
+                return Result<SafeFileHandle>.Failure(ErrorKind.ElevationError,
+                    $"File write failed: cannot open target file (Win32 error {createError})");
+
+            // OPEN_ALWAYS sets ERROR_ALREADY_EXISTS when the file pre-existed; anything else means
+            // this call created it and may safely delete it again on rejection. CREATE_NEW never
+            // returns a valid handle for a pre-existing file (it fails with ERROR_FILE_EXISTS), so a
+            // valid handle from it is always a file this call created — the flag reads correctly
+            // under both.
+            var createdByThisCall = createError != NativeFileMethods.ErrorAlreadyExists;
+
+            var targetCheck = VerifyHandle(fileHandle, targetPath,
+                "Target file is a symbolic link and cannot be written to");
+            if (targetCheck.IsFailure)
+            {
+                if (createdByThisCall)
+                    DeleteViaHandle(fileHandle);
+                return Result<SafeFileHandle>.Failure(targetCheck.Error);
+            }
+
+            var verified = Result<SafeFileHandle>.Success(fileHandle);
+            fileHandle = null; // Ownership transferred to the caller; the finally must not dispose it.
+            return verified;
+        }
+        finally
+        {
+            fileHandle?.Dispose();
+        }
     }
 
     /// <summary>
