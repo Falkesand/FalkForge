@@ -7757,7 +7757,8 @@ public sealed record EngineSessionOptions
 <p>
     <code>BindToPipe</code> performs the following construction sequence: builds an
     <code>EngineLogger</code> with a pipe-fanout callback, stamps a fresh <code>SessionCorrelationId</code>
-    (<code>Guid.NewGuid()</code>) on both the logger and the channel, loads the manifest from disk,
+    (<code>Guid.NewGuid()</code>) on both the logger and the channel, uses the verified manifest the
+    caller supplied and otherwise reads the manifest from the file at <code>manifestPath</code>,
     acquires <code>InstanceLock</code>, creates the <code>NamedPipeUiChannel</code> (or a null channel when
     <code>pipeName</code> is omitted), wires <code>MsiExecutor</code> / <code>MsuExecutor</code> /
     <code>MspExecutor</code> / <code>BundleExecutor</code> / <code>ExeExecutor</code> /
