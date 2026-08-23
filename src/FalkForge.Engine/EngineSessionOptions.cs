@@ -122,6 +122,21 @@ public sealed record EngineSessionOptions
     public string? ElevationCompanionPath { get; init; }
 
     /// <summary>
+    /// The SHA-256 digest, as 64 hexadecimal characters, that
+    /// <see cref="ElevationCompanionPath"/> was proven to have when it was verified.
+    /// <para>
+    /// SECURITY: this is required whenever <see cref="ElevationCompanionPath"/> is set. The
+    /// session opens the file, hashes it, and compares it against this value immediately before
+    /// wiring the elevation gateway, then keeps that handle open until the session ends. A path
+    /// with no digest cannot be re-proven, so the session refuses to wire it and runs per-user
+    /// instead. Verifying a file at extraction time and launching it by name minutes later is not
+    /// a check at all: the extraction directory belongs to the user, and any process running as
+    /// that user can swap the file, or redirect the path with a directory junction, in between.
+    /// </para>
+    /// </summary>
+    public string? ElevationCompanionSha256 { get; init; }
+
+    /// <summary>
     /// How the session resolves the elevation companion. The default
     /// (<see cref="ElevationCompanionPolicy.AmbientAllowed"/>) preserves the plain-engine-run
     /// behavior: probe beside the engine when no verified path is supplied. The self-extract

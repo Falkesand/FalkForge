@@ -312,6 +312,11 @@ internal static class BootstrapperRunner
                 // bundle declares none). This is what makes per-machine elevated installs work
                 // from a lone distributed bundle exe.
                 ElevationCompanionPath = verifiedCompanionPath,
+                // The digest the resolver proved those bytes against, carried forward so the
+                // session can prove them again at the moment it starts the process. Everything
+                // between the two happens while the extraction directory is user-writable: the
+                // pre-UI prerequisite bootstrap, the UI process launch, and the whole wizard.
+                ElevationCompanionSha256 = companionResolution.Value.ExpectedSha256,
                 // In a bundle bootstrap the manifest is AUTHORITATIVE on the companion: declared →
                 // only the verified extracted path may be wired; not declared → per-user, full
                 // stop. Never AmbientAllowed here — the ambient probe beside the engine would let

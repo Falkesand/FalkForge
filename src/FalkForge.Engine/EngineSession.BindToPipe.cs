@@ -28,6 +28,13 @@ public sealed partial class EngineSession
     /// <param name="manifestPath">Path to the installer manifest JSON file.</param>
     /// <param name="options">Optional session configuration overrides.</param>
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "IDisposableAnalyzers.Correctness", "IDISP007:Don't dispose injected",
+        Justification = "companionHandle is not injected. ResolveVerifiedCompanion below returns the " +
+            "stream HashBoundFile.Open created, which that helper documents as passing to its caller " +
+            "on the Verified status and disposing itself on every other. This method is therefore the " +
+            "owner until it hands the stream to NamedPipeElevationGateway, and it nulls the local at " +
+            "that point, so the finally disposes only a stream nothing else took.")]
     public static EngineSession BindToPipe(
         string? pipeName,
         string manifestPath,
@@ -187,46 +194,81 @@ public sealed partial class EngineSession
         };
 
         // ── Elevation gateway ───────────────────────────────────────────────
-        // Companion resolution is policy-driven (ElevationCompanionPolicy): the
-        // bootstrapper-verified extracted companion (options.ElevationCompanionPath — its bytes
-        // were bound to the bundle manifest's declared/signed hash before it was handed here)
-        // always wins; the classic probe beside the engine (the published-directory layout) is
-        // consulted ONLY under AmbientAllowed (a plain engine run). In a bundle bootstrap the
-        // manifest is authoritative: NoneDeclared skips the ambient probe entirely so a planted
-        // FalkForge.Engine.Elevation.exe beside the bundle exe is never launched elevated, and a
-        // VerifiedPath whose file has vanished degrades to per-user rather than substituting the
-        // unverified ambient binary. Without a companion the session runs with no elevation
-        // gateway: the pipeline skips the Elevating phase and installs per-user — say so in the
-        // log instead of degrading silently.
+        // Companion resolution is policy-driven (ElevationCompanionPolicy). When the bootstrapper
+        // supplies a companion path it also supplies the digest it proved that file against, and
+        // the session proves it again here before wiring anything. The classic probe beside the
+        // engine (the published-directory layout) is consulted ONLY under AmbientAllowed, a plain
+        // engine run, where no manifest declares a digest to check against.
+        //
+        // In a bundle bootstrap the manifest is authoritative. NoneDeclared skips the ambient
+        // probe entirely, so a FalkForge.Engine.Elevation.exe planted beside the bundle exe is
+        // never launched elevated. A supplied companion path that fails to verify, for any reason,
+        // wires nothing: it does not fall back to the ambient probe and it does not fall back to
+        // the path as supplied. Without a companion the session runs with no elevation gateway,
+        // the pipeline skips the Elevating phase, and the install proceeds per-user. Say so in the
+        // log rather than degrading silently.
         IElevatedCommandGateway? elevationGateway = null;
         string? companionExePath = null;
-        if (options.ElevationCompanionPath is { } verifiedCompanion && File.Exists(verifiedCompanion))
+        FileStream? companionHandle = null;
+        try
         {
-            companionExePath = verifiedCompanion;
+            if (options.ElevationCompanionPath is { } verifiedCompanion)
+            {
+                // The bootstrapper proved these bytes while it was unpacking the bundle. Since
+                // then the pre-UI bootstrap has run, the UI process has started, and the user has
+                // worked through the wizard. The extraction directory is under %TEMP% and belongs
+                // to the user, so any process running as that user has had that whole time to
+                // overwrite the file or to drop a directory junction in the path. So open it, hash
+                // it, and start the process from the path Windows reports for the handle that was
+                // hashed.
+                //
+                // The handle must stay open, and this is the part that is easy to get wrong. The
+                // companion is NOT launched here. This method only builds the gateway;
+                // NamedPipeElevationGateway.StartAsync calls the process launcher, and the
+                // pipeline does not reach that until the Elevating phase, after the user has
+                // cleared the wizard and the UAC prompt. Verifying here and closing the handle
+                // here would therefore close nothing. Instead the handle is handed to the gateway,
+                // which holds it until the session disposes, so write, rename and delete on that
+                // file are refused for the whole of the window that matters.
+                var bound = ResolveVerifiedCompanion(
+                    verifiedCompanion, options.ElevationCompanionSha256, logger);
+                companionHandle = bound.Stream;
+                companionExePath = bound.ResolvedPath;
+            }
+            else if (options.ElevationCompanionPolicy == ElevationCompanionPolicy.AmbientAllowed)
+            {
+                // Plain engine run: the companion ships beside the engine in the install
+                // directory and no manifest declares a hash for it, so there is nothing to check
+                // it against. This branch is unreachable from a bundle bootstrap, which always
+                // sets VerifiedPath or NoneDeclared.
+                var probe = Path.Combine(AppContext.BaseDirectory, "FalkForge.Engine.Elevation.exe");
+                if (File.Exists(probe))
+                    companionExePath = probe;
+            }
+
+            if (OperatingSystem.IsWindows() && companionExePath is not null)
+            {
+                elevationGateway = new NamedPipeElevationGateway(
+                    new ProcessLauncher(), companionExePath, companionHandle);
+                companionHandle = null; // ownership transferred to the gateway
+            }
         }
-        else if (options.ElevationCompanionPolicy == ElevationCompanionPolicy.AmbientAllowed)
+        finally
         {
-            var probe = Path.Combine(AppContext.BaseDirectory, "FalkForge.Engine.Elevation.exe");
-            if (File.Exists(probe))
-                companionExePath = probe;
+            // Runs when the companion verified but the session will not wire a gateway for it
+            // (non-Windows), and on any exception on the way there.
+            companionHandle?.Dispose();
         }
 
-        if (OperatingSystem.IsWindows() && companionExePath is not null)
-        {
-            elevationGateway = new NamedPipeElevationGateway(new ProcessLauncher(), companionExePath);
-        }
-        else if (options.ElevationCompanionPolicy == ElevationCompanionPolicy.NoneDeclared)
+        if (elevationGateway is null)
         {
             logger.Info("Engine",
-                "Bundle manifest declares no elevation companion — the ambient probe beside the " +
-                "engine is skipped (the manifest is authoritative in a bundle bootstrap); elevated " +
-                "(per-machine) installs are disabled for this session; continuing per-user.");
-        }
-        else
-        {
-            logger.Info("Engine",
-                "Elevation companion (FalkForge.Engine.Elevation.exe) not available — elevated " +
-                "(per-machine) installs are disabled for this session; continuing per-user.");
+                options.ElevationCompanionPolicy == ElevationCompanionPolicy.NoneDeclared
+                    ? "Bundle manifest declares no elevation companion — the ambient probe beside the " +
+                      "engine is skipped (the manifest is authoritative in a bundle bootstrap); elevated " +
+                      "(per-machine) installs are disabled for this session; continuing per-user."
+                    : "Elevation companion (FalkForge.Engine.Elevation.exe) not available — elevated " +
+                      "(per-machine) installs are disabled for this session; continuing per-user.");
         }
 
         // ── Auto-update services ────────────────────────────────────────────
@@ -348,5 +390,71 @@ public sealed partial class EngineSession
             isPlanOnly: options.IsPlanOnly,
             planOnlyOutputPath: options.PlanOnlyOutputPath,
             updatePayloadDownloader: payloadDownloader);
+    }
+
+    /// <summary>
+    /// Opens the companion the bootstrapper verified, proves its bytes against the digest that
+    /// came with it, and returns the still-open handle together with the path Windows reports for
+    /// that handle.
+    /// </summary>
+    /// <param name="companionPath">The path the bootstrapper verified and handed forward.</param>
+    /// <param name="expectedHashHex">
+    /// The digest it proved that file against, as 64 hexadecimal characters, or
+    /// <see langword="null"/> when the caller supplied none.
+    /// </param>
+    /// <param name="logger">Records why a companion was refused.</param>
+    /// <returns>
+    /// The open handle and the path to start the process from, or <c>(null, null)</c> when the
+    /// companion could not be proven. Every failure returns <c>(null, null)</c>: the caller then
+    /// runs the session with no elevation gateway. It never degrades to the caller's own path or
+    /// to the probe beside the engine, because doing either would launch, elevated, a file nothing
+    /// checked.
+    /// </returns>
+    private static (FileStream? Stream, string? ResolvedPath) ResolveVerifiedCompanion(
+        string companionPath, string? expectedHashHex, IFalkLogger logger)
+    {
+        const string Category = "Security";
+
+        if (expectedHashHex is not { } expectedHash)
+        {
+            logger.Error(Category,
+                $"An elevation companion path was supplied ('{companionPath}') with no expected " +
+                "SHA-256, so its bytes cannot be proven at launch. Refusing to launch it elevated; " +
+                "continuing per-user.");
+            return (null, null);
+        }
+
+        var bound = FalkForge.Engine.Protocol.Integrity.HashBoundFile.Open(companionPath, expectedHash);
+        if (bound.Status != FalkForge.Engine.Protocol.Integrity.HashBoundFileStatus.Verified)
+        {
+            logger.Error(Category,
+                $"The elevation companion at '{companionPath}' did not verify " +
+                $"({bound.Status}{(bound.Detail is null ? string.Empty : $": {bound.Detail}")}). " +
+                "It runs as SYSTEM, so this is treated as tampering. Refusing to launch it " +
+                "elevated; continuing per-user.");
+            return (null, null);
+        }
+
+        var stream = bound.Stream!;
+        var resolvedPath = bound.ResolvedPath!;
+
+        // The same two limits the other elevation crossings apply to a resolved path. A UNC path
+        // means the file lives on a server that decides for itself whether to honour the deny-write
+        // share mode, so the held handle proves nothing there. A path past MAX_PATH is one
+        // ShellExecuteExW will not accept, and neither is the \\?\ form that would lift the limit,
+        // so there is no spelling of it left to launch. Both fail closed rather than falling back
+        // to the path the caller supplied, which would put the junctions straight back.
+        if (resolvedPath.StartsWith(@"\\", StringComparison.Ordinal)
+            || resolvedPath.Length > FalkForge.Engine.Protocol.Integrity.HashBoundFile.MaxLegacyPathLength)
+        {
+            stream.Dispose();
+            logger.Error(Category,
+                $"The elevation companion at '{companionPath}' resolves to '{resolvedPath}', which " +
+                "is either on a network path or too long to launch. Refusing to launch it elevated; " +
+                "continuing per-user.");
+            return (null, null);
+        }
+
+        return (stream, resolvedPath);
     }
 }

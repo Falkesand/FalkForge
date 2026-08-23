@@ -96,6 +96,37 @@ public sealed class BootstrapCompanionResolverTests : IDisposable
         Assert.Equal(extracted, result.Value.VerifiedPath);
     }
 
+    [Theory]
+    [InlineData(false, "AABB", null, "AABB")]
+    // A delta payload is trusted on the hash of the file it reconstructs to, not on the hash of
+    // the delta blob, so that is the value the launch site has to prove the bytes against.
+    [InlineData(true, "DELTA-BLOB", "AABB", "AABB")]
+    public void Resolve_CarriesTheBoundDigestForwardWithThePath(
+        bool isDelta, string tocHash, string? reconstructedHash, string expectedDigest)
+    {
+        // The resolver runs during extraction. The companion is not launched until after the
+        // pre-UI bootstrap, the UI process launch, and the whole wizard, and the extraction
+        // directory is user-writable throughout. So the path on its own is not enough for the
+        // launch site to work with: it needs the digest to re-prove the bytes against.
+        WriteExtractedCompanion();
+
+        var result = BootstrapCompanionResolver.Resolve(
+            Manifest("AABB"), [CompanionEntry(tocHash, isDelta, reconstructedHash)], _cacheDir);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(expectedDigest, result.Value.ExpectedSha256);
+    }
+
+    [Fact]
+    public void Resolve_NoCompanion_CarriesNoDigest()
+    {
+        var result = BootstrapCompanionResolver.Resolve(Manifest(null), [], _cacheDir);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Null(result.Value.VerifiedPath);
+        Assert.Null(result.Value.ExpectedSha256);
+    }
+
     [Fact]
     public void Resolve_HashComparisonIsCaseInsensitive()
     {

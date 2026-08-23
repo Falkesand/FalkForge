@@ -29,6 +29,7 @@ public sealed class NamedPipeElevationGateway : IElevatedCommandGateway
 
     private readonly IProcessLauncher _launcher;
     private readonly string _companionExePath;
+    private readonly IDisposable? _companionHandle;
 
     // Set during StartAsync; null means not yet started or start failed.
     private ElevationClient? _client;
@@ -41,11 +42,36 @@ public sealed class NamedPipeElevationGateway : IElevatedCommandGateway
     /// Creates a gateway that will launch the elevated companion at
     /// <paramref name="companionExePath"/>.
     /// </summary>
-    public NamedPipeElevationGateway(IProcessLauncher launcher, string companionExePath)
+    /// <param name="launcher">Starts the elevated process.</param>
+    /// <param name="companionExePath">
+    /// The path the companion is started from. When <paramref name="companionHandle"/> is
+    /// supplied this must be the path Windows reported for that handle, not the path the caller
+    /// originally typed, because only the reported path is free of directory junctions that could
+    /// send the second open somewhere else.
+    /// </param>
+    /// <param name="companionHandle">
+    /// An open read handle on the companion file whose bytes were hashed, or <see langword="null"/>
+    /// when no hash was available (the plain engine run, where the companion ships beside the
+    /// engine in the install directory). Holding it denies every other process write, rename and
+    /// delete on that file, so the bytes that were hashed are the bytes Windows maps when the
+    /// process starts. Measured on this machine: a process launches normally while such a handle
+    /// is held, both through <c>CreateProcessW</c> and through <c>ShellExecute</c>, while an
+    /// overwrite and a delete of the same file are refused. The gateway takes ownership and
+    /// disposes it in <see cref="DisposeAsync"/>.
+    /// </param>
+    public NamedPipeElevationGateway(
+        IProcessLauncher launcher, string companionExePath, IDisposable? companionHandle = null)
     {
         _launcher = launcher;
         _companionExePath = companionExePath;
+        _companionHandle = companionHandle;
     }
+
+    /// <summary>
+    /// The path this gateway starts the companion from. Internal so wiring tests can assert on the
+    /// exact string that reaches the process launcher.
+    /// </summary>
+    internal string CompanionExePath => _companionExePath;
 
     /// <inheritdoc/>
     public async Task<Result<Unit>> StartAsync(CancellationToken ct)
@@ -172,6 +198,13 @@ public sealed class NamedPipeElevationGateway : IElevatedCommandGateway
     }
 
     /// <inheritdoc/>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "IDisposableAnalyzers.Correctness", "IDISP007:Don't dispose injected",
+        Justification = "The companion handle is passed in, but ownership passes with it: the " +
+            "constructor documents that this gateway disposes it, and the only caller " +
+            "(EngineSession.BindToPipe) drops its own reference the moment it hands the handle over. " +
+            "Leaving it undisposed would keep a read handle on the extracted companion open for the " +
+            "rest of the process.")]
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
@@ -184,6 +217,10 @@ public sealed class NamedPipeElevationGateway : IElevatedCommandGateway
 
         if (_pipe is not null)
             await _pipe.DisposeAsync();
+
+        // Last, so the companion file stays locked against replacement for as long as this
+        // gateway could still start or restart the process.
+        _companionHandle?.Dispose();
     }
 
     private void KillCompanion()
