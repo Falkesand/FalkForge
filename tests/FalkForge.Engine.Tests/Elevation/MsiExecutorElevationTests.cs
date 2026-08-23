@@ -180,6 +180,59 @@ public sealed class MsiExecutorElevationTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WithElevationClient_InstallWithSecret_AppendsSecretBlockAndKeepsItOffArgs()
+    {
+        var mockClient = new MockElevationClient();
+        var executor = new MsiExecutor(() => mockClient);
+        using var secret = SensitiveBytes.FromPlaintext("s3cr3t P@ss;&|"u8);
+        var action = CreateMsiAction(PlanActionType.Install, @"C:\packages\TestApp.msi");
+        action.SecureProperties = new Dictionary<string, SensitiveBytes>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["SQLPASSWORD"] = secret
+        };
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        using var stream = new MemoryStream(mockClient.LastPayload!);
+        using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8);
+        reader.ReadString(); // msiPath
+        var additionalArgs = reader.ReadString();
+        reader.ReadString(); // declared hash
+
+        // The secret is not on the command-line args.
+        Assert.DoesNotContain("SQLPASSWORD", additionalArgs);
+        Assert.DoesNotContain("s3cr3t", additionalArgs);
+
+        // It rides the trailing secret block instead.
+        var count = reader.ReadInt32();
+        Assert.Equal(1, count);
+        Assert.Equal("SQLPASSWORD", reader.ReadString());
+        var length = reader.ReadInt32();
+        var bytes = reader.ReadBytes(length);
+        Assert.Equal("s3cr3t P@ss;&|", System.Text.Encoding.UTF8.GetString(bytes));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithElevationClient_NoSecret_WritesNoSecretBlock()
+    {
+        var mockClient = new MockElevationClient();
+        var executor = new MsiExecutor(() => mockClient);
+        var action = CreateMsiAction(PlanActionType.Install, @"C:\packages\TestApp.msi");
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        using var stream = new MemoryStream(mockClient.LastPayload!);
+        using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8);
+        reader.ReadString();
+        reader.ReadString();
+        reader.ReadString();
+        // No trailing block for a non-secret install — the wire shape is unchanged.
+        Assert.Equal(stream.Length, stream.Position);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WithElevationClient_UninstallWithoutProductCode_UsesSourcePath()
     {
         // Arrange: No ProductCode in properties, should fall back to SourcePath
@@ -329,7 +382,10 @@ internal sealed class MockElevationClient : IElevationClient
     {
         CallCount++;
         LastCommandName = commandName;
-        LastPayload = payload;
+        // Copy the payload: a real transport reads the bytes before returning, and the executor zeroes the
+        // original buffer afterward (it may carry secret plaintext). Capturing the reference would then
+        // observe a zeroed array.
+        LastPayload = (byte[])payload.Clone();
         return Task.FromResult(ResultToReturn);
     }
 
