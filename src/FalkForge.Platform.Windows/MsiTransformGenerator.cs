@@ -16,7 +16,7 @@ using System.Runtime.Versioning;
 /// </para>
 /// <para>
 /// Generating a transform requires a writable working copy of the base MSI on disk. This method stages
-/// that copy plus the transform inside <paramref name="stagingDirectory"/>, which the CALLER is
+/// that copy plus the transform inside the staging directory the caller passes, which the CALLER is
 /// responsible for securing: the elevated path passes a directory ACL'd to SYSTEM + Administrators only,
 /// the per-user path passes a fresh unpredictable per-user temp directory. The working copy is created
 /// with create-new semantics (it refuses a pre-planted name) and deleted before this method returns; only

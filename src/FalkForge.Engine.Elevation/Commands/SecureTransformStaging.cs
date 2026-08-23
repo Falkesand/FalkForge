@@ -12,7 +12,7 @@ using FalkForge.Engine.Protocol.Integrity;
 /// with NO Users entry, so a same-user attacker cannot plant, read, or swap the working copy or the
 /// transform. A stale-file sweep on startup clears anything a crash left behind.
 /// </summary>
-public interface ISecureTransformStaging
+internal interface ISecureTransformStaging
 {
     /// <summary>
     /// Ensures the staging directory exists and is hardened, returning its path. Fails closed if the
@@ -26,7 +26,7 @@ public interface ISecureTransformStaging
 /// <c>%ProgramData%\FalkForge\SecureTransforms</c>, ACL'd to SYSTEM + Administrators FullControl with no
 /// Users entry and inheritance severed.
 /// </summary>
-public sealed class SecureTransformStaging : ISecureTransformStaging
+internal sealed class SecureTransformStaging : ISecureTransformStaging
 {
     /// <summary><c>%ProgramData%\FalkForge\SecureTransforms</c>.</summary>
     public static readonly string StagingRoot = Path.Combine(
