@@ -5,10 +5,10 @@ using FalkForge.Engine.Protocol.Transport;
 
 ElevationSecurityLog.Initialize();
 
-// Clear any transform working copies or generated transforms a previously killed companion left in the
-// secure staging directory. A crash misses the per-install cleanup; this runs before any new file is
-// created. Best-effort — never blocks startup.
-SecureTransformStaging.SweepStale();
+// Harden the secure transform staging directory, then clear anything a previously killed companion left
+// there (a crash misses the per-install cleanup). Hardening runs FIRST so the sweep never operates on a
+// directory an attacker may still have pre-planted or redirected. Best-effort — never blocks startup.
+SecureTransformStaging.HardenAndSweep();
 
 string? pipeName = null;
 string? secretPipeName = null;

@@ -154,6 +154,13 @@ public sealed class MsiInstallCommand : IElevatedCommand
             for (var i = 0; i < count; i++)
             {
                 var name = reader.ReadString();
+                // Validate the property NAME with the same rule the command-line args path enforces
+                // (^[A-Z_][A-Z0-9_.]*$). A forged or misused peer must not set an arbitrarily-named property
+                // on the hash-pinned MSI just because the value rides the transform instead of the args.
+                if (!IsValidPropertyName(name))
+                    return Result<List<SecretProperty>>.Failure(ErrorKind.SecurityError,
+                        "MSI install request carries an invalid secret property name");
+
                 var length = reader.ReadInt32();
                 if (length < 0 || length > MaxSecretValueBytes)
                     return Result<List<SecretProperty>>.Failure(ErrorKind.SecurityError,
@@ -187,12 +194,15 @@ public sealed class MsiInstallCommand : IElevatedCommand
     private Result<byte[]> InstallWithSecretTransform(
         string msiPath, string additionalArgs, List<SecretProperty> secrets, Action<int>? onProgress)
     {
-        var ensure = _staging.Ensure();
-        if (ensure.IsFailure)
-            return Result<byte[]>.Failure(ensure.Error);
+        var lease = _staging.CreateStagingDirectory();
+        if (lease.IsFailure)
+            return Result<byte[]>.Failure(lease.Error);
 
+        // The lease holds a no-follow handle pinning the staging directory (and its ancestors) against
+        // rename/delete for as long as it is open, so an ancestor cannot be swapped for a junction while the
+        // transform is generated and installed. Disposing it closes the handle and deletes the directory.
+        using var staging = lease.Value;
         var secretBytes = new Dictionary<string, SensitiveBytes>(StringComparer.OrdinalIgnoreCase);
-        string? mstPath = null;
         try
         {
             foreach (var secret in secrets)
@@ -201,36 +211,32 @@ public sealed class MsiInstallCommand : IElevatedCommand
                 secretBytes[secret.Name] = new SensitiveBytes(secret.Value);
             }
 
-            var gen = MsiTransformGenerator.GenerateSecretTransform(msiPath, secretBytes, ensure.Value);
+            var gen = MsiTransformGenerator.GenerateSecretTransform(msiPath, secretBytes, staging.Directory);
             if (gen.IsFailure)
                 return Result<byte[]>.Failure(gen.Error);
 
-            mstPath = gen.Value;
-            var mergedArgs = MsiTransformArgs.MergeTransforms(additionalArgs, mstPath);
+            var mergedArgs = MsiTransformArgs.MergeTransforms(additionalArgs, gen.Value);
             return InstallLocked(msiPath, mergedArgs, onProgress);
         }
         finally
         {
             foreach (var secret in secretBytes.Values)
                 secret.Dispose();
-            DeleteBestEffort(mstPath);
         }
     }
 
-    private static void DeleteBestEffort(string? path)
+    private static bool IsValidPropertyName(string name)
     {
-        if (path is null)
-            return;
+        if (name.Length == 0 || !IsKeyStartChar(name[0]))
+            return false;
 
-        try
+        for (var i = 1; i < name.Length; i++)
         {
-            if (File.Exists(path))
-                File.Delete(path);
+            if (!IsKeyChar(name[i]))
+                return false;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // Best-effort: a startup sweep clears anything a failed delete leaves behind.
-        }
+
+        return true;
     }
 
     private readonly record struct SecretProperty(string Name, byte[] Value);

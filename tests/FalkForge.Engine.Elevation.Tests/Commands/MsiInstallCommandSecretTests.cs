@@ -60,7 +60,8 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
         var baseMsi = CompileBaseMsi();
         var staging = Path.Combine(_tempDir, "staging");
         Directory.CreateDirectory(staging);
-        var command = new MsiInstallCommand(_mockMsiApi, new FakeStaging(staging));
+        var fake = new FakeStaging(staging);
+        var command = new MsiInstallCommand(_mockMsiApi, fake);
 
         const string password = "P@ss \" & | ; < > w0rd!";
         string? valueDuringInstall = null;
@@ -75,16 +76,16 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         Assert.NotNull(_mockMsiApi.LastCommandLine);
-        Assert.Contains("TRANSFORMS=\"", _mockMsiApi.LastCommandLine);
-        Assert.DoesNotContain(password, _mockMsiApi.LastCommandLine);
-        Assert.DoesNotContain("SQLPASSWORD", _mockMsiApi.LastCommandLine);
+        Assert.Contains("TRANSFORMS=\"", _mockMsiApi.LastCommandLine, StringComparison.Ordinal);
+        Assert.DoesNotContain(password, _mockMsiApi.LastCommandLine, StringComparison.Ordinal);
+        Assert.DoesNotContain("SQLPASSWORD", _mockMsiApi.LastCommandLine, StringComparison.Ordinal);
 
         // The generated transform genuinely set the property.
         Assert.Equal(password, valueDuringInstall);
 
-        // Both staged files (working copy and transform) are gone afterward.
-        Assert.Empty(Directory.GetFiles(staging, "~pw-*.msi"));
-        Assert.Empty(Directory.GetFiles(staging, "st-*.mst"));
+        // The per-install staging directory (working copy + transform) is deleted afterward by the lease.
+        Assert.NotNull(fake.LastDirectory);
+        Assert.False(Directory.Exists(fake.LastDirectory));
     }
 
     [Fact]
@@ -106,8 +107,27 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         Assert.Equal(1, CountOccurrences(_mockMsiApi.LastCommandLine!, "TRANSFORMS=\""));
-        Assert.Contains(@"C:\author\lang.mst;", _mockMsiApi.LastCommandLine);
-        Assert.DoesNotContain("hunter2", _mockMsiApi.LastCommandLine);
+        Assert.Contains(@"C:\author\lang.mst;", _mockMsiApi.LastCommandLine, StringComparison.Ordinal);
+        Assert.DoesNotContain("hunter2", _mockMsiApi.LastCommandLine, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Execute_InvalidSecretPropertyName_ReturnsSecurityError_NeverInstalls()
+    {
+        // A forged peer must not set an arbitrarily-named property just because the value rides the
+        // transform instead of the command line. The name is validated against ^[A-Z_][A-Z0-9_.]*$.
+        var baseMsi = Path.Combine(_tempDir, "fake.msi");
+        File.WriteAllBytes(baseMsi, [0x00]);
+        var command = new MsiInstallCommand(_mockMsiApi, new FakeStaging(_tempDir));
+
+        var payload = BuildPayload(
+            baseMsi, string.Empty, HashOf(baseMsi), [("bad name!", "x"u8.ToArray())]);
+
+        var result = command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
     }
 
     [Fact]
@@ -206,21 +226,27 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
     }
 
     [Fact]
-    public void SweepStale_DeletesLeftoverWorkingCopiesAndTransforms()
+    public void SweepStale_DeletesLeftoverSubdirectoriesAndLooseFiles()
     {
         var root = Path.Combine(_tempDir, "sweep");
         Directory.CreateDirectory(root);
-        var pw = Path.Combine(root, "~pw-abcd.msi");
-        var mst = Path.Combine(root, "st-abcd.mst");
+
+        // A per-install subdirectory a crash left behind, with its secret files still inside.
+        var staleSub = Path.Combine(root, "stg-abcd");
+        Directory.CreateDirectory(staleSub);
+        File.WriteAllText(Path.Combine(staleSub, "~pw-x.msi"), "x");
+        File.WriteAllText(Path.Combine(staleSub, "st-x.mst"), "x");
+
+        // Legacy loose files at the root.
+        var looseMst = Path.Combine(root, "st-abcd.mst");
         var keep = Path.Combine(root, "unrelated.txt");
-        File.WriteAllText(pw, "x");
-        File.WriteAllText(mst, "x");
+        File.WriteAllText(looseMst, "x");
         File.WriteAllText(keep, "x");
 
         SecureTransformStaging.SweepStale(root);
 
-        Assert.False(File.Exists(pw));
-        Assert.False(File.Exists(mst));
+        Assert.False(Directory.Exists(staleSub)); // whole stale subdirectory removed
+        Assert.False(File.Exists(looseMst));
         Assert.True(File.Exists(keep)); // only staging artifacts are swept
     }
 
@@ -301,8 +327,22 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
         return count;
     }
 
-    private sealed class FakeStaging(string dir) : ISecureTransformStaging
+    private sealed class FakeStaging(string root) : ISecureTransformStaging
     {
-        public Result<string> Ensure() => dir;
+        public string? LastDirectory { get; private set; }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage(
+            "IDisposableAnalyzers.Correctness", "IDISP005:Return type should indicate that the value should be disposed",
+            Justification = "Mirrors the production interface: the lease is returned in Result<T> and the " +
+                "command under test owns and disposes it.")]
+        public Result<SecureStagingLease> CreateStagingDirectory()
+        {
+            var dir = Path.Combine(root, $"stg-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(dir);
+            LastDirectory = dir;
+            // No pin handle in the fake: the test exercises generation/merge/cleanup, not the real
+            // no-follow directory pin (which needs the SYSTEM-owned ProgramData path).
+            return new SecureStagingLease(dir, null);
+        }
     }
 }
