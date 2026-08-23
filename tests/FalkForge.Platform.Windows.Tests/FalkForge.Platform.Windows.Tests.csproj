@@ -9,5 +9,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\FalkForge.Platform.Windows\FalkForge.Platform.Windows.csproj" />
+    <!-- Test-only: build a real MSI and read a transform back through the compiler's MsiDatabase to
+         prove the ported transform generator sets the property. No production code depends on this. -->
+    <ProjectReference Include="..\..\src\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
+    <ProjectReference Include="..\..\src\FalkForge.Testing\FalkForge.Testing.csproj" />
   </ItemGroup>
 </Project>
