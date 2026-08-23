@@ -211,6 +211,21 @@ public sealed partial class MsiExecutor
         if (msiApi is null)
             return Result<int>.Failure(ErrorKind.ExecutionError, "MSI API not available");
 
+        // Secret properties (SetSecureProperty) are set through a runtime transform applied with
+        // TRANSFORMS=, never on the command line. The per-user (direct) path runs AS the user, who owns
+        // the secret they typed, so the transform and its working copy are staged in a fresh, unpredictable
+        // per-user temp directory and deleted after the install. Only Install carries a runtime transform.
+        string? secretStagingDir = null;
+        if (action.SecureProperties.Count > 0
+            && action.ActionType == PlanActionType.Install
+            && OperatingSystem.IsWindows())
+        {
+            var stage = StageSecretTransform(action, additionalArgs);
+            if (stage.IsFailure)
+                return Result<int>.Failure(stage.Error);
+            (additionalArgs, secretStagingDir) = stage.Value;
+        }
+
         var progressState = new MsiProgressState();
         MsiExternalUIHandler handler = (context, messageType, message) =>
         {
@@ -258,6 +273,59 @@ public sealed partial class MsiExecutor
         {
             msiApi.SetExternalUI(null, 0, IntPtr.Zero);
             gcHandle.Free();
+            // Delete the staged transform and its working copy. Both held the secret in plaintext for the
+            // install's duration; neither survives this call.
+            DeleteStagingDirectory(secretStagingDir);
+        }
+    }
+
+    /// <summary>
+    /// Generates a secret-property transform for <paramref name="action"/> in a fresh per-user temp
+    /// directory and merges it into <paramref name="additionalArgs"/>. Returns the updated arguments and
+    /// the staging directory the caller must delete after the install.
+    /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static Result<(string additionalArgs, string stagingDir)> StageSecretTransform(
+        PlanAction action, string additionalArgs)
+    {
+        string stagingDir;
+        try
+        {
+            stagingDir = Directory.CreateTempSubdirectory("ff-mst-").FullName;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return Result<(string, string)>.Failure(ErrorKind.IoError,
+                $"Failed to create a staging directory for the secret transform: {ex.Message}");
+        }
+
+        var gen = MsiTransformGenerator.GenerateSecretTransform(
+            action.EffectiveSourcePath, action.SecureProperties, stagingDir);
+        if (gen.IsFailure)
+        {
+            DeleteStagingDirectory(stagingDir);
+            return Result<(string, string)>.Failure(gen.Error);
+        }
+
+        var merged = MsiTransformArgs.MergeTransforms(additionalArgs, gen.Value);
+        return (merged, stagingDir);
+    }
+
+    private static void DeleteStagingDirectory(string? stagingDir)
+    {
+        if (stagingDir is null)
+            return;
+
+        try
+        {
+            if (Directory.Exists(stagingDir))
+                Directory.Delete(stagingDir, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best-effort cleanup: a failure to delete the staging directory must never mask the
+            // install result. A crash-swept sibling directory handles the elevated path; the per-user
+            // temp directory is reclaimed by the OS.
         }
     }
 
