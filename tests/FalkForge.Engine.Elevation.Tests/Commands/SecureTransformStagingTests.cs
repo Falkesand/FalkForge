@@ -8,8 +8,8 @@ using Xunit;
 /// <summary>
 /// The elevated staging directory must resist a same-user attacker who owns <c>%ProgramData%\FalkForge</c>
 /// (it is user-writable by design) and plants or swaps a junction on the staging path to redirect the
-/// SYSTEM-generated transform into attacker-writable storage — the D22-class injection this whole design
-/// exists to prevent. These tests plant a real junction (unelevated, via <c>mklink /J</c>) on the staging
+/// SYSTEM-generated transform into attacker-writable storage — the property-injection attack this whole
+/// design exists to prevent. These tests plant a real junction (unelevated, via <c>mklink /J</c>) on the staging
 /// path and prove the staging request fails closed and nothing is created in the redirected location. The
 /// allowed root is injected so the walk can be exercised without writing under the real ProgramData.
 /// </summary>
