@@ -58,6 +58,46 @@ internal static class NoFollowFileWriter
     }
 
     /// <summary>
+    /// Opens <paramref name="directory"/> ITSELF no-follow (a directory handle, backup semantics) and
+    /// returns the still-open, verified handle for the caller to hold. The handle is opened WITHOUT
+    /// <c>FILE_SHARE_DELETE</c>, so holding it pins the directory — and every ancestor of it, since NTFS
+    /// refuses to rename or delete any ancestor of an open handle — against rename and delete for the
+    /// handle's lifetime. That denies a same-user attacker who owns an ancestor the delete-then-recreate-as-
+    /// junction move. The handle is verified the same way as a leaf: not a reparse point, and its true final
+    /// path equals <paramref name="directory"/>, so a junction swapped in since the tree was walked is
+    /// rejected. On failure the handle is disposed; on success it transfers to the caller.
+    /// </summary>
+    internal static Result<SafeFileHandle> OpenVerifiedNoFollowDirectory(string directory)
+    {
+        var handle = NativeFileMethods.CreateFile(
+            directory,
+            NativeFileMethods.FileReadAttributes,
+            NativeFileMethods.FileShareRead | NativeFileMethods.FileShareWrite,
+            securityAttributes: 0,
+            NativeFileMethods.OpenExisting,
+            NativeFileMethods.FileFlagBackupSemantics | NativeFileMethods.FileFlagOpenReparsePoint,
+            templateFile: 0);
+
+        if (handle.IsInvalid)
+        {
+            var error = Marshal.GetLastPInvokeError();
+            handle.Dispose();
+            return Result<SafeFileHandle>.Failure(ErrorKind.ElevationError,
+                $"Cannot open the staging directory no-follow (Win32 error {error})");
+        }
+
+        var check = VerifyHandle(handle, directory,
+            "The staging directory is a symbolic link or junction and cannot be used");
+        if (check.IsFailure)
+        {
+            handle.Dispose();
+            return Result<SafeFileHandle>.Failure(check.Error);
+        }
+
+        return handle;
+    }
+
+    /// <summary>
     /// Opens <paramref name="targetPath"/> no-follow under the pinned, verified parent
     /// <paramref name="parentDirectory"/> and returns the still-open, verified leaf handle for the
     /// caller to own. The parent is opened no-follow and verified (not a reparse point, true final
