@@ -20,6 +20,17 @@ internal static class ElevatedPathPolicy
     ];
 
     /// <summary>
+    /// Allowed root for the elevated security log directory: the process temp path itself.
+    /// Deliberately NOT <see cref="FileWriteRoots"/>, which anchors at the user profile — that
+    /// would make <see cref="EnsureDirectoryTreeSafe"/> walk <c>AppData\Local\Temp</c> and reject
+    /// any reparse point at any of those levels (breaking folder-redirection setups), and it cannot
+    /// canonicalise an 8.3 short component the temp path may carry, so the prefix match would fail
+    /// and the log would degrade to null on every run. Anchoring at the temp path itself makes the
+    /// walk a single segment (<c>FalkForge</c>) and the containment match exact.
+    /// </summary>
+    internal static string[] SecurityLogRoots() => [Path.GetTempPath()];
+
+    /// <summary>
     /// Allowed roots for a SYSTEM service's binary image. Deliberately EXCLUDES the user
     /// profile: a service image under a user-writable directory is a weak-service-path
     /// privilege escalation (the user can swap the binary and inherit SYSTEM).

@@ -1,6 +1,8 @@
 namespace FalkForge.Engine.Elevation;
 
 using System.Globalization;
+using FalkForge.Engine.Elevation.Commands;
+using FalkForge.Engine.Elevation.Interop;
 
 /// <summary>
 /// Simple file-based security logger for the elevated process.
@@ -19,6 +21,32 @@ internal static class ElevationSecurityLog
     // substitute a fixed-time TimeProvider via reflection (see ElevationSecurityLogTests)
     // to make timestamp assertions deterministic instead of racing the wall clock.
     private static TimeProvider _timeProvider = TimeProvider.System;
+    // Injectable temp-root seam. In production this is null and the log anchors at
+    // Path.GetTempPath() (see ElevatedPathPolicy.SecurityLogRoots). Tests point it at a scratch
+    // directory so they can plant a junction: the real %TEMP%\FalkForge already exists on any
+    // machine that ran the engine or this suite, and mklink /J refuses an existing link path.
+    private static string? _tempRootOverride;
+    // Set when the log declines to open because the directory tree or the leaf failed a security
+    // check (a planted junction, symlink, or hard link), as opposed to a benign I/O failure. Kept
+    // distinct so a caller can tell tamper from ordinary failure. Reporting tamper upstream is a
+    // future enhancement; this build records it in-process only.
+    private static volatile bool _tamperDetected;
+
+    /// <summary>
+    /// True when <see cref="Initialize"/> refused to open the log because a path component failed a
+    /// security check (planted junction, symbolic link, or hard link), rather than a benign I/O
+    /// failure. Distinct from plain "no writer" so tamper is not silently identical to a benign
+    /// failure to create the file.
+    /// </summary>
+    internal static bool TamperDetected => _tamperDetected;
+
+    /// <summary>
+    /// Test seam: redirects the temp root the log anchors at, so a test can plant a junction under
+    /// a scratch directory it controls (the real <c>%TEMP%\FalkForge</c> already exists and
+    /// <c>mklink /J</c> refuses an existing link path). Pass <see langword="null"/> to restore the
+    /// production default of <see cref="Path.GetTempPath"/>. Not used in production.
+    /// </summary>
+    internal static void SetTempRootForTests(string? tempRoot) => _tempRootOverride = tempRoot;
 
     /// <summary>
     /// Initializes the log file. Safe to call multiple times; only the first call takes effect.
@@ -34,14 +62,48 @@ internal static class ElevationSecurityLog
 
             try
             {
-                var directory = Path.Combine(Path.GetTempPath(), "FalkForge");
-                Directory.CreateDirectory(directory);
+                // The elevated companion shares the unelevated user's profile under UAC, so this
+                // temp path is attacker-writable. Gate the directory (defeats an ancestor junction
+                // that Directory.CreateDirectory would follow) AND open the leaf no-follow with
+                // CREATE_NEW (defeats a pre-planted hard link, which post-open verification alone
+                // cannot see). Neither gate alone is enough.
+                var tempRoot = _tempRootOverride ?? Path.GetTempPath();
+                var directory = Path.Combine(tempRoot, "FalkForge");
+                string[] allowedRoots = _tempRootOverride is null
+                    ? ElevatedPathPolicy.SecurityLogRoots()
+                    : [_tempRootOverride];
+
+                var treeSafe = ElevatedPathPolicy.EnsureDirectoryTreeSafe(directory, allowedRoots);
+                if (treeSafe.IsFailure)
+                {
+                    if (treeSafe.Error.Kind == ErrorKind.SecurityError)
+                        _tamperDetected = true;
+                    _writer = null;
+                    return;
+                }
 
                 var timestamp = _timeProvider.GetUtcNow().UtcDateTime.ToString("yyyyMMdd_HHmmss", CultureInfo.InvariantCulture);
                 var pid = Environment.ProcessId;
-                var filePath = Path.Combine(directory, $"elevation_{timestamp}_{pid}.log");
+                // A random component is required, not cosmetic: CREATE_NEW fails with
+                // ERROR_FILE_EXISTS on a name that already exists, and timestamp+pid alone repeats
+                // within the same second and across a second Initialize in the same process.
+                var fileName = $"elevation_{timestamp}_{pid}_{Guid.NewGuid():N}.log";
+                var filePath = Path.Combine(directory, fileName);
 
-                var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.Read);
+                // FileShare.Read (not delete): the same-user attacker already reads this file, and
+                // the absence of FILE_SHARE_DELETE is what pins the object against rename/delete.
+                var open = NoFollowFileWriter.OpenVerifiedNoFollowLeaf(
+                    directory, filePath, NativeFileMethods.FileShareRead, NativeFileMethods.CreateNew);
+                if (open.IsFailure)
+                {
+                    if (open.Error.Kind == ErrorKind.SecurityError)
+                        _tamperDetected = true;
+                    _writer = null;
+                    return;
+                }
+
+                // The FileStream takes ownership of the verified handle and disposes it with the writer.
+                var fileStream = new FileStream(open.Value, FileAccess.Write);
                 _writer = new StreamWriter(fileStream, System.Text.Encoding.UTF8)
                 {
                     AutoFlush = true

@@ -38,6 +38,12 @@ public sealed class ElevationSecurityLogTests : IDisposable
             BindingFlags.Static | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("_timeProvider field not found on ElevationSecurityLog");
 
+    private static readonly FieldInfo TamperField =
+        typeof(ElevationSecurityLog).GetField(
+            "_tamperDetected",
+            BindingFlags.Static | BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("_tamperDetected field not found on ElevationSecurityLog");
+
     private readonly string _tempDir;
     private StreamWriter? _activeWriter;
     private string? _logFilePath;
@@ -104,6 +110,10 @@ public sealed class ElevationSecurityLogTests : IDisposable
         // Reset the injectable clock back to the real system clock so tests that
         // don't touch it are unaffected by a prior test's fixed-time injection.
         TimeProviderField.SetValue(null, TimeProvider.System);
+
+        // Clear the no-follow seams so a prior junction/tamper test cannot bleed into the next.
+        ElevationSecurityLog.SetTempRootForTests(null);
+        TamperField.SetValue(null, false);
     }
 
     /// <summary>
@@ -319,32 +329,125 @@ public sealed class ElevationSecurityLogTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void Initialize_LogFileResidedInFalkForgeTempSubdirectory()
+    public void Initialize_LogFileResidesInFalkForgeSubdirectory()
     {
+        // Rewritten from the old FileStream.Name assertion: the log stream is now backed by a
+        // SafeFileHandle, so FileStream.Name reports "[Unknown]". Point the temp-root seam at a
+        // scratch directory and assert the file was created under {scratch}\FalkForge instead.
+        var scratch = Path.Combine(_tempDir, "residesRoot");
+        Directory.CreateDirectory(scratch);
+        ElevationSecurityLog.SetTempRootForTests(scratch);
+
         ElevationSecurityLog.Initialize();
 
-        // Snapshot the writer's underlying stream path before shutdown
-        var writer = WriterField.GetValue(null) as StreamWriter;
-        Assert.NotNull(writer);
+        var expectedDir = Path.Combine(scratch, "FalkForge");
+        var logFile = Directory.GetFiles(expectedDir, "elevation_*.log").SingleOrDefault();
 
-        // Reach the FileStream through the StreamWriter's BaseStream
-        var baseStream = writer.BaseStream as FileStream;
-        Assert.NotNull(baseStream);
+        Assert.NotNull(logFile);
+        Assert.False(ElevationSecurityLog.TamperDetected);
 
-        var logPath = Path.GetFullPath(baseStream.Name);
-        var expectedRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "FalkForge"));
+        ElevationSecurityLog.Shutdown();
+    }
 
-        try
-        {
-            Assert.StartsWith(expectedRoot, logPath, StringComparison.OrdinalIgnoreCase);
-        }
-        finally
-        {
-            ElevationSecurityLog.Shutdown();
-            // Delete the log file created by Initialize() so each test run leaves no
-            // shared artefacts in %TEMP%\FalkForge that could collide with parallel runs.
-            try { File.Delete(logPath); } catch { /* best-effort */ }
-        }
+    // -------------------------------------------------------------------------
+    // No-follow guard: a planted junction must not redirect an elevated log write,
+    // and a rejection must degrade to null with the tamper flag set.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void Initialize_JunctionAtFalkForgeDirectory_NotFollowed_DegradesToNullAndFlagsTamper()
+    {
+        // Case 1: a junction sits at {scratch}\FalkForge itself, pointing at the attacker's
+        // directory. Directory.CreateDirectory on an existing junction is a no-op and a plain
+        // FileStream would then create the log inside the attacker target. The no-follow parent
+        // pin sees the reparse point and rejects.
+        var scratch = Path.Combine(_tempDir, "case1Root");
+        var attackerTarget = Path.Combine(_tempDir, "case1Attacker");
+        Directory.CreateDirectory(scratch);
+        Directory.CreateDirectory(attackerTarget);
+
+        var junction = Path.Combine(scratch, "FalkForge");
+        if (!TestJunction.TryCreate(junction, attackerTarget))
+            Assert.Skip("Junction creation unavailable on this host");
+
+        ElevationSecurityLog.SetTempRootForTests(scratch);
+
+        var ex = Record.Exception(ElevationSecurityLog.Initialize);
+
+        Assert.Null(ex);                                   // Initialize must not throw
+        Assert.Null(WriterField.GetValue(null));           // degraded to null writer
+        Assert.True(ElevationSecurityLog.TamperDetected);  // distinct tamper flag set
+        // No log file landed in the attacker's directory through the junction.
+        Assert.Empty(Directory.GetFiles(attackerTarget, "*.log"));
+
+        // A subsequent write must silently no-op, not throw.
+        Assert.Null(Record.Exception(() => ElevationSecurityLog.SecurityEvent("X", "post-tamper")));
+    }
+
+    [Fact]
+    public void Initialize_AncestorJunctionAboveFalkForge_NotFollowed_NoDirectoryCreatedInTarget()
+    {
+        // Case 2 (the both-gates case): the temp root itself is a junction one level above
+        // FalkForge. Directory.CreateDirectory({junction}\FalkForge) would FOLLOW the ancestor
+        // junction and create the directory inside the attacker's location before any handle pin
+        // exists. Only EnsureDirectoryTreeSafe, which verifies the anchor root is not a reparse
+        // point, closes that.
+        var attackerTarget = Path.Combine(_tempDir, "case2Attacker");
+        Directory.CreateDirectory(attackerTarget);
+
+        var junctionRoot = Path.Combine(_tempDir, "case2Root"); // created AS a junction, not a dir
+        if (!TestJunction.TryCreate(junctionRoot, attackerTarget))
+            Assert.Skip("Junction creation unavailable on this host");
+
+        ElevationSecurityLog.SetTempRootForTests(junctionRoot);
+
+        var ex = Record.Exception(ElevationSecurityLog.Initialize);
+
+        Assert.Null(ex);
+        Assert.Null(WriterField.GetValue(null));
+        Assert.True(ElevationSecurityLog.TamperDetected);
+        // The attacker directory must NOT have gained a FalkForge subdirectory.
+        Assert.False(Directory.Exists(Path.Combine(attackerTarget, "FalkForge")));
+    }
+
+    [Fact]
+    public void Initialize_BenignPath_WritesFiveColumnFormatUnderFalkForge()
+    {
+        // Case 4 regression pin: with a clean scratch root, the real Initialize path still opens a
+        // log and writes the five-column tab-separated format.
+        var scratch = Path.Combine(_tempDir, "case4Root");
+        Directory.CreateDirectory(scratch);
+        ElevationSecurityLog.SetTempRootForTests(scratch);
+
+        ElevationSecurityLog.Initialize();          // writes the "Security log initialized" INFO line
+        ElevationSecurityLog.SecurityEvent("ParentWatch", "PID recycling detected");
+
+        Assert.False(ElevationSecurityLog.TamperDetected);
+
+        var dir = Path.Combine(scratch, "FalkForge");
+        var logFile = Directory.GetFiles(dir, "elevation_*.log").Single();
+
+        ElevationSecurityLog.Shutdown();
+
+        var lines = ReadShared(logFile);
+        Assert.Equal(2, lines.Length);
+        foreach (var line in lines)
+            Assert.Equal(5, line.Split('\t').Length);
+        Assert.Contains("Security log initialized", lines[0], StringComparison.Ordinal);
+        Assert.Contains("PID recycling detected", lines[1], StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Reads a log file that may still be held open by the writer, using
+    /// <see cref="FileShare.ReadWrite"/> (the writer denies write-sharing, so a plain
+    /// <see cref="File.ReadAllText(string)"/> that requests write-deny would fail).
+    /// </summary>
+    private static string[] ReadShared(string path)
+    {
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(fs);
+        return reader.ReadToEnd()
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
     }
 
     // -------------------------------------------------------------------------
