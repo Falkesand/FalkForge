@@ -303,6 +303,14 @@ internal static class BootstrapperRunner
                 PipeOptions = pipeOptions,
                 LogPath = programArgs?.LogPath,
                 MinimumLogLevel = programArgs?.MinimumLogLevel,
+                // The manifest object deserialized from the bundle's own embedded bytes above and
+                // checked by BundleTrustGate.Verify. The session plans from THIS, not from the copy
+                // written to {cacheDir}\manifest.json a few lines later. That copy exists only so the
+                // UI process can read it, it sits in the unelevated user's %TEMP%, and reading it back
+                // here let a same-user process at medium integrity choose the package list, the payload
+                // digests forwarded to the elevated companion, the update feed and its pinned publisher
+                // thumbprint, and the dependency records written to HKLM.
+                VerifiedManifest = manifest,
                 // Bug #56: forward where this bundle's payloads were extracted (each at
                 // {cacheDir}/{PackageId}). Without this the pipeline uses the manifest's build-machine
                 // SourcePath and every install fails "file not found" off the build box. The pipeline

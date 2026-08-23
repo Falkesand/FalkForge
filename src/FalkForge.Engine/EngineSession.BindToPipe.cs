@@ -25,7 +25,11 @@ public sealed partial class EngineSession
     /// over a named pipe. This is the production entry point used by <c>Program.cs</c>.
     /// </summary>
     /// <param name="pipeName">Named pipe to connect to, or <c>null</c> for headless mode.</param>
-    /// <param name="manifestPath">Path to the installer manifest JSON file.</param>
+    /// <param name="manifestPath">
+    /// Path to the installer manifest JSON file. Read only when
+    /// <see cref="EngineSessionOptions.VerifiedManifest"/> is null; a caller that supplies a
+    /// publisher-verified manifest is planned from that object and this path is never opened.
+    /// </param>
     /// <param name="options">Optional session configuration overrides.</param>
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     [System.Diagnostics.CodeAnalysis.SuppressMessage(
@@ -82,20 +86,40 @@ public sealed partial class EngineSession
         StampCorrelationId(logger);
 
         // ── Manifest ────────────────────────────────────────────────────────
+        // A caller that has already proved the manifest came from the publisher hands the verified
+        // object over and the file at manifestPath is never read here. The bundle bootstrapper is that
+        // caller: it deserializes the manifest from the bundle's embedded bytes, runs
+        // BundleTrustGate.Verify over that object, and writes the same JSON to {cacheDir}\manifest.json
+        // only so the separate UI process can read it. That directory lives under the unelevated user's
+        // %TEMP%, so re-reading it here would hand an attacker at medium integrity the package list, the
+        // payload digests this engine forwards to the elevated companion (Execution/MsiExecutor.cs), the
+        // update feed and its pinned publisher thumbprint (below), and the dependency records written to
+        // HKLM (Pipeline/ApplyStep.cs).
+        //
+        // With no verified manifest supplied — the standalone `FalkForge.Engine.exe --manifest <path>`
+        // run — the file is the only source there is and is still read. Whoever controls that file's ACL
+        // controls what the engine installs on that path.
         InstallerManifest manifest;
-        try
+        if (options.VerifiedManifest is { } verifiedManifest)
         {
-            var json = File.ReadAllBytes(manifestPath);
-            manifest = System.Text.Json.JsonSerializer.Deserialize(
-                           json, FalkForge.Engine.Layout.LayoutJsonContext.Default.InstallerManifest)
-                       ?? throw new InvalidOperationException("Manifest deserialized to null.");
+            manifest = verifiedManifest;
         }
-        catch (Exception ex)
+        else
         {
-            // Dispose the logger before surfacing the exception so no file handle leaks.
-            // CA1508: IFalkLogger extends IDisposable, so this cast can never be null.
-            logger.Dispose();
-            throw new InvalidOperationException($"Failed to load manifest from '{manifestPath}': {ex.Message}", ex);
+            try
+            {
+                var json = File.ReadAllBytes(manifestPath);
+                manifest = System.Text.Json.JsonSerializer.Deserialize(
+                               json, FalkForge.Engine.Layout.LayoutJsonContext.Default.InstallerManifest)
+                           ?? throw new InvalidOperationException("Manifest deserialized to null.");
+            }
+            catch (Exception ex)
+            {
+                // Dispose the logger before surfacing the exception so no file handle leaks.
+                // CA1508: IFalkLogger extends IDisposable, so this cast can never be null.
+                logger.Dispose();
+                throw new InvalidOperationException($"Failed to load manifest from '{manifestPath}': {ex.Message}", ex);
+            }
         }
 
         // ── Instance lock ───────────────────────────────────────────────────

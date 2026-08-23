@@ -184,8 +184,33 @@ public sealed record EngineSessionOptions
     /// Test-only: installer manifest to seed into the pipeline when using
     /// <see cref="EngineSession.BindToChannel"/>. Enables plan-only integration tests
     /// without requiring a named-pipe or a real manifest file on disk.
-    /// Ignored by <see cref="EngineSession.BindToPipe"/> which always loads the manifest
-    /// from the file at <c>manifestPath</c>.
+    /// Ignored by <see cref="EngineSession.BindToPipe"/>, which takes its manifest from
+    /// <see cref="VerifiedManifest"/> when that is supplied and otherwise loads the file at
+    /// <c>manifestPath</c>.
     /// </summary>
     internal FalkForge.Engine.Protocol.Manifest.InstallerManifest? SeedManifest { get; init; }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Publisher-verified manifest (production; bundle bootstrap only)
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The installer manifest the caller has already proved came from the publisher. When this is
+    /// non-null, <see cref="EngineSession.BindToPipe"/> uses this object and never reads the file at
+    /// <c>manifestPath</c>.
+    ///
+    /// <para><b>Why this exists.</b> The bundle bootstrapper deserializes the manifest from the
+    /// bundle's own embedded bytes, runs <c>BundleTrustGate.Verify</c> on that object, and then writes
+    /// the same JSON to <c>{cacheDir}\manifest.json</c> so the separate UI process can read it. That
+    /// file sits under the unelevated user's <c>%TEMP%</c>, so same-user code at medium integrity can
+    /// rewrite it. Re-reading it here would let an attacker choose the package list, the payload
+    /// digests forwarded to the elevated companion, the update feed and its pinned publisher
+    /// thumbprint, and the dependency records written to HKLM. Handing the verified object across
+    /// instead removes the file as an input rather than adding another check over it.</para>
+    ///
+    /// <para>This is NOT <see cref="SeedManifest"/>, which is a test-only hook honoured only by
+    /// <see cref="EngineSession.BindToChannel"/>. Only pass a manifest here that the caller verified
+    /// itself.</para>
+    /// </summary>
+    internal FalkForge.Engine.Protocol.Manifest.InstallerManifest? VerifiedManifest { get; init; }
 }
