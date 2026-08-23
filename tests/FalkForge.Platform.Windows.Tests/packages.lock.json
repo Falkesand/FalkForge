@@ -186,8 +186,46 @@
           "xunit.v3.runner.common": "[3.2.2]"
         }
       },
+      "falkforge.compiler.msi": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[0.5.0-beta.7, )",
+          "FalkForge.Engine.Protocol": "[0.5.0-beta.7, )",
+          "FalkForge.Extensibility": "[0.5.0-beta.7, )",
+          "FalkForge.Localization": "[0.5.0-beta.7, )",
+          "FalkForge.Platform": "[0.5.0-beta.7, )",
+          "FalkForge.Platform.Windows": "[0.5.0-beta.7, )"
+        }
+      },
       "falkforge.core": {
         "type": "Project"
+      },
+      "falkforge.engine": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Compiler.Msi": "[0.5.0-beta.7, )",
+          "FalkForge.Engine.Protocol": "[0.5.0-beta.7, )",
+          "FalkForge.Platform.Windows": "[0.5.0-beta.7, )"
+        }
+      },
+      "falkforge.engine.protocol": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[0.5.0-beta.7, )",
+          "Octopus.Octodiff": "[2.0.549, )"
+        }
+      },
+      "falkforge.extensibility": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[0.5.0-beta.7, )"
+        }
+      },
+      "falkforge.localization": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[0.5.0-beta.7, )"
+        }
       },
       "falkforge.platform": {
         "type": "Project",
@@ -200,6 +238,20 @@
         "dependencies": {
           "FalkForge.Platform": "[0.5.0-beta.7, )"
         }
+      },
+      "falkforge.testing": {
+        "type": "Project",
+        "dependencies": {
+          "FalkForge.Core": "[0.5.0-beta.7, )",
+          "FalkForge.Engine": "[0.5.0-beta.7, )",
+          "FalkForge.Platform": "[0.5.0-beta.7, )"
+        }
+      },
+      "Octopus.Octodiff": {
+        "type": "CentralTransitive",
+        "requested": "[2.0.549, )",
+        "resolved": "2.0.549",
+        "contentHash": "GdAX4RLumfJYPmvvQmkNAeOq0Ub0p32icpSt/rTGe56xKAAuk0NuqaGk5VWcexu11I1wtocZ9dKs8qflc09VoA=="
       }
     }
   }
