@@ -14,5 +14,9 @@
     <ProjectReference Include="..\..\src\FalkForge.Engine.Elevation\FalkForge.Engine.Elevation.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Platform.Windows\FalkForge.Platform.Windows.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Testing\FalkForge.Testing.csproj" />
+    <!-- Test-only: compile a real base MSI so the companion secret-transform generation can be exercised
+         with an injected temp staging directory (no elevation). No production companion code references
+         the compiler. -->
+    <ProjectReference Include="..\..\src\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
   </ItemGroup>
 </Project>

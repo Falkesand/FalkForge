@@ -179,18 +179,43 @@ public sealed partial class MsiExecutor
                     // own verification and the elevated install (TOCTOU) and have the swapped bytes
                     // installed as SYSTEM.
                     writer.Write(action.Package.Sha256Hash);
+
+                    // Secret properties travel as an optional trailing block: the companion generates a
+                    // transform from them in its own SYSTEM-only staging directory and sets them off the
+                    // command line. Only Install carries secrets; the block is absent otherwise, keeping
+                    // the wire format identical for non-secret installs.
+                    if (action.ActionType == PlanActionType.Install && action.SecureProperties.Count > 0)
+                    {
+                        writer.Write(action.SecureProperties.Count);
+                        foreach (var (name, secret) in action.SecureProperties)
+                        {
+                            writer.Write(name);
+                            writer.Write(secret.Length);
+                            writer.Write(secret.Span);
+                        }
+                    }
                 }
                 payload = stream.ToArray();
             }
 
-            var result = await elevationClient.SendCommandAsync(commandName, payload, ct, packageProgress);
-            if (result.IsFailure)
+            try
             {
-                return Result<int>.Failure(ErrorKind.ExecutionError, result.Error.Message);
-            }
+                var result = await elevationClient.SendCommandAsync(commandName, payload, ct, packageProgress);
+                if (result.IsFailure)
+                {
+                    return Result<int>.Failure(ErrorKind.ExecutionError, result.Error.Message);
+                }
 
-            // Elevated command succeeded — exit code 0
-            return 0;
+                // Elevated command succeeded — exit code 0
+                return 0;
+            }
+            finally
+            {
+                // The payload may carry secret property plaintext; zero it once the send completes. The
+                // MemoryStream's internal buffer copy cannot be reached to zero here — an acknowledged
+                // residual, the same shape as the plaintext byte[] the transport requires.
+                System.Security.Cryptography.CryptographicOperations.ZeroMemory(payload);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

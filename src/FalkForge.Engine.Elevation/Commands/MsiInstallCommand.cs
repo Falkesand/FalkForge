@@ -2,6 +2,7 @@ namespace FalkForge.Engine.Elevation.Commands;
 
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.Versioning;
 using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Platform.Windows;
 
@@ -10,6 +11,11 @@ public sealed class MsiInstallCommand : IElevatedCommand
     private const int InstallUILevelNone = 2;
     private const uint ErrorSuccess = 0;
     private const uint ErrorSuccessRebootRequired = 3010;
+
+    // Bounds on the optional secret-property block, so a forged or corrupt payload cannot make the
+    // companion allocate unbounded memory before the structural checks run.
+    private const int MaxSecretProperties = 64;
+    private const int MaxSecretValueBytes = 64 * 1024;
     // The engine (MsiExecutor.ValidateAndBuildPropertyArgs) assembles additionalArgs as a
     // sequence of ` NAME="VALUE"` pairs: every value is wrapped in double-quotes, pairs are
     // separated by whitespace, and slipstream patches arrive as ` PATCH="a;b"` (paths joined
@@ -31,10 +37,20 @@ public sealed class MsiInstallCommand : IElevatedCommand
         SearchValues.Create("&|><");
 
     private readonly IMsiApi _msiApi;
+    private readonly ISecureTransformStaging _staging;
 
     public MsiInstallCommand(IMsiApi msiApi)
+        : this(msiApi, new SecureTransformStaging())
+    {
+    }
+
+    // Test seam: the staging directory the companion generates the secret transform in. Production uses
+    // the SYSTEM + Administrators-only directory under %ProgramData%; a test injects a writable temp
+    // directory so the generation, merge, and cleanup can be exercised without elevation.
+    internal MsiInstallCommand(IMsiApi msiApi, ISecureTransformStaging staging)
     {
         _msiApi = msiApi;
+        _staging = staging;
     }
 
     public string Name => "MsiInstall";
@@ -47,6 +63,7 @@ public sealed class MsiInstallCommand : IElevatedCommand
     public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
         string msiPath, additionalArgs, expectedHashHex;
+        List<SecretProperty> secrets;
         using (var stream = new MemoryStream(payload))
         using (var reader = new BinaryReader(stream))
         {
@@ -56,11 +73,16 @@ public sealed class MsiInstallCommand : IElevatedCommand
                 additionalArgs = reader.ReadString();
                 expectedHashHex = reader.ReadString();
             }
-            catch (EndOfStreamException)
+            catch (Exception ex) when (ex is EndOfStreamException or FormatException or IOException)
             {
                 return Result<byte[]>.Failure(ErrorKind.SecurityError,
                     "MSI install request is truncated: expected msiPath, additionalArgs and a SHA-256 hash");
             }
+
+            var secretsResult = ReadSecretProperties(stream, reader);
+            if (secretsResult.IsFailure)
+                return Result<byte[]>.Failure(secretsResult.Error);
+            secrets = secretsResult.Value;
         }
 
         if (msiPath.StartsWith(@"\\", StringComparison.Ordinal))
@@ -105,8 +127,113 @@ public sealed class MsiInstallCommand : IElevatedCommand
         // call, so the bytes MsiInstallProductW reads from disk are provably the bytes just
         // hashed above -- and resolvedPath names that exact file with every reparse point already
         // followed, so re-opening it inside MsiInstallProductW cannot be redirected.
+        if (secrets.Count > 0)
+            return InstallWithSecretTransform(resolvedPath, additionalArgs, secrets, onProgress);
+
         return InstallLocked(resolvedPath, additionalArgs, onProgress);
     }
+
+    /// <summary>
+    /// Reads the optional secret-property block that trails the required three fields. Absent for a
+    /// non-secret install and for a legacy peer that never wrote it (the stream is already at its end).
+    /// A present-but-malformed block fails closed as a security error rather than throwing.
+    /// </summary>
+    private static Result<List<SecretProperty>> ReadSecretProperties(MemoryStream stream, BinaryReader reader)
+    {
+        var secrets = new List<SecretProperty>();
+        if (stream.Position >= stream.Length)
+            return secrets; // No block present.
+
+        try
+        {
+            var count = reader.ReadInt32();
+            if (count < 0 || count > MaxSecretProperties)
+                return Result<List<SecretProperty>>.Failure(ErrorKind.SecurityError,
+                    "MSI install request carries an out-of-range secret property count");
+
+            for (var i = 0; i < count; i++)
+            {
+                var name = reader.ReadString();
+                var length = reader.ReadInt32();
+                if (length < 0 || length > MaxSecretValueBytes)
+                    return Result<List<SecretProperty>>.Failure(ErrorKind.SecurityError,
+                        "MSI install request carries an out-of-range secret value length");
+
+                var value = reader.ReadBytes(length);
+                if (value.Length != length)
+                    return Result<List<SecretProperty>>.Failure(ErrorKind.SecurityError,
+                        "MSI install request secret block is truncated");
+
+                secrets.Add(new SecretProperty(name, value));
+            }
+        }
+        catch (Exception ex) when (ex is EndOfStreamException or FormatException or IOException)
+        {
+            return Result<List<SecretProperty>>.Failure(ErrorKind.SecurityError,
+                "MSI install request secret block is malformed");
+        }
+
+        return secrets;
+    }
+
+    /// <summary>
+    /// Generates a transform that sets the secret properties, in a SYSTEM + Administrators-only staging
+    /// directory the companion owns (never a path the unelevated engine supplied), merges it into the
+    /// install arguments, installs, then deletes the transform and zeroes the secret bytes. Generating the
+    /// transform here — rather than accepting an engine-generated .mst by path — is what keeps a same-user
+    /// attacker from swapping a transform that sets arbitrary properties into a SYSTEM install.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private Result<byte[]> InstallWithSecretTransform(
+        string msiPath, string additionalArgs, List<SecretProperty> secrets, Action<int>? onProgress)
+    {
+        var ensure = _staging.Ensure();
+        if (ensure.IsFailure)
+            return Result<byte[]>.Failure(ensure.Error);
+
+        var secretBytes = new Dictionary<string, SensitiveBytes>(StringComparer.OrdinalIgnoreCase);
+        string? mstPath = null;
+        try
+        {
+            foreach (var secret in secrets)
+            {
+                // new SensitiveBytes takes ownership of the array; disposing it below zeroes the plaintext.
+                secretBytes[secret.Name] = new SensitiveBytes(secret.Value);
+            }
+
+            var gen = MsiTransformGenerator.GenerateSecretTransform(msiPath, secretBytes, ensure.Value);
+            if (gen.IsFailure)
+                return Result<byte[]>.Failure(gen.Error);
+
+            mstPath = gen.Value;
+            var mergedArgs = MsiTransformArgs.MergeTransforms(additionalArgs, mstPath);
+            return InstallLocked(msiPath, mergedArgs, onProgress);
+        }
+        finally
+        {
+            foreach (var secret in secretBytes.Values)
+                secret.Dispose();
+            DeleteBestEffort(mstPath);
+        }
+    }
+
+    private static void DeleteBestEffort(string? path)
+    {
+        if (path is null)
+            return;
+
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best-effort: a startup sweep clears anything a failed delete leaves behind.
+        }
+    }
+
+    private readonly record struct SecretProperty(string Name, byte[] Value);
 
     /// <summary>
     /// Turns a <see cref="HashBoundFile"/> failure into this command's own error wording, so the
