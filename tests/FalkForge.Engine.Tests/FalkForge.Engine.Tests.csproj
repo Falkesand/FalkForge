@@ -13,5 +13,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\FalkForge.Engine\FalkForge.Engine.csproj" />
     <ProjectReference Include="..\..\src\FalkForge.Testing\FalkForge.Testing.csproj" />
+    <!-- Test-only: compile a real base MSI so the direct-path secret-transform wiring can be exercised
+         end to end (real msi.dll transform generation). No production Engine code references the compiler. -->
+    <ProjectReference Include="..\..\src\FalkForge.Compiler.Msi\FalkForge.Compiler.Msi.csproj" />
   </ItemGroup>
 </Project>
