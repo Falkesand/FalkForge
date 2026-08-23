@@ -96,9 +96,9 @@ public sealed partial class EngineSession
         // update feed and its pinned publisher thumbprint (below), and the dependency records written to
         // HKLM (Pipeline/ApplyStep.cs).
         //
-        // With no verified manifest supplied — the standalone `FalkForge.Engine.exe --manifest <path>`
-        // run — the file is the only source there is and is still read. Whoever controls that file's ACL
-        // controls what the engine installs on that path.
+        // The standalone `FalkForge.Engine.exe --manifest <path>` run supplies no verified manifest and
+        // still reads the file, because nothing has verified anything on that path and the file is the
+        // only source there is. Whoever controls that file's ACL controls what the engine installs.
         InstallerManifest manifest;
         if (options.VerifiedManifest is { } verifiedManifest)
         {
