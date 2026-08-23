@@ -87,6 +87,12 @@ internal static class BootstrapCompanionResolver
                 $"The verified elevation companion was not found at its extraction path " +
                 $"({extractedPath}). Refusing to install; elevation cannot be established.");
 
-        return Result<BootstrapCompanionResolution>.Success(new BootstrapCompanionResolution(extractedPath));
+        // boundHash travels with the path. The caller does not launch the companion here — the
+        // launch happens after the pre-UI bootstrap, after the UI process starts, and after the
+        // user works through the wizard. Whoever starts the process must be able to re-open the
+        // file and prove these bytes again at that moment, because the extraction directory is
+        // user-writable for the whole of that wait.
+        return Result<BootstrapCompanionResolution>.Success(
+            new BootstrapCompanionResolution(extractedPath, boundHash));
     }
 }

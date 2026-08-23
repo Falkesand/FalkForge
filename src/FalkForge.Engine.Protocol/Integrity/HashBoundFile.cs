@@ -28,10 +28,17 @@ public static class HashBoundFile
 {
     /// <summary>
     /// The longest path the classic Win32 consumers of a resolved path accept: <c>MAX_PATH</c>
-    /// (260) minus the terminating null. Both <c>MsiInstallProductW</c> and
-    /// <c>CreateProcessW</c> are bounded by it, and neither takes the <c>\\?\</c> form that would
-    /// lift the bound. A caller that resolves a longer path must fail closed rather than fall
-    /// back to the unresolved one.
+    /// (260) minus the terminating null. <c>MsiInstallProductW</c>, <c>CreateProcessW</c> and
+    /// <c>ShellExecuteExW</c> are all bounded by it, and none of them takes the <c>\\?\</c> form
+    /// that would lift the bound. A caller that resolves a longer path must fail closed rather
+    /// than fall back to the unresolved one.
+    /// <para>
+    /// This helper does not enforce the limit itself, because what counts as too long depends on
+    /// which call the consumer is about to make. Each consumer checks it: the elevated MSI install
+    /// command, the pre-UI prerequisite launcher, and the elevation-companion launch in
+    /// <c>EngineSession.BindToPipe</c>, which reaches <c>ShellExecuteExW</c> through
+    /// <c>ProcessStartInfo.UseShellExecute</c> with the <c>runas</c> verb.
+    /// </para>
     /// </summary>
     public const int MaxLegacyPathLength = 259;
 
