@@ -172,30 +172,26 @@ public sealed class PlannerTests
     }
 
     [Fact]
-    public void CreatePlan_IncludesSecretPropertyReferences()
+    public void CreatePlan_DoesNotWriteSecretPlaceholdersIntoProperties()
     {
+        // Secret properties are no longer represented as `[NAME]` placeholders in the command-line
+        // Properties dictionary. The planner leaves Properties free of them entirely; PlanStep attaches
+        // the secret VALUES to PlanAction.SecureProperties and the executor sets them via a transform.
         var planner = new Planner();
         var manifest = TestManifestFactory.CreateSimple(
             packages: [TestManifestFactory.CreateMsiPackage(id: "Pkg1")]);
 
-        var secretPropertyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "DB_PASSWORD",
-            "API_KEY"
-        };
-
         var result = planner.CreatePlan(
-            manifest, NotInstalledDetection, InstallAction.Install,
-            secretPropertyNames: secretPropertyNames);
+            manifest, NotInstalledDetection, InstallAction.Install);
 
         Assert.True(result.IsSuccess);
         var action = Assert.Single(result.Value.Actions);
-        Assert.Equal("[DB_PASSWORD]", action.Properties["DB_PASSWORD"]);
-        Assert.Equal("[API_KEY]", action.Properties["API_KEY"]);
+        Assert.False(action.Properties.ContainsKey("DB_PASSWORD"));
+        Assert.DoesNotContain("[DB_PASSWORD]", action.Properties.Values);
     }
 
     [Fact]
-    public void CreatePlan_UserPropertiesAndSecrets_CombinedOnActions()
+    public void CreatePlan_UserProperties_CopiedToActionsWithoutSecrets()
     {
         var planner = new Planner();
         var manifest = TestManifestFactory.CreateSimple(
@@ -205,20 +201,16 @@ public sealed class PlannerTests
         {
             ["INSTALLFOLDER"] = @"C:\App"
         };
-        var secretPropertyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "SECRET_KEY"
-        };
 
         var result = planner.CreatePlan(
             manifest, NotInstalledDetection, InstallAction.Install,
-            userProperties: userProperties,
-            secretPropertyNames: secretPropertyNames);
+            userProperties: userProperties);
 
         Assert.True(result.IsSuccess);
         var action = Assert.Single(result.Value.Actions);
         Assert.Equal(@"C:\App", action.Properties["INSTALLFOLDER"]);
-        Assert.Equal("[SECRET_KEY]", action.Properties["SECRET_KEY"]);
+        // Secret placeholders are never written into the command-line Properties dictionary.
+        Assert.Single(action.Properties);
     }
 
     [Fact]

@@ -15,7 +15,6 @@ public sealed class Planner
         IReadOnlyList<RelatedBundleInfo>? detectedRelatedBundles = null,
         IReadOnlyDictionary<string, bool>? featureSelections = null,
         IReadOnlyDictionary<string, string>? userProperties = null,
-        IReadOnlySet<string>? secretPropertyNames = null,
         IReadOnlyDictionary<string, InstallState>? detectedPackageStates = null,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? packageFeatureSelections = null)
     {
@@ -67,8 +66,10 @@ public sealed class Planner
                 return Result<InstallPlan>.Failure(ErrorKind.PlanningError, $"Unknown action: {action}");
         }
 
-        // Propagate user-set properties and secret references to all planned actions
-        ApplyUserProperties(actions, userProperties, secretPropertyNames);
+        // Propagate user-set (non-secret) properties to all planned actions. Secret properties do NOT
+        // travel here: PlanStep attaches their values to each action's SecureProperties, and the executor
+        // sets them through a runtime transform rather than the installer command line.
+        ApplyUserProperties(actions, userProperties);
 
         // Stamp interactive per-package MSI feature selections as ADDLOCAL. Applied AFTER
         // ApplyUserProperties so an interactive selection authoritatively overrides any
@@ -403,37 +404,23 @@ public sealed class Planner
     }
 
     /// <summary>
-    /// Copies user-defined properties and secret property bracket references to each PlanAction.
-    /// Secret properties use the <c>[PropertyName]</c> bracket reference pattern so that
-    /// MsiExecutor resolves them from VariableStore at execution time without exposing values in the plan.
+    /// Copies user-defined (non-secret) properties to each PlanAction. Secret properties are handled
+    /// separately: <see cref="Pipeline.PlanStep"/> attaches their values to
+    /// <see cref="PlanAction.SecureProperties"/> and the executor sets them through a runtime transform,
+    /// so they never appear in <see cref="PlanAction.Properties"/> or on the installer command line.
     /// </summary>
     private static void ApplyUserProperties(
         List<PlanAction> actions,
-        IReadOnlyDictionary<string, string>? userProperties,
-        IReadOnlySet<string>? secretPropertyNames)
+        IReadOnlyDictionary<string, string>? userProperties)
     {
-        var hasUserProps = userProperties is not null && userProperties.Count > 0;
-        var hasSecrets = secretPropertyNames is not null && secretPropertyNames.Count > 0;
-
-        if (!hasUserProps && !hasSecrets)
+        if (userProperties is null || userProperties.Count == 0)
             return;
 
         foreach (var action in actions)
         {
-            if (hasUserProps)
+            foreach (var (key, value) in userProperties)
             {
-                foreach (var (key, value) in userProperties!)
-                {
-                    action.Properties[key] = value;
-                }
-            }
-
-            if (hasSecrets)
-            {
-                foreach (var name in secretPropertyNames!)
-                {
-                    action.Properties[name] = $"[{name}]";
-                }
+                action.Properties[key] = value;
             }
         }
     }

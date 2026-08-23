@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Planning;
 
+using System.Collections.ObjectModel;
 using System.Text.Json.Serialization;
 using FalkForge.Engine.Protocol.Manifest;
 
@@ -15,6 +16,18 @@ public sealed class PlanAction
     /// </summary>
     [JsonIgnore]
     public Dictionary<string, string> Properties { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Secret MSI property values collected through <c>SetSecureProperty</c>. These never travel on the
+    /// installer command line: the executor generates a runtime transform (<c>.mst</c>) that sets them and
+    /// applies it via <c>TRANSFORMS=</c>, so the plaintext stays off the command line and out of the
+    /// Windows Installer log. Runtime-only and never serialized. The values are owned by the UI channel for
+    /// the session; the executor reads them and must not dispose them.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyDictionary<string, SensitiveBytes> SecureProperties { get; set; } =
+        ReadOnlyDictionary<string, SensitiveBytes>.Empty;
+
     public IReadOnlyList<string> SlipstreamPatchPaths { get; init; } = [];
 
     /// <summary>
