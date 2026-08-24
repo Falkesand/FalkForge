@@ -57,7 +57,8 @@ internal static class BundleIntegritySigner
         // DownloadUrl (SSRF) or swap its hash — the manifest already carries the finalized containers here
         // (set by BundleCompiler before signing), and the verifier binds them back via INT013.
         var signResult = EcdsaManifestSigner.Sign(
-            entries, config, manifest.ExternalContainers, BuildTransformAssociations(manifest));
+            entries, config, manifest.ExternalContainers, BuildTransformAssociations(manifest),
+            BuildAuthorizedProductCodes(manifest));
         if (signResult.IsFailure)
             return Result<InstallerManifest>.Failure(signResult.Error);
 
@@ -84,7 +85,7 @@ internal static class BundleIntegritySigner
 
         var signResult = await EcdsaManifestSigner
             .SignAsync(entries, config, manifest.ExternalContainers, BuildTransformAssociations(manifest),
-                cancellationToken)
+                BuildAuthorizedProductCodes(manifest), cancellationToken)
             .ConfigureAwait(false);
         if (signResult.IsFailure)
             return Result<InstallerManifest>.Failure(signResult.Error);
@@ -144,6 +145,34 @@ internal static class BundleIntegritySigner
         }
 
         return associations;
+    }
+
+    /// <summary>
+    /// Builds the signed flat allow-set of MSI product codes from the manifest's packages: each package
+    /// that declares a <c>ProductCode</c> property contributes its code. Folded into the ECDSA-signed
+    /// message so the elevated companion can refuse to uninstall any product code the publisher did not
+    /// sign for (a same-user caller cannot forge a signature the companion's baked key set trusts). Returns
+    /// null when no package declares a product code, so such a bundle signs the byte-identical files-only
+    /// message it signed before this field existed.
+    /// <para>
+    /// The value read is <c>Properties["ProductCode"]</c> — the exact value the engine's uninstall path
+    /// sends to the companion (<c>MsiExecutor</c> forwards <c>Package.Properties["ProductCode"]</c>), so the
+    /// signed set and the requested code are drawn from one source and cannot drift.
+    /// </para>
+    /// </summary>
+    private static IReadOnlyList<string>? BuildAuthorizedProductCodes(InstallerManifest manifest)
+    {
+        List<string>? codes = null;
+        foreach (var package in manifest.Packages)
+        {
+            if (package.Properties.TryGetValue("ProductCode", out var productCode)
+                && !string.IsNullOrEmpty(productCode))
+            {
+                (codes ??= []).Add(productCode);
+            }
+        }
+
+        return codes;
     }
 
     /// <summary>

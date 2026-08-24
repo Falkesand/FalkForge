@@ -17,6 +17,11 @@ public sealed partial class MsiExecutor
     // CA1870: SearchValues is the optimized, cached form of a fixed char set for IndexOfAny.
     private static readonly SearchValues<char> ProhibitedValueChars = SearchValues.Create("\"&|;><");
 
+    // The sentinel prefixing the versioned uninstall wire. MUST equal MsiUninstallCommand.WireFormatMagic —
+    // the companion refuses any payload that does not start with it (no fallback to the old bare
+    // product-code format), so the two constants are a matched pair.
+    private const int UninstallWireFormatMagic = 0x4655_4E31;
+
     private readonly Func<IElevationClient?> _elevationClientAccessor;
     private readonly Func<VariableStore?> _variableStoreAccessor;
     private readonly Func<IMsiApi?> _msiApiAccessor;
@@ -169,14 +174,25 @@ public sealed partial class MsiExecutor
 
             if (action.ActionType is PlanActionType.Uninstall)
             {
-                // MsiUninstallCommand expects: productCode (string) via BinaryWriter
+                // MsiUninstallCommand expects the versioned signed-manifest wire: a magic sentinel, the
+                // product code, then the full installer manifest (which carries the publisher-signed
+                // integrity envelope). The companion verifies the envelope against its OWN baked key set and
+                // refuses any product code not in the SIGNED allow-set before uninstalling as SYSTEM — this
+                // engine side stays a pure forwarder and asserts no trust. A null manifest serializes to an
+                // empty string, which the companion refuses (fail closed). The product code sent is
+                // Properties["ProductCode"] (the same value the build-time signer folds into the signed set),
+                // falling back to SourcePath only for a package that declared none.
                 var productCode = action.Package.Properties.GetValueOrDefault("ProductCode")
                                   ?? action.Package.SourcePath;
                 commandName = "MsiUninstall";
                 using var stream = new MemoryStream();
                 using (var writer = new BinaryWriter(stream, System.Text.Encoding.UTF8, leaveOpen: true))
                 {
+                    // Must match MsiUninstallCommand.WireFormatMagic; an old bare-product-code payload is
+                    // refused there (no fallback parse).
+                    writer.Write(UninstallWireFormatMagic);
                     writer.Write(productCode);
+                    writer.Write(SerializeManifestForCompanion(_manifestAccessor()));
                 }
                 payload = stream.ToArray();
             }

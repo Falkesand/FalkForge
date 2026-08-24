@@ -148,6 +148,129 @@ internal static class SignedManifestPayload
         return JsonSerializer.Serialize(manifest, BundleTrustJsonContext.Default.InstallerManifest);
     }
 
+    /// <summary>
+    /// The sentinel prefixing the versioned MsiUninstall wire. Mirrors
+    /// <c>MsiUninstallCommand.WireFormatMagic</c> / <c>MsiExecutor.UninstallWireFormatMagic</c>.
+    /// </summary>
+    internal const int UninstallWireMagic = 0x4655_4E31;
+
+    /// <summary>
+    /// A manifest for an uninstall: one dummy installable MSI package (so the integrity gate's package
+    /// coverage check passes) and a signed flat allow-set of <paramref name="authorizedProductCodes"/>.
+    /// The allow-set is what the uninstall companion checks the requested product code against.
+    /// </summary>
+    internal static string UninstallManifestJson(string[] authorizedProductCodes, ECDsa signingKey)
+    {
+        const string pkgId = "App.Main";
+        var hash = new string('A', 64);
+        var files = new List<ManifestFileEntry> { new() { Name = pkgId, Sha256 = hash } };
+
+        var signature = IntegrityEnvelopeCodec.Serialize(
+            IntegrityEnvelopeCodec.Sign(
+                files, [signingKey], epoch: 0, revoked: [],
+                externalContainers: null, transformAssociations: null, productCodes: authorizedProductCodes));
+
+        var manifest = new InstallerManifest
+        {
+            Name = "App",
+            Manufacturer = "Mfg",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new PackageInfo
+                {
+                    Id = pkgId,
+                    Type = PackageType.MsiPackage,
+                    DisplayName = pkgId,
+                    SourcePath = $"C:/cache/{pkgId}.msi",
+                    Sha256Hash = hash
+                }
+            ],
+            PreUIPackages = [],
+            EngineCompanionSha256 = null,
+            ManifestSignature = signature
+        };
+
+        return JsonSerializer.Serialize(manifest, BundleTrustJsonContext.Default.InstallerManifest);
+    }
+
+    /// <summary>
+    /// An uninstall manifest whose signed product-code allow-set has been tampered after signing: signed for
+    /// <paramref name="signedCodes"/>, then the envelope's product-code set is overwritten with
+    /// <paramref name="tamperedCodes"/> and re-serialized, so the signature no longer covers the set the
+    /// companion reads. The gate must reject it (INT001).
+    /// </summary>
+    internal static string TamperedUninstallManifestJson(
+        string[] signedCodes, string[] tamperedCodes, ECDsa signingKey)
+    {
+        const string pkgId = "App.Main";
+        var hash = new string('A', 64);
+        var files = new List<ManifestFileEntry> { new() { Name = pkgId, Sha256 = hash } };
+
+        var envelope = IntegrityEnvelopeCodec.Sign(
+            files, [signingKey], epoch: 0, revoked: [],
+            externalContainers: null, transformAssociations: null, productCodes: signedCodes);
+        envelope.ProductCodes = tamperedCodes;
+        var signature = IntegrityEnvelopeCodec.Serialize(envelope);
+
+        var manifest = new InstallerManifest
+        {
+            Name = "App",
+            Manufacturer = "Mfg",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new PackageInfo
+                {
+                    Id = pkgId,
+                    Type = PackageType.MsiPackage,
+                    DisplayName = pkgId,
+                    SourcePath = $"C:/cache/{pkgId}.msi",
+                    Sha256Hash = hash
+                }
+            ],
+            PreUIPackages = [],
+            EngineCompanionSha256 = null,
+            ManifestSignature = signature
+        };
+
+        return JsonSerializer.Serialize(manifest, BundleTrustJsonContext.Default.InstallerManifest);
+    }
+
+    /// <summary>An unsigned uninstall manifest (one package, no envelope) — refused on the require-signed path.</summary>
+    internal static string UnsignedUninstallManifestJson()
+        => ManifestJson(
+            envelopeEntries: [], packages: [("App.Main", new string('A', 64))],
+            preUI: [], companionSha256: null, signingKey: null);
+
+    /// <summary>Builds the versioned MsiUninstall wire payload: magic sentinel, product code, signed manifest.</summary>
+    internal static byte[] BuildUninstall(string productCode, string manifestJson)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8);
+        writer.Write(UninstallWireMagic);
+        writer.Write(productCode);
+        writer.Write(manifestJson);
+        writer.Flush();
+        return stream.ToArray();
+    }
+
+    /// <summary>Builds the pre-change bare-product-code uninstall payload the companion must now refuse.</summary>
+    internal static byte[] BuildOldFormatUninstall(string productCode)
+    {
+        using var stream = new MemoryStream();
+        using var writer = new BinaryWriter(stream, Encoding.UTF8);
+        writer.Write(productCode);
+        writer.Flush();
+        return stream.ToArray();
+    }
+
     /// <summary>Builds the full MsiInstall wire payload the companion parses.</summary>
     internal static byte[] Build(
         string msiPath,
