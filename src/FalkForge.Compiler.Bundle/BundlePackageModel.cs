@@ -28,4 +28,11 @@ public sealed class BundlePackageModel
     public bool Permanent { get; init; }
     public bool EnableFeatureSelection { get; init; }
     public string? SlipstreamTargetId { get; init; }
+
+    /// <summary>
+    /// MSI transforms (.mst) declared for this package (D36). Each becomes a hashed, signed bundle
+    /// payload and a signed package-to-transform association. Empty (the default) means no transform is
+    /// declared, so the bundle signs the byte-identical files-only message it signed before.
+    /// </summary>
+    public IReadOnlyList<BundleTransformModel> Transforms { get; init; } = [];
 }

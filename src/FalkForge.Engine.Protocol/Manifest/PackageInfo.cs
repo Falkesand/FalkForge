@@ -52,6 +52,23 @@ public sealed class PackageInfo
 
     public bool IsPrerequisite { get; init; }
     public string? SlipstreamTargetId { get; init; }
+
+    /// <summary>
+    /// MSI transforms (.mst) declared for this package (D36). Each entry carries the transform's id and
+    /// the SHA-256 of its embedded, signed payload, so the runtime integrity gate binds the signed
+    /// transform entry to this declared hash.
+    /// <para>
+    /// A transform is not an installable package: it is carried here, never in
+    /// <see cref="InstallerManifest.Packages"/>, so the plan and install paths never treat a transform id
+    /// as something to run.
+    /// </para>
+    /// <para>
+    /// Empty (the default) means the package declares no transform. Older manifests omit the field and
+    /// deserialize to the empty default, and older engines skip it on deserialization — backward
+    /// compatible in both directions, exactly like the other additive package fields.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<PackageTransformInfo> Transforms { get; init; } = [];
     public bool Permanent { get; init; }
     public bool EnableFeatureSelection { get; init; }
 

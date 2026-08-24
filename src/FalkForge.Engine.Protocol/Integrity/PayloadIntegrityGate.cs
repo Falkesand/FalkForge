@@ -138,10 +138,12 @@ internal static class PayloadIntegrityGate
 
         // Direction 1 — signed → manifest: every signed entry must bind to a manifest-carried
         // payload whose hash matches the signed hash the cache enforces against payload bytes.
-        // The build-time signer covers EVERY embedded payload, so the lookup spans all three
-        // places the manifest carries one: installable Packages, pre-UI prerequisites
-        // (PreUIPackages), and the elevation companion (EngineCompanionSha256) — the latter two
-        // execute too (the companion as SYSTEM), so a signed entry for them must bind, not INT002.
+        // The build-time signer covers EVERY embedded payload, so the lookup spans every
+        // place the manifest carries one: installable Packages, pre-UI prerequisites
+        // (PreUIPackages), the elevation companion (EngineCompanionSha256), and per-package MSI
+        // transforms (PackageInfo.Transforms, D36) — the companion executes as SYSTEM and the
+        // prerequisites execute too, so a signed entry for any of them must bind, not INT002. A
+        // transform is a signed payload but not installable; it binds here yet never joins Packages.
         foreach (var entry in envelope.Files)
         {
             if (string.IsNullOrEmpty(entry.Name))
@@ -186,9 +188,13 @@ internal static class PayloadIntegrityGate
 
     /// <summary>
     /// Resolves the manifest-declared hash for a signed payload id across every place the
-    /// manifest carries one: installable packages, pre-UI prerequisites, and the elevation
-    /// companion (whose reserved id binds to <see cref="InstallerManifest.EngineCompanionSha256"/>).
-    /// Returns null when the manifest carries no payload under that id.
+    /// manifest carries one: installable packages, pre-UI prerequisites, the elevation
+    /// companion (whose reserved id binds to <see cref="InstallerManifest.EngineCompanionSha256"/>),
+    /// and per-package MSI transforms (D36, carried under <see cref="PackageInfo.Transforms"/>).
+    /// A transform is a signed payload but not an installable package, so it is resolved here for the
+    /// Direction 1 binding without ever entering <see cref="InstallerManifest.Packages"/> — the
+    /// Direction 2 coverage loop and the S4 install guard both key off that list, so a transform id
+    /// stays non-installable. Returns null when the manifest carries no payload under that id.
     /// </summary>
     private static string? FindCoveredPayloadHash(InstallerManifest manifest, string id)
     {
@@ -206,6 +212,19 @@ internal static class PayloadIntegrityGate
 
         if (string.Equals(id, FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId, StringComparison.Ordinal))
             return manifest.EngineCompanionSha256;
+
+        // Per-package MSI transforms (D36): a declared transform is a signed payload keyed by its id,
+        // carried under the owning package's Transforms. Resolve it here so its signed entry binds
+        // (Direction 1) without the transform ever being an installable package.
+        foreach (var package in manifest.Packages)
+        {
+            var transforms = package.Transforms;
+            for (var i = 0; i < transforms.Count; i++)
+            {
+                if (string.Equals(transforms[i].Id, id, StringComparison.Ordinal))
+                    return transforms[i].Sha256Hash;
+            }
+        }
 
         return null;
     }

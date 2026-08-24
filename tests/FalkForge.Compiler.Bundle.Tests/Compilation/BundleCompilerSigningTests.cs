@@ -163,4 +163,81 @@ public sealed class BundleCompilerSigningTests : IDisposable
             Environment.SetEnvironmentVariable("FALKFORGE_NO_SIGN", null);
         }
     }
+
+    [Fact]
+    public void Compile_WithIntegrity_DeclaredTransform_SignsTransformPayloadAndAssociation()
+    {
+        var msi = CreatePayload("app.msi", "payload-app");
+        var mst = CreatePayload("fr.mst", "transform-bytes-fr");
+        var expectedTransformHash = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(mst)));
+
+        var model = new BundleModel
+        {
+            Name = "SignedBundle",
+            Manufacturer = "TestCo",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages = new[]
+            {
+                new BundlePackageModel
+                {
+                    Id = "AppMsi",
+                    SourcePath = msi,
+                    Type = BundlePackageType.MsiPackage,
+                    DisplayName = "AppMsi",
+                    Transforms = [new BundleTransformModel { Id = "fr-FR", SourcePath = mst }]
+                }
+            }.AsReadOnly(),
+            Integrity = new IntegrityConfiguration()
+        };
+
+        var result = new BundleCompiler { AllowPlaceholderStub = true }
+            .Compile(model, Path.Combine(_tempDir, "out-transform"));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var manifest = ExtractManifest(result.Value);
+        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!)!;
+
+        Assert.True(IntegrityEnvelopeCodec.VerifySignature(envelope));
+
+        // The transform is a signed payload entry keyed by its id, carrying the .mst's real hash.
+        var transformEntry = envelope.Files.Single(f => f.Name == "fr-FR");
+        Assert.Equal(expectedTransformHash, transformEntry.Sha256);
+
+        // The signed association binds the transform to its package.
+        Assert.NotNull(envelope.TransformAssociations);
+        var association = Assert.Single(envelope.TransformAssociations);
+        Assert.Equal("AppMsi", association.PackageId);
+        Assert.Equal(new[] { "fr-FR" }, association.TransformIds);
+
+        // The manifest carries the transform id + hash under the owning package.
+        var pkg = manifest.Packages.Single(p => p.Id == "AppMsi");
+        var declared = Assert.Single(pkg.Transforms);
+        Assert.Equal("fr-FR", declared.Id);
+        Assert.Equal(expectedTransformHash, declared.Sha256Hash);
+
+        // A transform is NOT an installable package: it never appears in the top-level package list.
+        Assert.DoesNotContain(manifest.Packages, p => p.Id == "fr-FR");
+    }
+
+    [Fact]
+    public void Compile_WithIntegrity_NoTransform_OmitsTransformAssociations()
+    {
+        var p = CreatePayload("a.msi", "payload-a");
+        var model = ModelWithIntegrity(new IntegrityConfiguration(), ("PkgA", p));
+
+        var result = new BundleCompiler { AllowPlaceholderStub = true }
+            .Compile(model, Path.Combine(_tempDir, "out-no-transform"));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var manifest = ExtractManifest(result.Value);
+        var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!)!;
+
+        // A transform-free bundle omits the association field entirely (byte-identical to before D36).
+        Assert.Null(envelope.TransformAssociations);
+        Assert.Empty(manifest.Packages[0].Transforms);
+    }
 }

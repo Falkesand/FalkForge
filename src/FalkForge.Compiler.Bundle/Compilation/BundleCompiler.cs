@@ -185,6 +185,38 @@ public sealed class BundleCompiler
             });
         }
 
+        // Step 3c (D36): embed each declared MSI transform (.mst) as its own signed payload, keyed by
+        // the transform id. This flows the transform into the same ECDSA-signed `files` set the engine
+        // verifies before extraction, so a transform is exactly as trust-covered as the package it
+        // belongs to. A transform is always embedded (never externalized) and is not an installable
+        // package — it never enters manifest.Packages. Handled for every package, remote-payload ones
+        // included, since the .mst is a local file regardless of how the package itself is delivered.
+        foreach (var package in model.Packages)
+        {
+            foreach (var transform in package.Transforms)
+            {
+                if (!File.Exists(transform.SourcePath))
+                    return Result<(InstallerManifest, List<PayloadEntry>, List<PayloadEntry>)>.Failure(ErrorKind.PayloadError,
+                        $"Transform source not found: {transform.SourcePath}");
+
+                long transformSize;
+                string transformHash;
+                using (var fileStream = File.OpenRead(transform.SourcePath))
+                {
+                    transformSize = fileStream.Length;
+                    transformHash = Convert.ToHexString(SHA256.HashData(fileStream));
+                }
+
+                payloads.Add(new PayloadEntry
+                {
+                    PackageId = transform.Id,
+                    SourcePath = transform.SourcePath,
+                    OriginalSize = transformSize,
+                    Sha256Hash = transformHash
+                });
+            }
+        }
+
         // Step 3b.5 (A6): partition payloads assigned to an external container (one carrying a
         // DownloadUrl) out of the embed set. Each external container is written to its own standalone
         // container file next to the bundle exe, and the manifest records the URL + whole-file hash +

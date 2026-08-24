@@ -56,7 +56,8 @@ internal static class BundleIntegritySigner
         // set (A6) is bound into the signature too, so a tampered bundle cannot repoint a container
         // DownloadUrl (SSRF) or swap its hash — the manifest already carries the finalized containers here
         // (set by BundleCompiler before signing), and the verifier binds them back via INT013.
-        var signResult = EcdsaManifestSigner.Sign(entries, config, manifest.ExternalContainers);
+        var signResult = EcdsaManifestSigner.Sign(
+            entries, config, manifest.ExternalContainers, BuildTransformAssociations(manifest));
         if (signResult.IsFailure)
             return Result<InstallerManifest>.Failure(signResult.Error);
 
@@ -82,7 +83,8 @@ internal static class BundleIntegritySigner
         var (config, entries) = inputs.Value;
 
         var signResult = await EcdsaManifestSigner
-            .SignAsync(entries, config, manifest.ExternalContainers, cancellationToken: cancellationToken)
+            .SignAsync(entries, config, manifest.ExternalContainers, BuildTransformAssociations(manifest),
+                cancellationToken)
             .ConfigureAwait(false);
         if (signResult.IsFailure)
             return Result<InstallerManifest>.Failure(signResult.Error);
@@ -111,6 +113,37 @@ internal static class BundleIntegritySigner
             entries.Add(new PayloadHashEntry(payload.PackageId, payload.Sha256Hash));
 
         return (model.Integrity, entries);
+    }
+
+    /// <summary>
+    /// Builds the signed package-to-transform association map (D36) from the manifest's declared
+    /// transforms: for each package that declares one or more transforms, an entry binding the package
+    /// id to its transform ids. Folded into the ECDSA-signed message so an attacker cannot re-associate
+    /// a signed transform onto a different package, add one, or strip one. Returns null when no package
+    /// declares a transform, so a transform-free bundle signs the byte-identical files-only message it
+    /// signed before D36.
+    /// </summary>
+    private static IReadOnlyList<PackageTransformAssociation>? BuildTransformAssociations(
+        InstallerManifest manifest)
+    {
+        List<PackageTransformAssociation>? associations = null;
+        foreach (var package in manifest.Packages)
+        {
+            if (package.Transforms.Count == 0)
+                continue;
+
+            var transformIds = new string[package.Transforms.Count];
+            for (var i = 0; i < package.Transforms.Count; i++)
+                transformIds[i] = package.Transforms[i].Id;
+
+            (associations ??= []).Add(new PackageTransformAssociation
+            {
+                PackageId = package.Id,
+                TransformIds = transformIds
+            });
+        }
+
+        return associations;
     }
 
     /// <summary>
