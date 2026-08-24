@@ -97,14 +97,16 @@ public sealed class DependencyRegistrationCommand : IElevatedCommand
             }
             else
             {
-                // D2: ownership check, all-or-nothing before any write — refuse the WHOLE batch if any
-                // entry is owned by a DIFFERENT bundle than the one requesting the unregister.
-                // RegisterConsumer already stamps a BundleId value into each consumer subkey for exactly
-                // this purpose; without checking it back, an elevated (SYSTEM) command running on behalf
-                // of bundle A could delete bundle B's own consumer registration, then freely uninstall a
-                // shared provider out from under bundle B. A missing BundleId value (no prior owner
-                // recorded — e.g. an MSI-authored entry predating this feature) is not treated as a
-                // mismatch, so unregistering it is still allowed.
+                // Ownership check per consumer, tolerant rather than all-or-nothing: a row owned by a
+                // DIFFERENT bundle than the one requesting the unregister is SKIPPED, not treated as a
+                // reason to fail the whole batch. RegisterConsumer already stamps a BundleId value into
+                // each consumer subkey for exactly this purpose. Skipping the row still enforces the
+                // ownership invariant (a foreign-owned row is never deleted), and it deletes strictly
+                // FEWER keys than an untolerant pass would — this bundle's own rows are still removed even
+                // when one shared row was overwritten with a different bundle's id, so a caller can no
+                // longer wedge the whole unregister by poisoning a single row it does not own. A missing
+                // BundleId value (no prior owner recorded — e.g. an MSI-authored entry predating this
+                // feature) is not treated as a mismatch, so unregistering it is still allowed.
                 foreach (var consumer in consumers)
                 {
                     var consumerPath = DependencyRegistrationPaths.ConsumerKeyPath(
@@ -113,14 +115,9 @@ public sealed class DependencyRegistrationCommand : IElevatedCommand
                     if (existingOwner is not null &&
                         !string.Equals(existingOwner, bundleId.ToString(), StringComparison.OrdinalIgnoreCase))
                     {
-                        return Result<byte[]>.Failure(ErrorKind.SecurityError,
-                            $"DependencyRegistration: refusing to unregister consumer '{consumer.ConsumerKey}' " +
-                            $"under provider '{consumer.ProviderKey}' — owned by a different bundle.");
+                        continue;
                     }
-                }
 
-                foreach (var consumer in consumers)
-                {
                     var unregisterResult = registrar.UnregisterConsumer(
                         RegistryRoot.LocalMachine, consumer.ProviderKey, consumer.ConsumerKey);
                     if (unregisterResult.IsFailure)
