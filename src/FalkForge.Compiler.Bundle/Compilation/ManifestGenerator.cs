@@ -30,6 +30,10 @@ public sealed class ManifestGenerator
             if (mappedType.IsFailure)
                 return Result<InstallerManifest>.Failure(mappedType.Error);
 
+            var transforms = BuildTransforms(pkg);
+            if (transforms.IsFailure)
+                return Result<InstallerManifest>.Failure(transforms.Error);
+
             packages.Add(new PackageInfo
             {
                 Id = pkg.Id,
@@ -56,7 +60,8 @@ public sealed class ManifestGenerator
                 EnableFeatureSelection = pkg.EnableFeatureSelection,
                 DetectionMode = pkg.DetectionMode,
                 SearchConditions = pkg.SearchConditions,
-                SlipstreamTargetId = pkg.SlipstreamTargetId
+                SlipstreamTargetId = pkg.SlipstreamTargetId,
+                Transforms = transforms.Value
             });
         }
 
@@ -242,6 +247,35 @@ public sealed class ManifestGenerator
         }
 
         return Result<PreUIPackageInfo[]>.Success(result);
+    }
+
+    /// <summary>
+    /// Hashes each MSI transform (.mst) declared for a package into a <see cref="PackageTransformInfo"/>
+    /// (id + SHA-256). The hash matches the transform's embedded signed payload, so the runtime gate
+    /// binds the signed transform entry to this declared hash. An empty declaration yields an empty
+    /// array — the byte-identical no-transform default.
+    /// </summary>
+    private static Result<PackageTransformInfo[]> BuildTransforms(BundlePackageModel pkg)
+    {
+        if (pkg.Transforms.Count == 0)
+            return Result<PackageTransformInfo[]>.Success([]);
+
+        var result = new PackageTransformInfo[pkg.Transforms.Count];
+        for (var i = 0; i < pkg.Transforms.Count; i++)
+        {
+            var transform = pkg.Transforms[i];
+            if (!File.Exists(transform.SourcePath))
+                return Result<PackageTransformInfo[]>.Failure(ErrorKind.PayloadError,
+                    $"Transform source not found: {transform.SourcePath}");
+
+            result[i] = new PackageTransformInfo
+            {
+                Id = transform.Id,
+                Sha256Hash = ComputeSha256(transform.SourcePath)
+            };
+        }
+
+        return Result<PackageTransformInfo[]>.Success(result);
     }
 
     private static string ComputeSha256(string filePath)

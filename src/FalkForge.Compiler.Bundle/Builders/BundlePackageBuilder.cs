@@ -21,6 +21,7 @@ public sealed class BundlePackageBuilder
     private bool _isPrerequisite;
     private bool _permanent;
     private bool _enableFeatureSelection;
+    private readonly List<BundleTransformModel> _transforms = new();
 
     internal BundlePackageBuilder(BundlePackageType type, string sourcePath)
     {
@@ -124,6 +125,20 @@ public sealed class BundlePackageBuilder
     public BundlePackageBuilder Permanent(bool permanent = true) { _permanent = permanent; return this; }
     public BundlePackageBuilder EnableFeatureSelection(bool enable = true) { _enableFeatureSelection = enable; return this; }
 
+    /// <summary>
+    /// Declares an MSI transform (.mst) for this package (D36). The transform's bytes are hashed and
+    /// embedded as a signed bundle payload keyed by <paramref name="id"/>, and a signed
+    /// package-to-transform association binds it to this package, so the runtime integrity gate accepts
+    /// the transform as a covered payload. Call it more than once to declare several transforms.
+    /// </summary>
+    /// <param name="id">The transform's id; becomes the signed payload entry's name.</param>
+    /// <param name="mstPath">Path to the transform (.mst) file on disk.</param>
+    public BundlePackageBuilder Transform(string id, string mstPath)
+    {
+        _transforms.Add(new BundleTransformModel { Id = id, SourcePath = mstPath });
+        return this;
+    }
+
     internal BundlePackageModel Build()
     {
         return new BundlePackageModel
@@ -144,7 +159,8 @@ public sealed class BundlePackageBuilder
             AuthenticodeThumbprint = _authenticodeThumbprint,
             IsPrerequisite = _isPrerequisite,
             Permanent = _permanent,
-            EnableFeatureSelection = _enableFeatureSelection
+            EnableFeatureSelection = _enableFeatureSelection,
+            Transforms = _transforms.ToArray()
         };
     }
 }

@@ -357,6 +357,71 @@ public sealed class PayloadIntegrityGateTests
         Assert.Contains("INT002", result.Error.Message, StringComparison.Ordinal);
     }
 
+    private static PackageInfo PackageWithTransforms(
+        string id, string sha256, params PackageTransformInfo[] transforms)
+        => new()
+        {
+            Id = id,
+            Type = PackageType.MsiPackage,
+            DisplayName = id,
+            SourcePath = $"C:/cache/{id}.msi",
+            Sha256Hash = sha256,
+            Transforms = transforms
+        };
+
+    [Fact]
+    public void Verify_SignedTransformEntry_BindsToPackageTransformHash_ReturnsSuccess()
+    {
+        // A declared MSI transform is a signed payload keyed by its id, carried under the owning
+        // package's Transforms (never in Packages). The gate must resolve the transform id there and
+        // bind the signed entry to the declared hash, instead of failing INT002 — and it must NOT
+        // require the transform id to be an installable package (Direction 2 keys off Packages).
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key, ("A", "AABB"), ("fr-FR", "7A45"));
+        var manifest = ManifestWith(sig,
+            PackageWithTransforms("A", "AABB", new PackageTransformInfo { Id = "fr-FR", Sha256Hash = "7A45" }));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+
+        // The transform is not an installable package.
+        Assert.DoesNotContain(manifest.Packages, p => p.Id == "fr-FR");
+    }
+
+    [Fact]
+    public void Verify_SignedTransformEntry_HashMismatch_ReturnsInt002()
+    {
+        // Post-signing tamper of the manifest's transform hash declaration must be rejected: the
+        // signed hash is the source of truth for the transform's bytes.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key, ("A", "AABB"), ("fr-FR", "7A45"));
+        var manifest = ManifestWith(sig,
+            PackageWithTransforms("A", "AABB", new PackageTransformInfo { Id = "fr-FR", Sha256Hash = "BEEF" }));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT002", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Verify_SignedTransformEntry_NoDeclaredTransform_ReturnsInt002()
+    {
+        // An envelope entry for a transform id with no manifest declaration to bind to (e.g. the
+        // declaration was stripped after signing) is a contract violation — fail closed.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key, ("A", "AABB"), ("fr-FR", "7A45"));
+        var manifest = ManifestWith(sig, Package("A", "AABB"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT002", result.Error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Verify_HashComparisonIsCaseInsensitive()
     {
