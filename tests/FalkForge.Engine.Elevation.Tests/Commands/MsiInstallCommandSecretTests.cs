@@ -103,6 +103,70 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
     }
 
     [Fact]
+    public void Execute_SignedAuthorTransformAndSecret_BothMergeIntoOneTransformsPair_Installs()
+    {
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows only");
+
+        // A publisher-declared, signed+associated transform (D36) composes with the companion's own
+        // generated secret transform: both land in one TRANSFORMS pair, and the install runs once. The
+        // author transform is an arbitrary-byte file (the mock does not apply it); only its hash matters.
+        var baseMsi = CompileBaseMsi();
+        var msiHash = HashOf(baseMsi);
+        var authorMst = Path.Combine(_tempDir, "author.mst");
+        File.WriteAllBytes(authorMst, "author-transform-bytes"u8.ToArray());
+        var authorMstResolved = ResolveFinalPath(authorMst);
+        var authorHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(authorMst)));
+        const string transformId = "SecretApp.Lang";
+
+        var staging = Path.Combine(_tempDir, "staging-combo");
+        Directory.CreateDirectory(staging);
+        var command = Command(new FakeStaging(staging));
+
+        var manifest = SignedManifestPayload.ManifestJson(
+            packages: [(PackageId, msiHash)],
+            declaredTransforms: [(PackageId, transformId, authorHash)],
+            associations: [(PackageId, [transformId])],
+            _publisherKey);
+
+        var payload = SignedManifestPayload.Build(
+            baseMsi, string.Empty, PackageId, manifest,
+            secrets: [("SQLPASSWORD", "p@ss"u8.ToArray())],
+            transforms: [(transformId, authorMstResolved)]);
+
+        var result = command.Execute(payload);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(1, _mockMsiApi.InstallProductCallCount);
+        Assert.NotNull(_mockMsiApi.LastCommandLine);
+        // One TRANSFORMS pair carrying both the author transform and the generated secret transform.
+        Assert.Contains("TRANSFORMS=\"", _mockMsiApi.LastCommandLine, StringComparison.Ordinal);
+        Assert.Contains(authorMstResolved, _mockMsiApi.LastCommandLine, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(_mockMsiApi.LastCommandLine, "TRANSFORMS=\""));
+        // The secret never reaches the command line.
+        Assert.DoesNotContain("SQLPASSWORD", _mockMsiApi.LastCommandLine, StringComparison.Ordinal);
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = haystack.IndexOf(needle, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += needle.Length;
+        }
+
+        return count;
+    }
+
+    private static string ResolveFinalPath(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return HashBoundFile.TryGetFinalPath(stream.SafeFileHandle) ?? path;
+    }
+
+    [Fact]
     public void Execute_AuthorTransformWithSecretProperty_IsRejected_NeverReachesTransformMerge()
     {
         if (!OperatingSystem.IsWindows())
@@ -317,6 +381,7 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
         w.Write(hash);         // caller-asserted hash, ignored by the companion
         w.Write(PackageId);
         w.Write(SignedManifestPayload.ManifestJson(PackageId, hash, _publisherKey));
+        w.Write(0);            // transform block count (D36): none, so the secret block follows directly
     }
 
     private static string HashOf(string path)

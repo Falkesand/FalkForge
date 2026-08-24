@@ -404,6 +404,97 @@ public sealed class PayloadPathResolutionTests
     }
 
     [Fact]
+    public async Task ApplyStep_PackageWithDeclaredTransforms_ResolvesTransformPathsUnderRoot()
+    {
+        // D36 Part 2b (Part B): a declared transform is an embedded payload keyed by its id, extracted to
+        // {payloadRoot}/{transformId} exactly like the MSI. The ApplyStep resolves each under the same
+        // containment guard and records the (id, resolved path) pairs the elevated executor forwards.
+        var cacheDir = Path.Combine(Path.GetTempPath(), "ff-cache-" + Guid.NewGuid().ToString("N"));
+        var (executor, _, _) = BuildExecutor();
+        await using var channel = new FakeUiChannel();
+        using var journal = new InMemoryJournalStore();
+
+        var package = new PackageInfo
+        {
+            Id = "AppMsi",
+            Type = PackageType.MsiPackage,
+            DisplayName = "App",
+            SourcePath = @"C:\build\out\App.msi",
+            Sha256Hash = "AABBCCDD",
+            Transforms =
+            [
+                new PackageTransformInfo { Id = "AppMsi.Lang.de", Sha256Hash = "1111" },
+                new PackageTransformInfo { Id = "AppMsi.Lang.fr", Sha256Hash = "2222" }
+            ]
+        };
+        var action = new PlanAction
+        {
+            PackageId = "AppMsi",
+            ActionType = PlanActionType.Install,
+            Package = package
+        };
+        var ctx = new PipelineContext
+        {
+            Plan = new InstallPlan { Actions = [action] },
+            PayloadRoot = cacheDir
+        };
+
+        var step = new ApplyStep(executor, journal, channel);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Collection(
+            action.ResolvedTransformPaths,
+            t =>
+            {
+                Assert.Equal("AppMsi.Lang.de", t.Id);
+                Assert.Equal(Path.GetFullPath(Path.Combine(cacheDir, "AppMsi.Lang.de")), t.Path);
+            },
+            t =>
+            {
+                Assert.Equal("AppMsi.Lang.fr", t.Id);
+                Assert.Equal(Path.GetFullPath(Path.Combine(cacheDir, "AppMsi.Lang.fr")), t.Path);
+            });
+    }
+
+    [Fact]
+    public async Task ApplyStep_TransformIdEscapesRoot_AbortsWithSecurityError_NoInstall()
+    {
+        var cacheDir = Path.Combine(Path.GetTempPath(), "ff-cache-" + Guid.NewGuid().ToString("N"));
+        var (executor, msiApi, _) = BuildExecutor();
+        await using var channel = new FakeUiChannel();
+        using var journal = new InMemoryJournalStore();
+
+        var package = new PackageInfo
+        {
+            Id = "AppMsi",
+            Type = PackageType.MsiPackage,
+            DisplayName = "App",
+            SourcePath = @"C:\build\out\App.msi",
+            Sha256Hash = "AABBCCDD",
+            Transforms = [new PackageTransformInfo { Id = @"..\..\evil", Sha256Hash = "1111" }]
+        };
+        var action = new PlanAction
+        {
+            PackageId = "AppMsi",
+            ActionType = PlanActionType.Install,
+            Package = package
+        };
+        var ctx = new PipelineContext
+        {
+            Plan = new InstallPlan { Actions = [action] },
+            PayloadRoot = cacheDir
+        };
+
+        var step = new ApplyStep(executor, journal, channel);
+        var result = await step.ExecuteAsync(ctx, CancellationToken.None);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, msiApi.InstallProductCallCount);
+    }
+
+    [Fact]
     public async Task ApplyStep_TraversalPackageId_AbortsWithSecurityError_NoInstall()
     {
         var cacheDir = Path.Combine(Path.GetTempPath(), "ff-cache-" + Guid.NewGuid().ToString("N"));

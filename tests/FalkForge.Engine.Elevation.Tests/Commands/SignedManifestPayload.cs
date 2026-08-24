@@ -87,13 +87,75 @@ internal static class SignedManifestPayload
         return JsonSerializer.Serialize(manifest, BundleTrustJsonContext.Default.InstallerManifest);
     }
 
+    /// <summary>
+    /// A manifest that declares one installable MSI package plus one or more signed MSI transforms (D36).
+    /// <paramref name="declaredTransforms"/> lists (owning package id, transform id, transform hash): each
+    /// becomes a signed envelope file entry and a <see cref="PackageTransformInfo"/> under its owning
+    /// package, so the integrity gate binds it (Direction 1) without the transform being installable.
+    /// <paramref name="associations"/> is the SIGNED package-to-transform allow-list the companion checks.
+    /// Full control lets a test build a cross-package or unassociated case.
+    /// </summary>
+    internal static string ManifestJson(
+        (string id, string sha256)[] packages,
+        (string owningPackageId, string transformId, string transformSha256)[] declaredTransforms,
+        (string packageId, string[] transformIds)[] associations,
+        ECDsa signingKey)
+    {
+        var files = new List<ManifestFileEntry>();
+        foreach (var (id, sha256) in packages)
+            files.Add(new ManifestFileEntry { Name = id, Sha256 = sha256 });
+        foreach (var (_, transformId, transformSha256) in declaredTransforms)
+            files.Add(new ManifestFileEntry { Name = transformId, Sha256 = transformSha256 });
+
+        var associationList = associations
+            .Select(a => new PackageTransformAssociation { PackageId = a.packageId, TransformIds = a.transformIds })
+            .ToArray();
+
+        var signature = IntegrityEnvelopeCodec.Serialize(
+            IntegrityEnvelopeCodec.Sign(
+                files, [signingKey], epoch: 0, revoked: [],
+                externalContainers: null, transformAssociations: associationList));
+
+        var packageInfos = packages
+            .Select(p => new PackageInfo
+            {
+                Id = p.id,
+                Type = PackageType.MsiPackage,
+                DisplayName = p.id,
+                SourcePath = $"C:/cache/{p.id}.msi",
+                Sha256Hash = p.sha256,
+                Transforms = declaredTransforms
+                    .Where(t => t.owningPackageId == p.id)
+                    .Select(t => new PackageTransformInfo { Id = t.transformId, Sha256Hash = t.transformSha256 })
+                    .ToArray()
+            })
+            .ToArray();
+
+        var manifest = new InstallerManifest
+        {
+            Name = "App",
+            Manufacturer = "Mfg",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages = packageInfos,
+            PreUIPackages = [],
+            EngineCompanionSha256 = null,
+            ManifestSignature = signature
+        };
+
+        return JsonSerializer.Serialize(manifest, BundleTrustJsonContext.Default.InstallerManifest);
+    }
+
     /// <summary>Builds the full MsiInstall wire payload the companion parses.</summary>
     internal static byte[] Build(
         string msiPath,
         string additionalArgs,
         string packageId,
         string manifestJson,
-        (string name, byte[] value)[]? secrets = null)
+        (string name, byte[] value)[]? secrets = null,
+        (string id, string path)[]? transforms = null)
     {
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream, Encoding.UTF8);
@@ -102,6 +164,16 @@ internal static class SignedManifestPayload
         writer.Write(string.Empty); // caller-asserted expected hash — read for wire compat, ignored for trust
         writer.Write(packageId);
         writer.Write(manifestJson);
+
+        // The per-package transform block (D36) is always present (count 0 when none), and sits before the
+        // optional secret block so the secret block stays detectable by stream position.
+        writer.Write(transforms?.Length ?? 0);
+        foreach (var (id, path) in transforms ?? [])
+        {
+            writer.Write(id);
+            writer.Write(path);
+        }
+
         if (secrets is { Length: > 0 })
         {
             writer.Write(secrets.Length);

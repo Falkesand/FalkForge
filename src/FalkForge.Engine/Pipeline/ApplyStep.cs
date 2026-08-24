@@ -336,6 +336,28 @@ internal sealed class ApplyStep : IApplyStep
                 return Result<Unit>.Failure(resolved.Error);
 
             action.ResolvedSourcePath = resolved.Value;
+
+            // Per-package MSI transforms (D36): a declared transform is an embedded payload keyed by its
+            // id, extracted to {payloadRoot}/{transformId} exactly like the MSI. Resolve each under the
+            // same containment guard so a crafted transform id cannot redirect the elevated install to an
+            // out-of-cache file, and record the (id, resolved path) pairs the elevated executor forwards
+            // to the companion. The companion re-binds each to its SIGNED hash and SIGNED association, so
+            // this resolution asserts no trust — it only names where the extracted file lives.
+            var transforms = action.Package.Transforms;
+            if (transforms.Count > 0)
+            {
+                var resolvedTransforms = new List<ResolvedTransform>(transforms.Count);
+                foreach (var transform in transforms)
+                {
+                    var resolvedTransform = PayloadPathResolver.Resolve(payloadRoot, transform.Id);
+                    if (resolvedTransform.IsFailure)
+                        return Result<Unit>.Failure(resolvedTransform.Error);
+
+                    resolvedTransforms.Add(new ResolvedTransform(transform.Id, resolvedTransform.Value));
+                }
+
+                action.ResolvedTransformPaths = resolvedTransforms;
+            }
         }
 
         return Unit.Value;
