@@ -232,11 +232,11 @@ internal sealed class ApplyStep : IApplyStep
         // unavailable this run, the coordinator says so loudly and does not claim protection it did not record.
         if (ctx.AdvanceTrustStoreOnVerifiedApply && !ctx.IsDryRun)
         {
-            var envelope = ctx.Manifest?.ManifestSignature is { } signature
-                ? IntegrityEnvelopeCodec.Parse(signature)
-                : null;
+            // Forward the accepted update's full signed manifest; the elevated companion re-verifies it
+            // against its own baked key set and takes the epoch + revocations from the verified envelope,
+            // rather than trusting epoch/revocation ints named by this (non-elevated) engine.
             await TrustStoreAdvanceCoordinator.AdvanceAsync(
-                envelope, ctx.ElevationGateway, _uiChannel, ct);
+                ctx.Manifest, ctx.ElevationGateway, _uiChannel, ct);
         }
 
         return Unit.Value;

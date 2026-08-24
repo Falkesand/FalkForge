@@ -149,6 +149,53 @@ internal static class SignedManifestPayload
     }
 
     /// <summary>
+    /// A manifest with one package (<paramref name="packageId"/>) whose signed and declared hash are both
+    /// <paramref name="signedHash"/>, signed by <paramref name="keys"/> at <paramref name="epoch"/> with
+    /// <paramref name="revoked"/>. Used by the elevated trust-store advance tests, where the epoch and
+    /// revocations must be cryptographically covered so the companion can take them from the verified
+    /// envelope. Multiple keys support the release+recovery quorum a genuine epoch advance (KeyChange) needs.
+    /// </summary>
+    internal static string AdvanceManifestJson(
+        string packageId, string signedHash, int epoch, string[] revoked, params ECDsa[] keys)
+    {
+        var files = new List<ManifestFileEntry> { new() { Name = packageId, Sha256 = signedHash } };
+        var signature = IntegrityEnvelopeCodec.Serialize(
+            IntegrityEnvelopeCodec.Sign(files, keys, epoch, revoked));
+
+        var manifest = new InstallerManifest
+        {
+            Name = "App",
+            Manufacturer = "Mfg",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new PackageInfo
+                {
+                    Id = packageId,
+                    Type = PackageType.MsiPackage,
+                    DisplayName = packageId,
+                    SourcePath = $"C:/cache/{packageId}.msi",
+                    Sha256Hash = signedHash
+                }
+            ],
+            PreUIPackages = [],
+            EngineCompanionSha256 = null,
+            ManifestSignature = signature
+        };
+
+        return JsonSerializer.Serialize(manifest, BundleTrustJsonContext.Default.InstallerManifest);
+    }
+
+    internal static IReadOnlySet<string> TrustedSet(params ECDsa[] keys) =>
+        new HashSet<string>(keys.Select(Fingerprint), StringComparer.OrdinalIgnoreCase);
+
+    internal static IReadOnlyDictionary<string, TrustRole> Roles(params (ECDsa key, TrustRole role)[] entries) =>
+        entries.ToDictionary(e => Fingerprint(e.key), e => e.role, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
     /// The sentinel prefixing the versioned MsiUninstall wire. Mirrors
     /// <c>MsiUninstallCommand.WireFormatMagic</c> / <c>MsiExecutor.UninstallWireFormatMagic</c>.
     /// </summary>
