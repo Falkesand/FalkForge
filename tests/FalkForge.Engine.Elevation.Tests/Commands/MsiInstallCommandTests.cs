@@ -8,8 +8,13 @@ namespace FalkForge.Engine.Elevation.Tests.Commands;
 
 public sealed class MsiInstallCommandTests : IDisposable
 {
+    // The bundle package id the wire names; the injected trusted key signs a manifest that covers it, so the
+    // require-signed publisher gate accepts these installs and the original per-test behavior is exercised.
+    private const string PackageId = "App.Main";
+
     private readonly string _tempMsiPath;
     private readonly MockMsiApi _mockMsiApi = new();
+    private readonly ECDsa _publisherKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
     private readonly MsiInstallCommand _command;
 
     public MsiInstallCommandTests()
@@ -23,7 +28,12 @@ public sealed class MsiInstallCommandTests : IDisposable
         // is resolved the same way. Otherwise the assertions below compare two different
         // spellings of one file and fail on machines where the two spellings differ.
         _tempMsiPath = ResolveFinalPath(raw);
-        _command = new MsiInstallCommand(_mockMsiApi);
+        _command = new MsiInstallCommand(
+            _mockMsiApi,
+            new Mocks.NoopStaging(),
+            SignedManifestPayload.TrustedSet(_publisherKey),
+            SignedManifestPayload.NoRoles,
+            SignedManifestPayload.NoPqCompanions);
     }
 
     private static string ResolveFinalPath(string path)
@@ -34,6 +44,7 @@ public sealed class MsiInstallCommandTests : IDisposable
 
     public void Dispose()
     {
+        _publisherKey.Dispose();
         if (File.Exists(_tempMsiPath))
             File.Delete(_tempMsiPath);
     }
@@ -501,18 +512,17 @@ public sealed class MsiInstallCommandTests : IDisposable
         }
     }
 
-    private static byte[] BuildPayload(string msiPath, string additionalArgs)
+    private byte[] BuildPayload(string msiPath, string additionalArgs)
         => BuildPayload(msiPath, additionalArgs, ComputeExpectedHash(msiPath));
 
-    private static byte[] BuildPayload(string msiPath, string additionalArgs, string expectedHash)
+    // The companion now binds the file to the SIGNED hash, not the caller-asserted one, so the test signs a
+    // manifest over exactly the hash the case wants enforced: the file's real digest for a success, or a
+    // wrong/malformed value for a rejection case. The signed and declared manifest hashes match, so the
+    // integrity gate accepts the (trusted) publisher and the subsequent file-bytes bind is what decides.
+    private byte[] BuildPayload(string msiPath, string additionalArgs, string signedHash)
     {
-        using var stream = new MemoryStream();
-        using var writer = new BinaryWriter(stream);
-        writer.Write(msiPath);
-        writer.Write(additionalArgs);
-        writer.Write(expectedHash);
-        writer.Flush();
-        return stream.ToArray();
+        var manifestJson = SignedManifestPayload.ManifestJson(PackageId, signedHash, _publisherKey);
+        return SignedManifestPayload.Build(msiPath, additionalArgs, PackageId, manifestJson);
     }
 
     // Pre-hash-binding wire format (msiPath + additionalArgs only) — used to prove a truncated

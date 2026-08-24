@@ -3,9 +3,12 @@ namespace FalkForge.Engine.Execution;
 using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Planning;
+using FalkForge.Engine.Protocol.Integrity;
+using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Engine.Variables;
 using FalkForge.Platform.Windows;
 
@@ -17,6 +20,7 @@ public sealed partial class MsiExecutor
     private readonly Func<IElevationClient?> _elevationClientAccessor;
     private readonly Func<VariableStore?> _variableStoreAccessor;
     private readonly Func<IMsiApi?> _msiApiAccessor;
+    private readonly Func<InstallerManifest?> _manifestAccessor;
 
     public MsiExecutor()
         : this(static () => null, static () => null, static () => null)
@@ -37,10 +41,27 @@ public sealed partial class MsiExecutor
         Func<IElevationClient?> elevationClientAccessor,
         Func<VariableStore?> variableStoreAccessor,
         Func<IMsiApi?> msiApiAccessor)
+        : this(elevationClientAccessor, variableStoreAccessor, msiApiAccessor, static () => null)
+    {
+    }
+
+    /// <summary>
+    /// Full constructor. <paramref name="manifestAccessor"/> supplies the installer manifest for the current
+    /// session so the elevated MsiInstall payload can carry the publisher-signed integrity envelope the
+    /// companion verifies before installing as SYSTEM. Returns null when no manifest is available (a
+    /// direct/per-user session or a test), in which case the elevated payload carries an empty manifest and
+    /// the companion fails closed.
+    /// </summary>
+    public MsiExecutor(
+        Func<IElevationClient?> elevationClientAccessor,
+        Func<VariableStore?> variableStoreAccessor,
+        Func<IMsiApi?> msiApiAccessor,
+        Func<InstallerManifest?> manifestAccessor)
     {
         _elevationClientAccessor = elevationClientAccessor;
         _variableStoreAccessor = variableStoreAccessor;
         _msiApiAccessor = msiApiAccessor;
+        _manifestAccessor = manifestAccessor;
     }
 
     public async Task<Result<int>> ExecuteAsync(PlanAction action, CancellationToken ct, IProgress<int> packageProgress)
@@ -128,7 +149,7 @@ public sealed partial class MsiExecutor
         return value;
     }
 
-    private static async Task<Result<int>> ExecuteElevatedAsync(
+    private async Task<Result<int>> ExecuteElevatedAsync(
         PlanAction action,
         string additionalArgs,
         IElevationClient elevationClient,
@@ -179,6 +200,14 @@ public sealed partial class MsiExecutor
                     // own verification and the elevated install (TOCTOU) and have the swapped bytes
                     // installed as SYSTEM.
                     writer.Write(action.Package.Sha256Hash);
+
+                    // The bundle package id being installed and the full installer manifest (which carries
+                    // the publisher-signed integrity envelope). The companion verifies the envelope against
+                    // its OWN baked key set and binds the file to the SIGNED hash before installing as
+                    // SYSTEM — this engine side stays a pure forwarder and asserts no trust. A null manifest
+                    // serializes to an empty string, which the companion refuses (fail closed).
+                    writer.Write(action.PackageId);
+                    writer.Write(SerializeManifestForCompanion(_manifestAccessor()));
 
                     // Secret properties travel as an optional trailing block: the companion generates a
                     // transform from them in its own SYSTEM-only staging directory and sets them off the
@@ -353,6 +382,17 @@ public sealed partial class MsiExecutor
             // temp directory is reclaimed by the OS.
         }
     }
+
+    /// <summary>
+    /// Serializes the session manifest into the JSON the elevated companion deserializes and hands to the
+    /// integrity gate. Uses the shared Protocol source-generated context (AOT-safe, and the SAME context the
+    /// companion parses with, so the two never drift). A null manifest yields an empty string, which the
+    /// companion treats as "no proof of authorship" and refuses.
+    /// </summary>
+    private static string SerializeManifestForCompanion(InstallerManifest? manifest)
+        => manifest is null
+            ? string.Empty
+            : JsonSerializer.Serialize(manifest, BundleTrustJsonContext.Default.InstallerManifest);
 
     // \A/\z rather than ^/$: in .NET, $ matches end-of-string OR immediately before a single
     // trailing '\n' even without RegexOptions.Multiline, so an otherwise-legal key with a

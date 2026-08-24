@@ -1,8 +1,11 @@
 namespace FalkForge.Engine.Tests.Elevation;
 
+using System.Security.Cryptography;
+using System.Text.Json;
 using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Execution;
 using FalkForge.Engine.Planning;
+using FalkForge.Engine.Protocol.Integrity;
 using FalkForge.Engine.Protocol.Manifest;
 using Xunit;
 
@@ -55,17 +58,72 @@ public sealed class MsiExecutorElevationTests
         Assert.Equal("MsiInstall", mockClient.LastCommandName);
         Assert.NotNull(mockClient.LastPayload);
 
-        // Verify payload contains the source path, args, and the manifest-declared hash the
-        // elevated companion binds the file against before installing it.
+        // Verify payload contains the source path, args, the caller-asserted hash, the package id, and the
+        // signed manifest the elevated companion verifies before installing. No manifest accessor is wired
+        // here, so the manifest field is empty — the companion then fails closed.
         using var stream = new MemoryStream(mockClient.LastPayload);
         using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8);
         var msiPath = reader.ReadString();
         var additionalArgs = reader.ReadString();
         var declaredHash = reader.ReadString();
+        var packageId = reader.ReadString();
+        var manifestJson = reader.ReadString();
 
         Assert.Equal(@"C:\packages\TestApp.msi", msiPath);
         Assert.Equal("", additionalArgs); // No additional properties
         Assert.Equal(action.Package.Sha256Hash, declaredHash);
+        Assert.Equal("TestMsi", packageId);
+        Assert.Equal("", manifestJson);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithElevationClient_CarriesSignedManifest_CompanionCanReadItBack()
+    {
+        // Round-trip: the engine serializes the session manifest into the MsiInstall payload with the shared
+        // Protocol source-generated context, and the companion deserializes it back with the SAME context to
+        // hand to the integrity gate. Prove the manifest (and its signed envelope) survives the wire.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var action = CreateMsiAction(PlanActionType.Install, @"C:\packages\TestApp.msi");
+        var files = new[]
+        {
+            new ManifestFileEntry { Name = action.PackageId, Sha256 = action.Package.Sha256Hash }
+        };
+        var envelope = IntegrityEnvelopeCodec.Serialize(IntegrityEnvelopeCodec.Sign(files, key));
+        var manifest = new InstallerManifest
+        {
+            Name = "App",
+            Manufacturer = "Mfg",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages = [action.Package],
+            ManifestSignature = envelope
+        };
+
+        var mockClient = new MockElevationClient();
+        var executor = new MsiExecutor(
+            () => mockClient, static () => null, static () => null, () => manifest);
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        using var stream = new MemoryStream(mockClient.LastPayload!);
+        using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8);
+        reader.ReadString(); // msiPath
+        reader.ReadString(); // additionalArgs
+        reader.ReadString(); // declared hash
+        var packageId = reader.ReadString();
+        var manifestJson = reader.ReadString();
+
+        Assert.Equal(action.PackageId, packageId);
+        var roundTripped = JsonSerializer.Deserialize(
+            manifestJson, BundleTrustJsonContext.Default.InstallerManifest);
+        Assert.NotNull(roundTripped);
+        Assert.Equal(envelope, roundTripped.ManifestSignature);
+        var package = Assert.Single(roundTripped.Packages);
+        Assert.Equal(action.PackageId, package.Id);
+        Assert.Equal(action.Package.Sha256Hash, package.Sha256Hash);
     }
 
     [Fact]
@@ -172,11 +230,14 @@ public sealed class MsiExecutorElevationTests
         var msiPath = reader.ReadString();
         var additionalArgs = reader.ReadString();
         var declaredHash = reader.ReadString();
+        var packageId = reader.ReadString();
+        reader.ReadString(); // manifest (empty — no accessor)
 
         Assert.Equal(@"C:\packages\TestApp.msi", msiPath);
         Assert.Contains("INSTALLFOLDER=", additionalArgs);
         Assert.Contains("ADDLOCAL=", additionalArgs);
         Assert.Equal(action.Package.Sha256Hash, declaredHash);
+        Assert.Equal("TestMsi", packageId);
     }
 
     [Fact]
@@ -199,6 +260,8 @@ public sealed class MsiExecutorElevationTests
         reader.ReadString(); // msiPath
         var additionalArgs = reader.ReadString();
         reader.ReadString(); // declared hash
+        reader.ReadString(); // package id
+        reader.ReadString(); // manifest
 
         // The secret is not on the command-line args.
         Assert.DoesNotContain("SQLPASSWORD", additionalArgs);
@@ -225,10 +288,12 @@ public sealed class MsiExecutorElevationTests
         Assert.True(result.IsSuccess);
         using var stream = new MemoryStream(mockClient.LastPayload!);
         using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8);
-        reader.ReadString();
-        reader.ReadString();
-        reader.ReadString();
-        // No trailing block for a non-secret install — the wire shape is unchanged.
+        reader.ReadString(); // msiPath
+        reader.ReadString(); // additionalArgs
+        reader.ReadString(); // declared hash
+        reader.ReadString(); // package id
+        reader.ReadString(); // manifest
+        // No trailing secret block for a non-secret install — the stream ends after the manifest field.
         Assert.Equal(stream.Length, stream.Position);
     }
 
