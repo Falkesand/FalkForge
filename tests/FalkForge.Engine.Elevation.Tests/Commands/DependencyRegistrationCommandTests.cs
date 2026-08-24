@@ -67,13 +67,12 @@ public sealed class DependencyRegistrationCommandTests
     }
 
     [Fact]
-    public void Execute_Unregister_BundleIdMismatch_RefusesWithSecurityError_LeavesEntryIntact()
+    public void Execute_Unregister_BundleIdMismatch_SkipsRowButSucceeds_LeavesEntryIntact()
     {
-        // D2: Unregister previously matched by provider+consumer key ONLY, never checking that the
-        // requesting bundle actually owns the entry — even though RegisterConsumer already stamps a
-        // BundleId value for exactly this purpose. Without this check, an elevated (SYSTEM) command run
-        // on behalf of bundle A could delete bundle B's own consumer registration, then freely uninstall
-        // a shared provider out from under bundle B.
+        // A foreign-owned row is skipped rather than deleted, and skipping it no longer fails the whole
+        // unregister call — see Execute_Unregister_MixedOwnership_RemovesOwnRow_SkipsForeignRow for why:
+        // a batch that is ENTIRELY foreign-owned rows is the degenerate case of that same behavior, so
+        // the call succeeds while touching nothing.
         var registry = new MockRegistry();
         var command = new DependencyRegistrationCommand(registry);
         var ownerBundleId = BundleId;
@@ -90,10 +89,46 @@ public sealed class DependencyRegistrationCommandTests
 
         var result = command.Execute(unregisterPayload);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.True(result.IsSuccess);
         Assert.True(registry.KeyExists(
             RegistryRoot.LocalMachine, DependencyRegistrationPaths.ConsumerKeyPath("SharedLib", "AppA")));
+    }
+
+    [Fact]
+    public void Execute_Unregister_MixedOwnership_RemovesOwnRow_SkipsForeignRow()
+    {
+        // A same-user attacker can register/overwrite one consumer row's BundleId stamp under a shared
+        // provider. Before this fix, the unregister branch ran an all-or-nothing ownership pre-check: if
+        // ANY row in the batch was foreign-owned, the WHOLE call failed before any delete, so the real
+        // bundle's own rows were never removed — a denial-of-service wedge. The batch must now remove the
+        // rows the caller DOES own and skip only the foreign one, instead of failing entirely.
+        var registry = new MockRegistry();
+        var command = new DependencyRegistrationCommand(registry);
+        var ownerBundleId = BundleId;
+        var foreignBundleId = Guid.Parse("99999999-8888-7777-6666-555555555555");
+
+        command.Execute(DependencyRegistrationPayload.Serialize(
+            DependencyRegistrationOpcode.Register, ownerBundleId,
+            [], [new ManifestDependencyConsumer("SharedLib", "AppA")]));
+        command.Execute(DependencyRegistrationPayload.Serialize(
+            DependencyRegistrationOpcode.Register, foreignBundleId,
+            [], [new ManifestDependencyConsumer("SharedLib", "AppB")]));
+
+        var unregisterPayload = DependencyRegistrationPayload.Serialize(
+            DependencyRegistrationOpcode.Unregister, ownerBundleId,
+            [],
+            [
+                new ManifestDependencyConsumer("SharedLib", "AppA"),
+                new ManifestDependencyConsumer("SharedLib", "AppB")
+            ]);
+
+        var result = command.Execute(unregisterPayload);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(registry.KeyExists(
+            RegistryRoot.LocalMachine, DependencyRegistrationPaths.ConsumerKeyPath("SharedLib", "AppA")));
+        Assert.True(registry.KeyExists(
+            RegistryRoot.LocalMachine, DependencyRegistrationPaths.ConsumerKeyPath("SharedLib", "AppB")));
     }
 
     [Fact]
