@@ -103,11 +103,19 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
     }
 
     [Fact]
-    public void Execute_AuthorTransformAndSecret_MergeIntoOneTransformsPair()
+    public void Execute_AuthorTransformWithSecretProperty_IsRejected_NeverReachesTransformMerge()
     {
         if (!OperatingSystem.IsWindows())
             Assert.Skip("Windows only");
 
+        // A caller-supplied TRANSFORMS is now rejected outright on the elevated path, regardless
+        // of whether a secret property rides the same request. ValidateAdditionalArgs runs before
+        // InstallWithSecretTransform ever generates or merges the companion's own transform, so
+        // this never gets that far -- the merge behaviour this test used to prove (author's MST
+        // plus the generated one in one TRANSFORMS pair) is no longer reachable. A real compiled
+        // MSI is still used (not a stub file) so the rejection is proven to happen BEFORE the
+        // companion would otherwise have generated a transform against it, not because the stub
+        // file is not a real MSI database.
         var baseMsi = CompileBaseMsi();
         var staging = Path.Combine(_tempDir, "staging2");
         Directory.CreateDirectory(staging);
@@ -119,10 +127,9 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
 
         var result = command.Execute(payload);
 
-        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
-        Assert.Equal(1, CountOccurrences(_mockMsiApi.LastCommandLine!, "TRANSFORMS=\""));
-        Assert.Contains(@"C:\author\lang.mst;", _mockMsiApi.LastCommandLine, StringComparison.Ordinal);
-        Assert.DoesNotContain("hunter2", _mockMsiApi.LastCommandLine, StringComparison.Ordinal);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
     }
 
     [Fact]
@@ -316,19 +323,6 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
     {
         using var stream = File.OpenRead(path);
         return Convert.ToHexString(SHA256.HashData(stream));
-    }
-
-    private static int CountOccurrences(string haystack, string needle)
-    {
-        var count = 0;
-        var index = 0;
-        while ((index = haystack.IndexOf(needle, index, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            index += needle.Length;
-        }
-
-        return count;
     }
 
     private sealed class FakeStaging(string root) : ISecureTransformStaging

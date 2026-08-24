@@ -496,6 +496,15 @@ public sealed class MsiInstallCommand : IElevatedCommand
                 i++;
             var key = span[keyStart..i];
 
+            // TRANSFORMS names an MST and PATCH names an .msp (itself a container of transforms);
+            // either can carry a custom action, so a caller-supplied value is arbitrary SYSTEM
+            // code execution. This companion generates and merges its OWN secret-property
+            // transform downstream of this check (InstallWithSecretTransform), so that merge is
+            // unaffected -- only a TRANSFORMS/PATCH property arriving on the wire is rejected.
+            if (key.SequenceEqual("TRANSFORMS") || key.SequenceEqual("PATCH"))
+                return Result<Unit>.Failure(ErrorKind.SecurityError,
+                    $"MSI property '{key}' is not permitted on the elevated install path");
+
             // '=' followed by the opening quote.
             if (i + 1 >= span.Length || span[i] != '=' || span[i + 1] != '"')
                 return MalformedArgs();

@@ -80,17 +80,35 @@ public sealed class MsiInstallCommandTests : IDisposable
     }
 
     [Fact]
-    public void Execute_Install_AllowsSemicolonsInPatchValue()
+    public void Execute_RejectsCallerTransformsProperty_OnElevatedPath()
     {
-        // The engine joins slipstream patch paths with ';' inside the PATCH value
-        // (MsiExecutor.ExecuteElevatedAsync), so ';' is legitimate there — and only there.
+        // TRANSFORMS names an MST, which can add a custom action -- a caller-supplied one is
+        // arbitrary SYSTEM code execution. ValidateAdditionalArgs runs before the publisher gate,
+        // so this is rejected even though the manifest built by BuildPayload is validly signed.
+        var payload = BuildPayload(_tempMsiPath, " TRANSFORMS=\"C:\\author\\lang.mst\"");
+
+        var result = _command.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public void Execute_RejectsCallerPatchProperty_OnElevatedPath()
+    {
+        // PATCH names an .msp, itself a container of transforms -- the same class of risk as
+        // TRANSFORMS. The engine used to join slipstream patch paths with ';' inside the PATCH
+        // value (MsiExecutor.ExecuteElevatedAsync); the elevated companion no longer accepts the
+        // property at all, merged patch or not.
         var args = " INSTALLDIR=\"C:\\App\" PATCH=\"C:\\p\\a.msp;C:\\p\\b.msp\"";
         var payload = BuildPayload(_tempMsiPath, args);
 
         var result = _command.Execute(payload);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(args, _mockMsiApi.LastCommandLine);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
     }
 
     [Fact]
@@ -178,10 +196,10 @@ public sealed class MsiInstallCommandTests : IDisposable
     [InlineData(" NOTPATCH=\"a.msp;b.msp\"")]
     // Prohibited character at index 0 of the value — the very first character, before any
     // other content. IndexOfAny returns 0 here, which must still count as "found" (>= 0), not
-    // be missed by a narrowed ">0" check. Covers both the general ban set and the PATCH-only
-    // ban set (';' stays legal for PATCH, so a leading '&' is used there instead).
+    // be missed by a narrowed ">0" check. PATCH itself is now rejected outright before this
+    // check ever runs (see Execute_RejectsCallerPatchProperty_OnElevatedPath), so this case uses
+    // a non-banned key to keep exercising the general character-ban set.
     [InlineData(" PROP=\"&whoami\"")]
-    [InlineData(" PATCH=\"&a.msp;b.msp\"")]
     public void Execute_RejectsProhibitedChars(string additionalArgs)
     {
         // The dangerous characters are checked per-VALUE (inside the quotes), mirroring the
