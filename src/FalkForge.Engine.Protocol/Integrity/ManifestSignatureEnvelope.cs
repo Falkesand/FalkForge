@@ -97,7 +97,7 @@ public sealed class ManifestSignatureEnvelope
     public IReadOnlyList<ExternalContainerInfo>? ExternalContainers { get; set; }
 
     /// <summary>
-    /// The signed package-to-transform association map (D36): for each package id, the ids of the signed
+    /// The signed package-to-transform association map: for each package id, the ids of the signed
     /// MSI transforms (.mst) it is permitted to have applied. Folded into the ECDSA-signed message
     /// <b>only when present</b> (same compat rule as <see cref="Epoch"/>/<see cref="Revoked"/>/
     /// <see cref="ExternalContainers"/>), so a bundle with no association map signs the byte-identical

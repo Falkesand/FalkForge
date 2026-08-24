@@ -8,9 +8,9 @@ using FalkForge.Testing;
 using Xunit;
 
 /// <summary>
-/// D36 Part 2b (Part C): the elevated companion applies an author-declared MSI transform ONLY when its
+/// The elevated companion applies an author-declared MSI transform ONLY when its
 /// bytes match the publisher-signed set AND the signed package-to-transform association map permits it for
-/// the package being installed. A caller-supplied transform on the args wire is still refused (Part 2a).
+/// the package being installed. A caller-supplied transform on the args wire is still refused.
 ///
 /// <para>The base MSI and the transforms here are arbitrary-byte files, not real MSI databases: the mocked
 /// <see cref="IMsiApi"/> records the command line without applying anything, so what these tests prove is
@@ -218,7 +218,7 @@ public sealed class MsiInstallCommandTransformTests : IDisposable
     [Fact]
     public void Execute_ArgsWireTransforms_StillRejected_EvenWithValidForwardedTransform()
     {
-        // Part 2a intact: a TRANSFORMS property on the ARGS wire is rejected before the forwarded-transform
+        // A TRANSFORMS property on the ARGS wire is rejected before the forwarded-transform
         // step runs, regardless of whether a validly signed+associated transform also rides the request.
         var (msiPath, msiHash) = CreateFile("app.msi", "msi-bytes"u8.ToArray());
         var (transformPath, transformHash) = CreateFile("app.mst", "transform-bytes"u8.ToArray());

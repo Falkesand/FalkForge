@@ -1,7 +1,7 @@
 namespace FalkForge.Engine.Planning;
 
 /// <summary>
-/// One MSI transform (.mst) an author declared for a package (D36), resolved to the absolute path of its
+/// One MSI transform (.mst) an author declared for a package, resolved to the absolute path of its
 /// extracted, signed payload on the TARGET machine. <see cref="FalkForge.Engine.Pipeline.ApplyStep"/>
 /// resolves each declared transform id under the bootstrapper-forwarded payload root (with the same
 /// containment guard the MSI itself uses) and records the pairs on

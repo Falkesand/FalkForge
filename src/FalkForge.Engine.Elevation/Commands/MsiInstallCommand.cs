@@ -20,7 +20,7 @@ public sealed class MsiInstallCommand : IElevatedCommand
     // companion allocate unbounded memory before the structural checks run.
     private const int MaxSecretProperties = 64;
     private const int MaxSecretValueBytes = 64 * 1024;
-    // Bound on the forwarded per-package transform block (D36), same fail-closed rationale as the secret
+    // Bound on the forwarded per-package transform block, same fail-closed rationale as the secret
     // block: a forged payload cannot announce an unbounded number of transforms.
     private const int MaxForwardedTransforms = 64;
     // The engine (MsiExecutor.ValidateAndBuildPropertyArgs) assembles additionalArgs as a
@@ -119,7 +119,7 @@ public sealed class MsiInstallCommand : IElevatedCommand
                     "the package id and the signed manifest");
             }
 
-            // The forwarded per-package transform block (D36): a required, length-prefixed list of
+            // The forwarded per-package transform block: a required, length-prefixed list of
             // (transformId, resolved path) pairs the engine resolved under the payload root. Read BEFORE
             // the optional secret block so the secret block stays detectable by stream position. Nothing
             // here is trusted yet — each pair is bound to its SIGNED hash and SIGNED association below.
@@ -185,7 +185,7 @@ public sealed class MsiInstallCommand : IElevatedCommand
                 $"Resolved MSI path is {resolvedPath.Length} characters, longer than the " +
                 $"{HashBoundFile.MaxLegacyPathLength} Windows Installer accepts: {resolvedPath}");
 
-        // Publisher-signed per-package transforms (D36): bind each forwarded transform to its SIGNED hash
+        // Publisher-signed per-package transforms: bind each forwarded transform to its SIGNED hash
         // and the SIGNED association map before it can touch the SYSTEM install. This runs DOWNSTREAM of
         // ValidateAdditionalArgs (so a caller-supplied TRANSFORMS on the args wire is still refused) and
         // AFTER the Phase 1 publisher gate, and is parallel to InstallWithSecretTransform below — both
@@ -322,7 +322,7 @@ public sealed class MsiInstallCommand : IElevatedCommand
     }
 
     /// <summary>
-    /// Reads the required, length-prefixed per-package transform block (D36): a count followed by that
+    /// Reads the required, length-prefixed per-package transform block: a count followed by that
     /// many (transformId, resolved path) pairs. The block is always present (count 0 when the package
     /// declares no transform), sits before the optional secret block, and is bounded so a forged payload
     /// cannot announce an unbounded number of transforms. A truncated or malformed block fails closed.
@@ -625,7 +625,7 @@ public sealed class MsiInstallCommand : IElevatedCommand
 
     private readonly record struct SecretProperty(string Name, byte[] Value);
 
-    /// <summary>One forwarded per-package transform (D36): its id and the engine-resolved extracted path.</summary>
+    /// <summary>One forwarded per-package transform: its id and the engine-resolved extracted path.</summary>
     private readonly record struct ForwardedTransform(string Id, string Path);
 
     /// <summary>

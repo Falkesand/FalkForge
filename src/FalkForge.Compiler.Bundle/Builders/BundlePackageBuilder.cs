@@ -126,7 +126,7 @@ public sealed class BundlePackageBuilder
     public BundlePackageBuilder EnableFeatureSelection(bool enable = true) { _enableFeatureSelection = enable; return this; }
 
     /// <summary>
-    /// Declares an MSI transform (.mst) for this package (D36). The transform's bytes are hashed and
+    /// Declares an MSI transform (.mst) for this package. The transform's bytes are hashed and
     /// embedded as a signed bundle payload keyed by <paramref name="id"/>, and a signed
     /// package-to-transform association binds it to this package, so the runtime integrity gate accepts
     /// the transform as a covered payload. Call it more than once to declare several transforms.

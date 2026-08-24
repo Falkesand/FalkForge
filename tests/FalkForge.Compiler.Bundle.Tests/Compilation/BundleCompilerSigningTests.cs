@@ -236,7 +236,7 @@ public sealed class BundleCompilerSigningTests : IDisposable
         var manifest = ExtractManifest(result.Value);
         var envelope = IntegrityEnvelopeCodec.Parse(manifest.ManifestSignature!)!;
 
-        // A transform-free bundle omits the association field entirely (byte-identical to before D36).
+        // A transform-free bundle omits the association field entirely (byte-identical to before this feature).
         Assert.Null(envelope.TransformAssociations);
         Assert.Empty(manifest.Packages[0].Transforms);
     }

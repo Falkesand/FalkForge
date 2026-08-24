@@ -3,7 +3,7 @@ namespace FalkForge.Engine.Protocol.Integrity;
 using System.Text.Json.Serialization;
 
 /// <summary>
-/// One entry of the signed package-to-transform association map (D36): the ids of the signed MSI
+/// One entry of the signed package-to-transform association map: the ids of the signed MSI
 /// transforms (.mst) a given package is permitted to have applied. The whole set is folded into the
 /// ECDSA-signed message by
 /// <see cref="IntegrityEnvelopeCodec.CanonicalizeTransformAssociations(IReadOnlyList{PackageTransformAssociation})"/>,

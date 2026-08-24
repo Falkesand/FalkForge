@@ -54,7 +54,7 @@ public sealed class PackageInfo
     public string? SlipstreamTargetId { get; init; }
 
     /// <summary>
-    /// MSI transforms (.mst) declared for this package (D36). Each entry carries the transform's id and
+    /// MSI transforms (.mst) declared for this package. Each entry carries the transform's id and
     /// the SHA-256 of its embedded, signed payload, so the runtime integrity gate binds the signed
     /// transform entry to this declared hash.
     /// <para>

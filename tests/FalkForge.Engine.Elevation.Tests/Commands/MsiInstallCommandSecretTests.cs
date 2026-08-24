@@ -108,7 +108,7 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
         if (!OperatingSystem.IsWindows())
             Assert.Skip("Windows only");
 
-        // A publisher-declared, signed+associated transform (D36) composes with the companion's own
+        // A publisher-declared, signed+associated transform composes with the companion's own
         // generated secret transform: both land in one TRANSFORMS pair, and the install runs once. The
         // author transform is an arbitrary-byte file (the mock does not apply it); only its hash matters.
         var baseMsi = CompileBaseMsi();
@@ -381,7 +381,7 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
         w.Write(hash);         // caller-asserted hash, ignored by the companion
         w.Write(PackageId);
         w.Write(SignedManifestPayload.ManifestJson(PackageId, hash, _publisherKey));
-        w.Write(0);            // transform block count (D36): none, so the secret block follows directly
+        w.Write(0);            // transform block count: none, so the secret block follows directly
     }
 
     private static string HashOf(string path)

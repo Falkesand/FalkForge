@@ -406,7 +406,7 @@ public sealed class PayloadPathResolutionTests
     [Fact]
     public async Task ApplyStep_PackageWithDeclaredTransforms_ResolvesTransformPathsUnderRoot()
     {
-        // D36 Part 2b (Part B): a declared transform is an embedded payload keyed by its id, extracted to
+        // A declared transform is an embedded payload keyed by its id, extracted to
         // {payloadRoot}/{transformId} exactly like the MSI. The ApplyStep resolves each under the same
         // containment guard and records the (id, resolved path) pairs the elevated executor forwards.
         var cacheDir = Path.Combine(Path.GetTempPath(), "ff-cache-" + Guid.NewGuid().ToString("N"));
