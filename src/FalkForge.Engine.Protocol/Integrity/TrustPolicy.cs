@@ -180,4 +180,53 @@ internal readonly struct TrustPolicy
         IReadOnlyDictionary<string, string>? pqCompanions = null) =>
         new(trustedFingerprints, requireSigned: true, roles, rules, isUpdatePath: true, storedEpoch,
             pqCompanions);
+
+    /// <summary>
+    /// Builds a policy directly from a baked trusted-key set: the fingerprint set, each fingerprint's
+    /// raw (possibly un-roled) baked role, and the pinned PQ companions. Applies the same defaulting
+    /// <see cref="DefaultBakedRoles"/> applies to <c>EngineTrustAnchor.Freeze</c>'s own baked set, so the
+    /// two never drift, then delegates to <see cref="RequireSignedUpdate"/> or <see cref="FreshInstall"/>
+    /// exactly as the engine's callers choose between them (<paramref name="requireSigned"/> and
+    /// <paramref name="isUpdatePath"/> both true selects the require-signed update path; both are false
+    /// together in every existing caller).
+    /// </summary>
+    internal static TrustPolicy FromBakedKeys(
+        IReadOnlySet<string> bakedFingerprints,
+        IReadOnlyDictionary<string, TrustRole> bakedRoles,
+        IReadOnlyDictionary<string, string>? bakedPqCompanions,
+        bool requireSigned,
+        bool isUpdatePath,
+        int storedEpoch)
+    {
+        var roles = DefaultBakedRoles(bakedFingerprints, bakedRoles);
+        return requireSigned && isUpdatePath
+            ? RequireSignedUpdate(bakedFingerprints, roles, BakedTrustPolicy.Default, storedEpoch, bakedPqCompanions)
+            : FreshInstall(bakedFingerprints, roles, BakedTrustPolicy.Default, bakedPqCompanions);
+    }
+
+    /// <summary>
+    /// Defaults each fingerprint in <paramref name="fingerprints"/> to its role in
+    /// <paramref name="roles"/>, or to <see cref="TrustRole.Release"/> when that role is
+    /// <see cref="TrustRole.None"/> or the fingerprint has no entry in <paramref name="roles"/> at all
+    /// (§7.1 backward compatibility: an un-roled trusted key is a release key). Iterates the fingerprint
+    /// SET, not the roles dictionary — a fingerprint absent from <paramref name="roles"/> must still
+    /// default to <see cref="TrustRole.Release"/> rather than being silently dropped, which would send the
+    /// gate to the verify-any path (<c>Roles.Count == 0</c>) and defeat quorum. Shared by
+    /// <see cref="FromBakedKeys"/> and <c>EngineTrustAnchor.Freeze</c> so the rule is defined once.
+    /// </summary>
+    internal static FrozenDictionary<string, TrustRole> DefaultBakedRoles(
+        IReadOnlySet<string> fingerprints, IReadOnlyDictionary<string, TrustRole> roles)
+    {
+        ArgumentNullException.ThrowIfNull(fingerprints);
+        ArgumentNullException.ThrowIfNull(roles);
+
+        var defaulted = new Dictionary<string, TrustRole>(StringComparer.OrdinalIgnoreCase);
+        foreach (var fingerprint in fingerprints)
+        {
+            var baked = roles.TryGetValue(fingerprint, out var r) ? r : TrustRole.Release;
+            defaulted[fingerprint] = baked == TrustRole.None ? TrustRole.Release : baked;
+        }
+
+        return defaulted.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+    }
 }

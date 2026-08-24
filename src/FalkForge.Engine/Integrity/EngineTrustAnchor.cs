@@ -175,14 +175,12 @@ public static class EngineTrustAnchor
     /// </summary>
     private static void Freeze()
     {
-        var roles = new Dictionary<string, TrustRole>(StringComparer.OrdinalIgnoreCase);
-
         // Baked fingerprints: seed with their generated roles, defaulting an un-roled baked key to Release.
-        foreach (var fingerprint in BakedTrustedKeys.Fingerprints)
-        {
-            var baked = BakedTrustedKeys.Roles.TryGetValue(fingerprint, out var r) ? r : TrustRole.Release;
-            roles[fingerprint] = baked == TrustRole.None ? TrustRole.Release : baked;
-        }
+        // Shared with TrustPolicy.FromBakedKeys so the two never apply the rule differently.
+        var baseline = TrustPolicy.DefaultBakedRoles(BakedTrustedKeys.Fingerprints, BakedTrustedKeys.Roles);
+        var roles = new Dictionary<string, TrustRole>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (fingerprint, role) in baseline)
+            roles[fingerprint] = role;
 
         // Code-registered fingerprints: union their roles onto any baked entry (additive, never a
         // replacement), or add them fresh.
