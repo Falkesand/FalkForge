@@ -42,6 +42,26 @@ public sealed class BundleValidator
             return Result<Unit>.Failure(ErrorKind.BundleError,
                 $"BDL005: Duplicate package IDs: {string.Join(", ", duplicateIds)}");
 
+        // BDL036: a declared MSI transform id shares the same signed payload keyspace as package
+        // and pre-UI prerequisite ids — PayloadIntegrityGate.FindCoveredPayloadHash resolves a
+        // signed entry's hash by walking package ids, then pre-UI ids, then transform ids, so a
+        // transform id that collides with any of them resolves to the wrong payload's hash there.
+        // That used to surface only as a runtime integrity failure at install; reject the collision
+        // here instead, at build time, so it is an authoring error.
+        var duplicatePayloadIds = model.Packages
+            .Select(p => p.Id)
+            .Concat(model.PreUIPackages.Select(p => p.Id))
+            .Concat(model.Packages.SelectMany(p => p.Transforms).Select(t => t.Id))
+            .GroupBy(id => id, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToArray();
+
+        if (duplicatePayloadIds.Length > 0)
+            return Result<Unit>.Failure(ErrorKind.BundleError,
+                $"BDL036: A transform id collides with a package or pre-UI prerequisite id in the " +
+                $"signed payload keyspace: {string.Join(", ", duplicatePayloadIds)}");
+
         // BDL006: Package container references must resolve to defined containers
         var containerIds = new HashSet<string>(model.Containers.Select(c => c.Id));
         var invalidRefs = model.Packages

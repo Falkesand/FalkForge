@@ -96,6 +96,65 @@ public sealed class BundleValidatorTests
     }
 
     [Fact]
+    public void Validate_TransformIdCollidesWithPackageId_ReturnsBDL036()
+    {
+        // A declared transform id and a package id share the same signed payload keyspace at
+        // install time (PayloadIntegrityGate.FindCoveredPayloadHash resolves both by id). A
+        // collision there used to surface only as a runtime integrity failure; it must fail the
+        // build instead.
+        var packages = new[]
+        {
+            CreatePackage("Pkg1"),
+            new BundlePackageModel
+            {
+                Id = "Pkg2",
+                Type = BundlePackageType.MsiPackage,
+                DisplayName = "Pkg2",
+                SourcePath = "pkg2.msi",
+                Transforms = [new BundleTransformModel { Id = "Pkg1", SourcePath = "pkg2.mst" }]
+            }
+        };
+        var model = CreateModel(packages: packages);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
+        Assert.Contains("BDL036", result.Error.Message);
+    }
+
+    [Fact]
+    public void Validate_DuplicateTransformIds_ReturnsBDL036()
+    {
+        var packages = new[]
+        {
+            new BundlePackageModel
+            {
+                Id = "Pkg1",
+                Type = BundlePackageType.MsiPackage,
+                DisplayName = "Pkg1",
+                SourcePath = "pkg1.msi",
+                Transforms = [new BundleTransformModel { Id = "DupTransform", SourcePath = "a.mst" }]
+            },
+            new BundlePackageModel
+            {
+                Id = "Pkg2",
+                Type = BundlePackageType.MsiPackage,
+                DisplayName = "Pkg2",
+                SourcePath = "pkg2.msi",
+                Transforms = [new BundleTransformModel { Id = "DupTransform", SourcePath = "b.mst" }]
+            }
+        };
+        var model = CreateModel(packages: packages);
+
+        var result = _validator.Validate(model);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.BundleError, result.Error.Kind);
+        Assert.Contains("BDL036", result.Error.Message);
+    }
+
+    [Fact]
     public void Validate_ValidModel_ReturnsSuccess()
     {
         var model = CreateModel();
