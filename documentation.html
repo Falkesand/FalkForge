@@ -4981,8 +4981,18 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>Prerequisite(bool)</code></td><td><code>BundlePackageBuilder</code></td><td>Marks the package as a prerequisite that must succeed before the main chain runs. Default: <code>false</code>.</td></tr>
       <tr><td><code>Permanent(bool)</code></td><td><code>BundlePackageBuilder</code></td><td>Package is never uninstalled when the bundle is removed. Use for shared runtimes or setup utilities. Default: <code>false</code>.</td></tr>
       <tr><td><code>EnableFeatureSelection(bool)</code></td><td><code>BundlePackageBuilder</code></td><td>Allows bundle UI to present MSI feature selection for this package. Only valid for MSI packages. Default: <code>false</code>.</td></tr>
+      <tr><td><code>Transform(string id, string mstPath)</code></td><td><code>BundlePackageBuilder</code></td><td>Declares an MSI transform (.mst) to apply to this package at install. The transform is embedded as a signed bundle payload and bound to this package in the signed integrity envelope; call it more than once to declare several transforms. See below.</td></tr>
     </tbody>
   </table>
+  <p>
+    A declared transform ships as a signed payload, keyed by its <code>id</code>, alongside the
+    package files. The envelope also signs which package each transform id belongs to, so the
+    elevated install applies a transform only when its bytes match the signed entry and the signed
+    map associates it with the package being installed. A transform is a signed payload, never an
+    installable package in its own right: it cannot be renamed onto a different package id, added
+    after signing, or supplied by the caller at install time in place of a declared one. See
+    <a href="#signing-trust">23, Who the Installer Trusts</a> for the surrounding trust model.
+  </p>
 
   <!-- 9.3a SearchConditionBuilder -->
   <h3 id="bundle-search-conditions">9.3a SearchConditionBuilder</h3>
