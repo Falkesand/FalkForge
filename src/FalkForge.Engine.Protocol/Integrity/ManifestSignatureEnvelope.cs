@@ -110,4 +110,20 @@ public sealed class ManifestSignatureEnvelope
     [JsonPropertyName("transformAssociations")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<PackageTransformAssociation>? TransformAssociations { get; set; }
+
+    /// <summary>
+    /// The signed flat allow-set of MSI product codes this bundle's publisher authorizes for elevated
+    /// uninstall. Folded into the ECDSA-signed message <b>only when present</b> (same compat rule as
+    /// <see cref="Epoch"/>/<see cref="Revoked"/>/<see cref="ExternalContainers"/>/
+    /// <see cref="TransformAssociations"/>), so a bundle with no declared product codes signs the
+    /// byte-identical files-only message every already-shipped bundle signed — see
+    /// <see cref="IntegrityEnvelopeCodec.CanonicalizeProductCodes(IReadOnlyList{string})"/>.
+    /// Binding it into the signature is what lets the elevated companion refuse to uninstall any product
+    /// code the publisher did not sign for, closing the same-user "uninstall any installed product as
+    /// SYSTEM" gap: the caller cannot forge a signature the companion's baked key set trusts. Null (and
+    /// omitted from the wire) on v1 envelopes and on every bundle with no declared product code.
+    /// </summary>
+    [JsonPropertyName("productCodes")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<string>? ProductCodes { get; set; }
 }

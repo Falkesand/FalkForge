@@ -147,11 +147,15 @@ public sealed class MsiExecutorElevationTests
         Assert.Equal("MsiUninstall", mockClient.LastCommandName);
         Assert.NotNull(mockClient.LastPayload);
 
-        // Verify payload contains the product code
+        // The uninstall wire is now versioned: a magic sentinel, the product code, then the signed manifest.
+        // The companion refuses any payload that does not start with the sentinel (no fallback to the old
+        // bare-product-code format), so the engine must emit it.
         using var stream = new MemoryStream(mockClient.LastPayload);
         using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8);
+        var magic = reader.ReadInt32();
         var productCode = reader.ReadString();
 
+        Assert.Equal(0x4655_4E31, magic);
         Assert.Equal("{12345678-1234-1234-1234-123456789012}", productCode);
     }
 
@@ -358,9 +362,11 @@ public sealed class MsiExecutorElevationTests
 
         using var stream = new MemoryStream(mockClient.LastPayload!);
         using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8);
+        var magic = reader.ReadInt32();
         var uninstallTarget = reader.ReadString();
 
-        // Falls back to SourcePath when ProductCode is not set
+        // Falls back to SourcePath when ProductCode is not set (behind the versioned wire's magic sentinel).
+        Assert.Equal(0x4655_4E31, magic);
         Assert.Equal(@"C:\packages\TestApp.msi", uninstallTarget);
     }
 

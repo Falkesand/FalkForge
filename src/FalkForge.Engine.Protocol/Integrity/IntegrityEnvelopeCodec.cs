@@ -80,7 +80,8 @@ public static class IntegrityEnvelopeCodec
     public static byte[] ComputeSignedBytes(
         IReadOnlyList<ManifestFileEntry> files, int epoch, IReadOnlyList<string> revoked,
         IReadOnlyList<ExternalContainerInfo>? externalContainers,
-        IReadOnlyList<PackageTransformAssociation>? transformAssociations = null)
+        IReadOnlyList<PackageTransformAssociation>? transformAssociations = null,
+        IReadOnlyList<string>? productCodes = null)
     {
         var filesJson = JsonSerializer.Serialize(
             files, IntegrityEnvelopeJsonContext.Default.IReadOnlyListManifestFileEntry);
@@ -96,9 +97,15 @@ public static class IntegrityEnvelopeCodec
         var transformsCanonical = CanonicalizeTransformAssociations(transformAssociations);
         var hasTransforms = transformsCanonical.Length > 0;
 
-        // Neutral (epoch 0, no revocations, no external containers, no transform map) → the exact legacy
-        // files-only bytes. This is the property that keeps v1 and every earlier envelope verifiable.
-        if (!hasEpochOrRevoked && !hasContainers && !hasTransforms)
+        // The product-code canonical form is likewise empty for a null/empty set, so a bundle with no
+        // declared product codes appends nothing here and stays byte-identical.
+        var productCodesCanonical = CanonicalizeProductCodes(productCodes);
+        var hasProductCodes = productCodesCanonical.Length > 0;
+
+        // Neutral (epoch 0, no revocations, no external containers, no transform map, no product-code set)
+        // → the exact legacy files-only bytes. This is the property that keeps v1 and every earlier envelope
+        // verifiable.
+        if (!hasEpochOrRevoked && !hasContainers && !hasTransforms && !hasProductCodes)
             return Encoding.UTF8.GetBytes(filesJson);
 
         // Present → bind epoch + revocations into the signed message under a separator that cannot occur
@@ -129,6 +136,14 @@ public static class IntegrityEnvelopeCodec
         // stripping one without breaking the signature.
         if (hasTransforms)
             sb.Append('').Append("transforms=").Append(transformsCanonical);
+
+        // The authorized product-code set, when present, is bound under its own separated,
+        // length-prefixed segment. Appended AFTER the transform segment; a bundle with no declared
+        // product codes appends nothing here and stays byte-identical. Binding it into the signed
+        // message is what lets the elevated companion refuse to uninstall any product code the
+        // publisher did not sign for -- a caller cannot add one to the set without breaking the signature.
+        if (hasProductCodes)
+            sb.Append('').Append("productcodes=").Append(productCodesCanonical);
 
         return Encoding.UTF8.GetBytes(sb.ToString());
     }
@@ -243,6 +258,38 @@ public static class IntegrityEnvelopeCodec
     }
 
     /// <summary>
+    /// The canonical, injective, order-independent string form of the authorized product-code set. This is
+    /// the exact representation folded into the signed message by
+    /// <see cref="ComputeSignedBytes(IReadOnlyList{ManifestFileEntry}, int, IReadOnlyList{string}, IReadOnlyList{ExternalContainerInfo}, IReadOnlyList{PackageTransformAssociation}, IReadOnlyList{string})"/>.
+    /// A null or empty set yields the empty string, so a bundle with no declared product codes appends
+    /// nothing to the signed message — the backward-compatibility property that keeps every already-shipped
+    /// bundle's signed bytes byte-identical.
+    ///
+    /// <para><b>Determinism:</b> product codes are ordered by value (ordinal), so an equivalent-but-reordered
+    /// set canonicalizes identically (the set is an allow-list, not an ordering). <b>Injectivity:</b> the set
+    /// is length-prefixed with an element count and each value is length-prefixed (<c>len:value;</c>), so no
+    /// crafted value containing a separator can make two distinct sets collide — the same non-injective-join
+    /// trap the revocation-list, external-container, and transform-association encodings avoid.</para>
+    /// </summary>
+    public static string CanonicalizeProductCodes(IReadOnlyList<string>? productCodes)
+    {
+        if (productCodes is null || productCodes.Count == 0)
+            return string.Empty;
+
+        var sorted = new string[productCodes.Count];
+        for (var i = 0; i < productCodes.Count; i++)
+            sorted[i] = productCodes[i] ?? string.Empty;
+        Array.Sort(sorted, StringComparer.Ordinal);
+
+        var sb = new StringBuilder();
+        sb.Append(sorted.Length).Append(';');
+        foreach (var code in sorted)
+            sb.Append(code.Length).Append(':').Append(code).Append(';');
+
+        return sb.ToString();
+    }
+
+    /// <summary>
     /// The SHA-256 fingerprint (uppercase hex, no separators) of a SubjectPublicKeyInfo blob —
     /// the value matched against a trusted set.
     /// </summary>
@@ -294,7 +341,8 @@ public static class IntegrityEnvelopeCodec
     public static ManifestSignatureEnvelope Sign(
         IReadOnlyList<ManifestFileEntry> files, IReadOnlyList<ECDsa> keys, int epoch, IReadOnlyList<string> revoked,
         IReadOnlyList<ExternalContainerInfo>? externalContainers,
-        IReadOnlyList<PackageTransformAssociation>? transformAssociations = null)
+        IReadOnlyList<PackageTransformAssociation>? transformAssociations = null,
+        IReadOnlyList<string>? productCodes = null)
     {
         ArgumentNullException.ThrowIfNull(keys);
         ArgumentNullException.ThrowIfNull(revoked);
@@ -302,7 +350,7 @@ public static class IntegrityEnvelopeCodec
             throw new ArgumentException("At least one signing key is required.", nameof(keys));
 
         var hash = SHA256.HashData(
-            ComputeSignedBytes(files, epoch, revoked, externalContainers, transformAssociations));
+            ComputeSignedBytes(files, epoch, revoked, externalContainers, transformAssociations, productCodes));
 
         var signatures = new List<SignatureEntry>(keys.Count);
         foreach (var key in keys)
@@ -332,7 +380,9 @@ public static class IntegrityEnvelopeCodec
             // (the field is omitted entirely under WhenWritingNull).
             ExternalContainers = externalContainers is { Count: > 0 } ? externalContainers : null,
             // Same empty → null normalization so a transform-free envelope stays byte-identical.
-            TransformAssociations = transformAssociations is { Count: > 0 } ? transformAssociations : null
+            TransformAssociations = transformAssociations is { Count: > 0 } ? transformAssociations : null,
+            // Same empty → null normalization so a product-code-free envelope stays byte-identical.
+            ProductCodes = productCodes is { Count: > 0 } ? productCodes : null
         };
     }
 
@@ -483,7 +533,7 @@ public static class IntegrityEnvelopeCodec
         // alongside the hash: ML-DSA companion verification is over the message itself (pure ML-DSA, no pre-hash).
         var message = ComputeSignedBytes(
             envelope.Files, envelope.Epoch, envelope.Revoked, envelope.ExternalContainers,
-            envelope.TransformAssociations);
+            envelope.TransformAssociations, envelope.ProductCodes);
         var hash = SHA256.HashData(message);
         var haveTrustSet = trustedFingerprints.Count > 0;
         var sawRevoked = false;
@@ -650,7 +700,7 @@ public static class IntegrityEnvelopeCodec
         // the external-container set. The raw message is kept for ML-DSA companion verification (no pre-hash).
         var message = ComputeSignedBytes(
             envelope.Files, envelope.Epoch, envelope.Revoked, envelope.ExternalContainers,
-            envelope.TransformAssociations);
+            envelope.TransformAssociations, envelope.ProductCodes);
         var hash = SHA256.HashData(message);
 
         // PQ side map, mirroring MatchTrustedSignature: companions consulted after a classical entry
