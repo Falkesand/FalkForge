@@ -49,4 +49,17 @@ public sealed class PlanAction
     /// </summary>
     [JsonIgnore]
     public string EffectiveSourcePath => ResolvedSourcePath ?? Package.SourcePath;
+
+    /// <summary>
+    /// The package's declared MSI transforms (.mst, D36) resolved to their absolute extracted paths on
+    /// the TARGET machine, keyed by transform id. <see cref="FalkForge.Engine.Pipeline.ApplyStep"/>
+    /// resolves each <see cref="PackageInfo.Transforms"/> entry under the bootstrapper-forwarded payload
+    /// root with the same containment guard the MSI itself uses, and the elevated executor forwards the
+    /// pairs to the companion, which binds each to the publisher-SIGNED hash and the SIGNED association
+    /// map before applying it. Empty on the <c>--manifest</c> / plan / offline-layout path and for any
+    /// package that declares no transform. Runtime-only and machine-specific — excluded from JSON so it
+    /// never leaks into plan output.
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<ResolvedTransform> ResolvedTransformPaths { get; set; } = [];
 }

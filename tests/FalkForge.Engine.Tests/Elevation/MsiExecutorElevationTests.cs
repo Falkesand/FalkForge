@@ -267,6 +267,9 @@ public sealed class MsiExecutorElevationTests
         Assert.DoesNotContain("SQLPASSWORD", additionalArgs);
         Assert.DoesNotContain("s3cr3t", additionalArgs);
 
+        // The per-package transform block (D36) is always present; none declared here, so count 0.
+        Assert.Equal(0, reader.ReadInt32());
+
         // It rides the trailing secret block instead.
         var count = reader.ReadInt32();
         Assert.Equal(1, count);
@@ -274,6 +277,42 @@ public sealed class MsiExecutorElevationTests
         var length = reader.ReadInt32();
         var bytes = reader.ReadBytes(length);
         Assert.Equal("s3cr3t P@ss;&|", System.Text.Encoding.UTF8.GetString(bytes));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WithElevationClient_ForwardsResolvedTransformPaths()
+    {
+        // D36 Part 2b (Part B): the engine forwards the (transformId, resolved path) pairs the ApplyStep
+        // resolved under the payload root, on the transform block that sits between the manifest and the
+        // optional secret block. The companion re-binds each to its signed hash and association.
+        var mockClient = new MockElevationClient();
+        var executor = new MsiExecutor(() => mockClient);
+        var action = CreateMsiAction(PlanActionType.Install, @"C:\packages\TestApp.msi");
+        action.ResolvedTransformPaths =
+        [
+            new ResolvedTransform("TestMsi.Lang.de", @"C:\cache\bundle\TestMsi.Lang.de"),
+            new ResolvedTransform("TestMsi.Lang.fr", @"C:\cache\bundle\TestMsi.Lang.fr")
+        ];
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess);
+        using var stream = new MemoryStream(mockClient.LastPayload!);
+        using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8);
+        reader.ReadString(); // msiPath
+        reader.ReadString(); // additionalArgs
+        reader.ReadString(); // declared hash
+        reader.ReadString(); // package id
+        reader.ReadString(); // manifest
+
+        var count = reader.ReadInt32();
+        Assert.Equal(2, count);
+        Assert.Equal("TestMsi.Lang.de", reader.ReadString());
+        Assert.Equal(@"C:\cache\bundle\TestMsi.Lang.de", reader.ReadString());
+        Assert.Equal("TestMsi.Lang.fr", reader.ReadString());
+        Assert.Equal(@"C:\cache\bundle\TestMsi.Lang.fr", reader.ReadString());
+        // No secret block for this install — the stream ends after the transform block.
+        Assert.Equal(stream.Length, stream.Position);
     }
 
     [Fact]
@@ -293,7 +332,9 @@ public sealed class MsiExecutorElevationTests
         reader.ReadString(); // declared hash
         reader.ReadString(); // package id
         reader.ReadString(); // manifest
-        // No trailing secret block for a non-secret install — the stream ends after the manifest field.
+        // The per-package transform block (D36) is always present; none declared here, so count 0.
+        Assert.Equal(0, reader.ReadInt32());
+        // No trailing secret block for a non-secret install — the stream ends after the transform block.
         Assert.Equal(stream.Length, stream.Position);
     }
 

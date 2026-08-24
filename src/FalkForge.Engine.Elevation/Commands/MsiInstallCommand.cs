@@ -20,6 +20,9 @@ public sealed class MsiInstallCommand : IElevatedCommand
     // companion allocate unbounded memory before the structural checks run.
     private const int MaxSecretProperties = 64;
     private const int MaxSecretValueBytes = 64 * 1024;
+    // Bound on the forwarded per-package transform block (D36), same fail-closed rationale as the secret
+    // block: a forged payload cannot announce an unbounded number of transforms.
+    private const int MaxForwardedTransforms = 64;
     // The engine (MsiExecutor.ValidateAndBuildPropertyArgs) assembles additionalArgs as a
     // sequence of ` NAME="VALUE"` pairs: every value is wrapped in double-quotes, pairs are
     // separated by whitespace, and slipstream patches arrive as ` PATCH="a;b"` (paths joined
@@ -90,6 +93,7 @@ public sealed class MsiInstallCommand : IElevatedCommand
     public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
         string msiPath, additionalArgs, packageId, manifestJson;
+        List<ForwardedTransform> forwardedTransforms;
         List<SecretProperty> secrets;
         using (var stream = new MemoryStream(payload))
         using (var reader = new BinaryReader(stream))
@@ -115,6 +119,15 @@ public sealed class MsiInstallCommand : IElevatedCommand
                     "the package id and the signed manifest");
             }
 
+            // The forwarded per-package transform block (D36): a required, length-prefixed list of
+            // (transformId, resolved path) pairs the engine resolved under the payload root. Read BEFORE
+            // the optional secret block so the secret block stays detectable by stream position. Nothing
+            // here is trusted yet — each pair is bound to its SIGNED hash and SIGNED association below.
+            var transformsResult = ReadForwardedTransforms(reader);
+            if (transformsResult.IsFailure)
+                return Result<byte[]>.Failure(transformsResult.Error);
+            forwardedTransforms = transformsResult.Value;
+
             var secretsResult = ReadSecretProperties(stream, reader);
             if (secretsResult.IsFailure)
                 return Result<byte[]>.Failure(secretsResult.Error);
@@ -137,7 +150,8 @@ public sealed class MsiInstallCommand : IElevatedCommand
         var trust = VerifyPublisherAndResolveSignedHash(packageId, manifestJson);
         if (trust.IsFailure)
             return Result<byte[]>.Failure(trust.Error);
-        var signedHash = trust.Value;
+        var signedHash = trust.Value.SignedMsiHash;
+        var envelope = trust.Value.Envelope;
 
         // Open the file ourselves and hold the handle for the rest of this call, instead of
         // trusting the unelevated engine's own File.Exists + hash check. FileShare.Read denies
@@ -171,14 +185,41 @@ public sealed class MsiInstallCommand : IElevatedCommand
                 $"Resolved MSI path is {resolvedPath.Length} characters, longer than the " +
                 $"{HashBoundFile.MaxLegacyPathLength} Windows Installer accepts: {resolvedPath}");
 
+        // Publisher-signed per-package transforms (D36): bind each forwarded transform to its SIGNED hash
+        // and the SIGNED association map before it can touch the SYSTEM install. This runs DOWNSTREAM of
+        // ValidateAdditionalArgs (so a caller-supplied TRANSFORMS on the args wire is still refused) and
+        // AFTER the Phase 1 publisher gate, and is parallel to InstallWithSecretTransform below — both
+        // merge a trusted transform into the args only after the args have been validated. On any
+        // rejection the install never runs.
+        var boundTransforms = BindAndVerifyTransforms(packageId, envelope, forwardedTransforms);
+        if (boundTransforms.IsFailure)
+            return Result<byte[]>.Failure(boundTransforms.Error);
+
         // fileStream keeps FileShare.Read asserted against the file for the entire InstallLocked
         // call, so the bytes MsiInstallProductW reads from disk are provably the bytes just
         // hashed above -- and resolvedPath names that exact file with every reparse point already
-        // followed, so re-opening it inside MsiInstallProductW cannot be redirected.
-        if (secrets.Count > 0)
-            return InstallWithSecretTransform(resolvedPath, additionalArgs, secrets, onProgress);
+        // followed, so re-opening it inside MsiInstallProductW cannot be redirected. Each bound
+        // transform holds its own FileShare.Read handle across the install for the identical reason:
+        // msiexec reads the .mst from disk during the install, so the bytes it applies are provably
+        // the bytes just hashed against the signed set.
+        try
+        {
+            // Merge each verified transform's resolved path into the (already-validated) args. Composes
+            // with the companion's own secret transform, which merges its generated .mst the same way
+            // inside InstallWithSecretTransform.
+            foreach (var transform in boundTransforms.Value)
+                additionalArgs = MsiTransformArgs.MergeTransforms(additionalArgs, transform.ResolvedPath);
 
-        return InstallLocked(resolvedPath, additionalArgs, onProgress);
+            if (secrets.Count > 0)
+                return InstallWithSecretTransform(resolvedPath, additionalArgs, secrets, onProgress);
+
+            return InstallLocked(resolvedPath, additionalArgs, onProgress);
+        }
+        finally
+        {
+            foreach (var transform in boundTransforms.Value)
+                transform.Stream.Dispose();
+        }
     }
 
     /// <summary>
@@ -195,10 +236,10 @@ public sealed class MsiInstallCommand : IElevatedCommand
     /// prerequisite, an id absent from the manifest packages, or a duplicated id.</item>
     /// </list>
     /// </summary>
-    private Result<string> VerifyPublisherAndResolveSignedHash(string packageId, string manifestJson)
+    private Result<VerifiedInstall> VerifyPublisherAndResolveSignedHash(string packageId, string manifestJson)
     {
         if (string.IsNullOrEmpty(manifestJson))
-            return Result<string>.Failure(ErrorKind.SecurityError,
+            return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError,
                 "MSI install request carries no signed manifest; refusing to install without proof of " +
                 "publisher authorship.");
 
@@ -210,12 +251,12 @@ public sealed class MsiInstallCommand : IElevatedCommand
         }
         catch (JsonException)
         {
-            return Result<string>.Failure(ErrorKind.SecurityError,
+            return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError,
                 "MSI install request carries an unparseable manifest.");
         }
 
         if (manifest is null)
-            return Result<string>.Failure(ErrorKind.SecurityError,
+            return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError,
                 "MSI install request carries an empty manifest.");
 
         // Always require a publisher signature for a SYSTEM MSI install, with fresh-install semantics. The
@@ -227,20 +268,20 @@ public sealed class MsiInstallCommand : IElevatedCommand
             requireSigned: true, isUpdatePath: false, storedEpoch: 0);
         var gate = PayloadIntegrityGate.Verify(manifest, policy);
         if (gate.IsFailure)
-            return Result<string>.Failure(ErrorKind.SecurityError, gate.Error.Message);
+            return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError, gate.Error.Message);
 
         // The gate proved authorship and bound every signed entry to its manifest package hash. It does NOT
         // prove the named package is an installable MSI: the signed envelope carries only name + sha256, not
         // a type, and the type field lives in the attacker-controlled unsigned manifest. So refuse anything
         // that is signed but not an installable MSI, independently of that unsigned type field.
         if (string.Equals(packageId, EngineCompanionPayload.PackageId, StringComparison.Ordinal))
-            return Result<string>.Failure(ErrorKind.SecurityError,
+            return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError,
                 "MSI install request names the elevation companion payload, which is not an installable MSI.");
 
         foreach (var preUI in manifest.PreUIPackages)
         {
             if (string.Equals(preUI.Id, packageId, StringComparison.Ordinal))
-                return Result<string>.Failure(ErrorKind.SecurityError,
+                return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError,
                     "MSI install request names a pre-UI prerequisite, which is not installable via MsiInstall.");
         }
 
@@ -252,33 +293,229 @@ public sealed class MsiInstallCommand : IElevatedCommand
         }
 
         if (matches == 0)
-            return Result<string>.Failure(ErrorKind.SecurityError,
+            return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError,
                 "MSI install request names a package not present in the verified manifest.");
         if (matches > 1)
-            return Result<string>.Failure(ErrorKind.SecurityError,
+            return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError,
                 "MSI install request names a duplicated package id in the manifest.");
 
         // Resolve the hash from the SIGNED envelope (the verified object), never the unsigned manifest
         // package field. The gate guaranteed the signature is present and parseable, so this re-parse cannot
         // fail; guard defensively anyway.
         if (manifest.ManifestSignature is not { } signatureJson)
-            return Result<string>.Failure(ErrorKind.SecurityError,
+            return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError,
                 "MSI install request manifest lost its signature after verification.");
 
         var envelope = IntegrityEnvelopeCodec.Parse(signatureJson);
         if (envelope is null)
-            return Result<string>.Failure(ErrorKind.SecurityError,
+            return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError,
                 "MSI install request manifest signature could not be re-parsed.");
 
         foreach (var entry in envelope.Files)
         {
             if (string.Equals(entry.Name, packageId, StringComparison.Ordinal))
+                return new VerifiedInstall(entry.Sha256, envelope);
+        }
+
+        return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError,
+            "MSI install request names a package with no signed integrity entry.");
+    }
+
+    /// <summary>
+    /// Reads the required, length-prefixed per-package transform block (D36): a count followed by that
+    /// many (transformId, resolved path) pairs. The block is always present (count 0 when the package
+    /// declares no transform), sits before the optional secret block, and is bounded so a forged payload
+    /// cannot announce an unbounded number of transforms. A truncated or malformed block fails closed.
+    /// Nothing read here is trusted — <see cref="BindAndVerifyTransforms"/> binds each pair to the
+    /// SIGNED hash and SIGNED association before it can touch the install.
+    /// </summary>
+    private static Result<List<ForwardedTransform>> ReadForwardedTransforms(BinaryReader reader)
+    {
+        List<ForwardedTransform> transforms;
+        try
+        {
+            var count = reader.ReadInt32();
+            if (count < 0 || count > MaxForwardedTransforms)
+                return Result<List<ForwardedTransform>>.Failure(ErrorKind.SecurityError,
+                    "MSI install request carries an out-of-range transform count");
+
+            transforms = new List<ForwardedTransform>(count);
+            for (var i = 0; i < count; i++)
+            {
+                var id = reader.ReadString();
+                var path = reader.ReadString();
+                transforms.Add(new ForwardedTransform(id, path));
+            }
+        }
+        catch (Exception ex) when (ex is EndOfStreamException or FormatException or IOException)
+        {
+            return Result<List<ForwardedTransform>>.Failure(ErrorKind.SecurityError,
+                "MSI install request transform block is malformed");
+        }
+
+        return transforms;
+    }
+
+    /// <summary>
+    /// Binds each forwarded transform to the publisher-signed set before it can be applied to the SYSTEM
+    /// install. For each (transformId, path): the transform id must have a signed integrity entry in the
+    /// verified envelope (its SIGNED hash); the (packageId, transformId) pair must be present in the
+    /// verified, SIGNED association map (never the unsigned wire manifest), which stops one signed
+    /// transform's bytes from being applied to a package it was not authored for; the file's bytes must
+    /// hash to the signed hash via the shared <see cref="HashBoundFile"/> helper, whose handle is held
+    /// open for the install; and the resolved path must be a local, MAX_PATH-bounded path free of the
+    /// ';' Windows Installer splits <c>TRANSFORMS</c> on (a ';' would smuggle a second transform).
+    /// <para>
+    /// On success the caller owns and must dispose every returned <see cref="BoundTransform.Stream"/>. On
+    /// any failure this method disposes every handle it opened and returns before the install runs.
+    /// </para>
+    /// </summary>
+    [SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP007:Don't dispose injected",
+        Justification = "The streams are not injected. HashBoundFile.Open creates each one and documents " +
+            "that ownership passes to the caller on Verified status; this method owns them until it either " +
+            "hands them to the caller (success) or disposes them (any failure, in the catch below).")]
+    [SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP005:Return type should indicate that the value should be disposed",
+        Justification = "The bound streams are returned inside a list wrapped in Result<T>; the single " +
+            "caller (Execute) disposes each in a finally that spans the install, matching the existing " +
+            "HashBoundFile ownership pattern used for the MSI file itself.")]
+    private static Result<List<BoundTransform>> BindAndVerifyTransforms(
+        string packageId, ManifestSignatureEnvelope envelope, List<ForwardedTransform> forwarded)
+    {
+        var bound = new List<BoundTransform>(forwarded.Count);
+        var success = false;
+        try
+        {
+            foreach (var transform in forwarded)
+            {
+                // 1. Resolve the SIGNED hash by matching the transform id against the verified envelope's
+                //    file entries (mirrors the MSI's entry.Name == packageId resolve). No signed entry
+                //    means the transform is not part of the signed set — refuse it.
+                var signedHash = ResolveSignedTransformHash(envelope, transform.Id);
+                if (signedHash is null)
+                    return TransformFailure(bound,
+                        $"MSI install request forwards transform '{transform.Id}' with no signed integrity entry.");
+
+                // 2. Require the (packageId, transformId) pair in the VERIFIED, SIGNED association map,
+                //    never the unsigned wire manifest. This is what stops transform B's signed bytes from
+                //    being applied to package A.
+                if (!IsTransformAssociated(envelope, packageId, transform.Id))
+                    return TransformFailure(bound,
+                        $"MSI install request forwards transform '{transform.Id}', which the signed " +
+                        $"association map does not permit for package '{packageId}'.");
+
+                // The raw check is a cheap fast path; the resolved path below is the authority (a junction
+                // can point at an SMB share whose FileShare.Read a remote server may not honour).
+                if (transform.Path.StartsWith(@"\\", StringComparison.Ordinal))
+                    return TransformFailure(bound,
+                        $"MSI install request forwards a UNC/network transform path for '{transform.Id}'.");
+
+                // 3. Bind the .mst bytes to the SIGNED hash via the shared open-hash-compare helper and hold
+                //    the handle open for the install, exactly as the MSI file is bound above.
+                var boundFile = HashBoundFile.Open(transform.Path, signedHash);
+                if (boundFile.Status != HashBoundFileStatus.Verified)
+                    return TransformFailure(bound, DescribeTransformBindingFailure(transform.Id, boundFile));
+
+                var resolvedTransformPath = boundFile.ResolvedPath!;
+                // Register the stream for disposal-on-failure immediately, so a later check on this same
+                // transform still releases the handle.
+                bound.Add(new BoundTransform(resolvedTransformPath, boundFile.Stream!));
+
+                if (resolvedTransformPath.StartsWith(@"\\", StringComparison.Ordinal))
+                    return TransformFailure(bound,
+                        $"MSI install request forwards a transform for '{transform.Id}' that resolves to a " +
+                        "UNC/network path.");
+
+                if (resolvedTransformPath.Length > HashBoundFile.MaxLegacyPathLength)
+                    return TransformFailure(bound,
+                        $"Resolved transform path for '{transform.Id}' is {resolvedTransformPath.Length} " +
+                        $"characters, longer than the {HashBoundFile.MaxLegacyPathLength} Windows Installer accepts.");
+
+                // 4. Reject a ';' in the resolved path: NTFS allows ';' in a filename, and msiexec splits
+                //    the TRANSFORMS value on ';', so a ';'-bearing path merged into TRANSFORMS would smuggle
+                //    a second, unverified transform.
+                if (resolvedTransformPath.Contains(';', StringComparison.Ordinal))
+                    return TransformFailure(bound,
+                        $"Resolved transform path for '{transform.Id}' contains ';', which Windows Installer " +
+                        "would parse as a second transform.");
+            }
+
+            success = true;
+            return bound;
+        }
+        finally
+        {
+            if (!success)
+            {
+                foreach (var transform in bound)
+                    transform.Stream.Dispose();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Disposes every handle opened so far and returns a security failure. Used only on the reject paths
+    /// of <see cref="BindAndVerifyTransforms"/>; the finally there is the single owner while iterating, so
+    /// this only builds the failure result.
+    /// </summary>
+    private static Result<List<BoundTransform>> TransformFailure(List<BoundTransform> bound, string message)
+        => Result<List<BoundTransform>>.Failure(ErrorKind.SecurityError, message);
+
+    /// <summary>Returns the SIGNED SHA-256 hash of the transform id, or null when it has no signed entry.</summary>
+    private static string? ResolveSignedTransformHash(ManifestSignatureEnvelope envelope, string transformId)
+    {
+        foreach (var entry in envelope.Files)
+        {
+            if (string.Equals(entry.Name, transformId, StringComparison.Ordinal))
                 return entry.Sha256;
         }
 
-        return Result<string>.Failure(ErrorKind.SecurityError,
-            "MSI install request names a package with no signed integrity entry.");
+        return null;
     }
+
+    /// <summary>
+    /// True when the verified, signed association map permits <paramref name="transformId"/> for
+    /// <paramref name="packageId"/>. A null map (no declared transforms) permits nothing.
+    /// </summary>
+    private static bool IsTransformAssociated(
+        ManifestSignatureEnvelope envelope, string packageId, string transformId)
+    {
+        var associations = envelope.TransformAssociations;
+        if (associations is null)
+            return false;
+
+        foreach (var association in associations)
+        {
+            if (!string.Equals(association.PackageId, packageId, StringComparison.Ordinal))
+                continue;
+
+            foreach (var id in association.TransformIds)
+            {
+                if (string.Equals(id, transformId, StringComparison.Ordinal))
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Turns a transform <see cref="HashBoundFile"/> failure into this command's wording.</summary>
+    private static string DescribeTransformBindingFailure(string transformId, HashBoundFileResult bound)
+        => bound.Status switch
+        {
+            HashBoundFileStatus.MalformedExpectedHash =>
+                $"Signed integrity entry for transform '{transformId}' carries a malformed SHA-256 hash.",
+            HashBoundFileStatus.FileNotFound =>
+                $"Forwarded transform file for '{transformId}' not found.",
+            HashBoundFileStatus.OpenFailed =>
+                $"Forwarded transform file for '{transformId}' could not be opened for exclusive read: {bound.Detail}",
+            HashBoundFileStatus.ReadFailed =>
+                $"Forwarded transform file for '{transformId}' could not be read: {bound.Detail}",
+            HashBoundFileStatus.HashMismatch =>
+                $"Forwarded transform for '{transformId}' does not match its signed hash.",
+            HashBoundFileStatus.PathResolutionFailed =>
+                $"Forwarded transform file for '{transformId}' could not be resolved to a real path from its handle.",
+            _ => $"Forwarded transform for '{transformId}' could not be bound to its signed hash.",
+        };
 
     /// <summary>
     /// Reads the optional secret-property block that trails the required fields. Absent for a
@@ -387,6 +624,23 @@ public sealed class MsiInstallCommand : IElevatedCommand
     }
 
     private readonly record struct SecretProperty(string Name, byte[] Value);
+
+    /// <summary>One forwarded per-package transform (D36): its id and the engine-resolved extracted path.</summary>
+    private readonly record struct ForwardedTransform(string Id, string Path);
+
+    /// <summary>
+    /// A forwarded transform that verified against the signed set: the resolved path merged into
+    /// <c>TRANSFORMS</c> and the open <see cref="FileStream"/> whose <see cref="FileShare.Read"/> handle
+    /// pins the bytes for the install's duration.
+    /// </summary>
+    private readonly record struct BoundTransform(string ResolvedPath, FileStream Stream);
+
+    /// <summary>
+    /// The output of the publisher gate: the resolved SIGNED hash for the installable MSI, plus the
+    /// verified integrity envelope so the transform step can resolve signed transform hashes and the
+    /// signed association map from the same verified object.
+    /// </summary>
+    private readonly record struct VerifiedInstall(string SignedMsiHash, ManifestSignatureEnvelope Envelope);
 
     /// <summary>
     /// Turns a <see cref="HashBoundFile"/> failure into this command's own error wording, so the

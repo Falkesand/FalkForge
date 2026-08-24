@@ -209,6 +209,23 @@ public sealed partial class MsiExecutor
                     writer.Write(action.PackageId);
                     writer.Write(SerializeManifestForCompanion(_manifestAccessor()));
 
+                    // Per-package MSI transforms (D36) travel as a required, length-prefixed block: the
+                    // (transformId, resolved extracted path) pairs the ApplyStep resolved under the payload
+                    // root. The companion re-binds each to its SIGNED hash and the SIGNED association map
+                    // before merging it, so this side stays a pure forwarder. The block is ALWAYS written
+                    // (count 0 when the package declares no transform, or for a non-install action) so its
+                    // fixed position keeps the optional secret block that follows detectable by stream
+                    // position, exactly as before. Only Install carries transforms.
+                    var transforms = action.ActionType == PlanActionType.Install
+                        ? action.ResolvedTransformPaths
+                        : [];
+                    writer.Write(transforms.Count);
+                    foreach (var (transformId, transformPath) in transforms)
+                    {
+                        writer.Write(transformId);
+                        writer.Write(transformPath);
+                    }
+
                     // Secret properties travel as an optional trailing block: the companion generates a
                     // transform from them in its own SYSTEM-only staging directory and sets them off the
                     // command line. Only Install carries secrets; the block is absent otherwise, keeping
