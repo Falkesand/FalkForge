@@ -8,7 +8,7 @@ using FalkForge.Engine.Protocol.Integrity;
 /// pins, and whether a signature is mandatory on this path.
 ///
 /// <para><b>Trusted set.</b> A non-empty set (the engine's baked-in fingerprints, see
-/// <see cref="BakedTrustedKeys"/>) turns on authorship: a signature is accepted only when its key's
+/// <c>BakedTrustedKeys</c>) turns on authorship: a signature is accepted only when its key's
 /// fingerprint is pinned, so an attacker who re-signs a rewritten bundle with their own key is
 /// rejected. An empty set means the engine was built with no publisher pin — verification falls back
 /// to consistency-only (tamper-evidence, not authorship), which is the pre-pin backward-compatible
@@ -58,7 +58,7 @@ internal readonly struct TrustPolicy
     /// <summary>
     /// The pinned post-quantum companion map (PQ-hybrid Stage 1, §2.3): classical fingerprint →
     /// required ML-DSA companion fingerprint. Null/empty keeps verification bit-for-bit as before.
-    /// Sourced from <see cref="EngineTrustAnchor.EffectivePqCompanions"/> in production; never read
+    /// Sourced from <c>EngineTrustAnchor.EffectivePqCompanions</c> in production; never read
     /// from a bundle.
     /// </summary>
     public IReadOnlyDictionary<string, string>? PqCompanions { get; }

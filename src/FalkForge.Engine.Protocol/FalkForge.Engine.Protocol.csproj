@@ -15,6 +15,10 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="FalkForge.Engine.Protocol.Tests" />
+    <InternalsVisibleTo Include="FalkForge.Engine" />
+    <InternalsVisibleTo Include="FalkForge.Engine.Tests" />
+    <InternalsVisibleTo Include="FalkForge.Engine.Elevation" />
+    <InternalsVisibleTo Include="FalkForge.Engine.Elevation.Tests" />
   </ItemGroup>
   <ItemGroup>
     <!-- Octopus.Octodiff powers DeltaApplicator (install-time delta reconstruction). It lives here,

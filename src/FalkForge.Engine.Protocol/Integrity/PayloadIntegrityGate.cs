@@ -9,7 +9,7 @@ using FalkForge.Engine.Protocol.Manifest;
 /// <para><b>What the gate proves.</b> The bundle manifest carries a signature envelope over the
 /// per-package SHA-256 hashes, each signature self-describing its key. This gate accepts the envelope
 /// only when at least one signature verifies <i>and</i> its key's fingerprint is in the engine's
-/// baked trusted set (<see cref="BakedTrustedKeys"/>, surfaced via <see cref="TrustPolicy"/>). That
+/// baked trusted set (<c>BakedTrustedKeys</c>, surfaced via <see cref="TrustPolicy"/>). That
 /// closes the re-sign attack: an attacker who rewrites the bundle and re-signs with their own key is
 /// rejected because their fingerprint is not pinned. It then binds every signed entry to a manifest
 /// package with a matching hash, and requires every executing package to be in the signed set. The
