@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+  <assemblyIdentity version="1.0.0.0" name="FalkForge.Engine.Elevation" type="win32"/>
+
+  <!-- The companion is the elevated command host. It carries this manifest so the shell
+       elevates it based on the launched image, not a caller-supplied verb. A "runas" verb
+       is resolved through HKEY_CLASSES_ROOT\exefile\shell\runas\command, which
+       HKCU\Software\Classes overrides for the current user with no privilege required, so a
+       same-user attacker could redirect the elevated launch to their own command. Launching
+       this manifested binary on the default verb closes that: elevation now comes from the
+       companion's own requireAdministrator declaration, which a registry override cannot
+       redirect. -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <!-- Windows 10 / 11 compatibility. -->
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+    </application>
+  </compatibility>
+</assembly>
