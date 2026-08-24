@@ -165,6 +165,25 @@ internal readonly struct TrustPolicy
             isUpdatePath: false, storedEpoch: 0, pqCompanions);
 
     /// <summary>
+    /// The require-signed fresh-install policy: a signature is mandatory (an absent one is INT007, an
+    /// empty trusted set is INT009), but the operation always resolves as Install — <see cref="IsUpdatePath"/>
+    /// stays false, so the gate never consults <see cref="StoredEpoch"/> and never treats a non-zero
+    /// signed epoch as a key change. That is what sets it apart from <see cref="RequireSignedUpdate"/>: an
+    /// update-path policy would resolve a fresh signed envelope at a non-zero epoch as a KeyChange against
+    /// the zero stored epoch and demand the release+recovery quorum, rejecting a bundle that only carries
+    /// one release signature. Used where a caller needs exactly (require-signed, fresh-install) —
+    /// <see cref="FromBakedKeys"/>'s <c>requireSigned &amp;&amp; !isUpdatePath</c> case.
+    /// <paramref name="pqCompanions"/> adds the PQ-hybrid companion pins (Stage 1).
+    /// </summary>
+    public static TrustPolicy RequireSignedInstall(
+        IReadOnlySet<string> trustedFingerprints,
+        IReadOnlyDictionary<string, TrustRole> roles,
+        IReadOnlyDictionary<OperationKind, PolicyRule> rules,
+        IReadOnlyDictionary<string, string>? pqCompanions = null) =>
+        new(trustedFingerprints, requireSigned: true, roles, rules,
+            isUpdatePath: false, storedEpoch: 0, pqCompanions);
+
+    /// <summary>
     /// The require-signed update-path policy (C19 quorum uniformity): a signature is mandatory, and the
     /// gate resolves the operation from the signed epoch relative to <paramref name="storedEpoch"/> (the
     /// persisted anti-downgrade epoch) exactly as the staged-update verifier does — a routine same-epoch
@@ -186,9 +205,11 @@ internal readonly struct TrustPolicy
     /// raw (possibly un-roled) baked role, and the pinned PQ companions. Applies the same defaulting
     /// <see cref="DefaultBakedRoles"/> applies to <c>EngineTrustAnchor.Freeze</c>'s own baked set, so the
     /// two never drift, then delegates to <see cref="RequireSignedUpdate"/> or <see cref="FreshInstall"/>
-    /// exactly as the engine's callers choose between them (<paramref name="requireSigned"/> and
-    /// <paramref name="isUpdatePath"/> both true selects the require-signed update path; both are false
-    /// together in every existing caller).
+    /// exactly as the engine's callers choose between them: <paramref name="requireSigned"/> and
+    /// <paramref name="isUpdatePath"/> both true selects the require-signed update path,
+    /// <paramref name="requireSigned"/> true with <paramref name="isUpdatePath"/> false selects the
+    /// require-signed fresh-install path (<see cref="RequireSignedInstall"/>), and both false together
+    /// selects <see cref="FreshInstall"/>.
     /// </summary>
     internal static TrustPolicy FromBakedKeys(
         IReadOnlySet<string> bakedFingerprints,
@@ -199,9 +220,11 @@ internal readonly struct TrustPolicy
         int storedEpoch)
     {
         var roles = DefaultBakedRoles(bakedFingerprints, bakedRoles);
-        return requireSigned && isUpdatePath
-            ? RequireSignedUpdate(bakedFingerprints, roles, BakedTrustPolicy.Default, storedEpoch, bakedPqCompanions)
-            : FreshInstall(bakedFingerprints, roles, BakedTrustPolicy.Default, bakedPqCompanions);
+        if (requireSigned && isUpdatePath)
+            return RequireSignedUpdate(bakedFingerprints, roles, BakedTrustPolicy.Default, storedEpoch, bakedPqCompanions);
+        if (requireSigned)
+            return RequireSignedInstall(bakedFingerprints, roles, BakedTrustPolicy.Default, bakedPqCompanions);
+        return FreshInstall(bakedFingerprints, roles, BakedTrustPolicy.Default, bakedPqCompanions);
     }
 
     /// <summary>
