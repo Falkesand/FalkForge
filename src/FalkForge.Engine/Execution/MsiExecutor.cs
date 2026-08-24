@@ -209,7 +209,7 @@ public sealed partial class MsiExecutor
                     writer.Write(action.PackageId);
                     writer.Write(SerializeManifestForCompanion(_manifestAccessor()));
 
-                    // Per-package MSI transforms (D36) travel as a required, length-prefixed block: the
+                    // Per-package MSI transforms travel as a required, length-prefixed block: the
                     // (transformId, resolved extracted path) pairs the ApplyStep resolved under the payload
                     // root. The companion re-binds each to its SIGNED hash and the SIGNED association map
                     // before merging it, so this side stays a pure forwarder. The block is ALWAYS written

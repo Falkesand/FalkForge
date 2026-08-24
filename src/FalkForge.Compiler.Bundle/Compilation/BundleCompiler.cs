@@ -185,7 +185,7 @@ public sealed class BundleCompiler
             });
         }
 
-        // Step 3c (D36): embed each declared MSI transform (.mst) as its own signed payload, keyed by
+        // Step 3c: embed each declared MSI transform (.mst) as its own signed payload, keyed by
         // the transform id. This flows the transform into the same ECDSA-signed `files` set the engine
         // verifies before extraction, so a transform is exactly as trust-covered as the package it
         // belongs to. A transform is always embedded (never externalized) and is not an installable

@@ -93,7 +93,7 @@ public static class EcdsaManifestSigner
         // container-free bundle (byte-identical envelope), and the signed bytes append nothing.
         var containers = externalContainers is { Count: > 0 } ? externalContainers : null;
         // Normalize empty → null so the envelope's transform field is omitted on the wire for a
-        // transform-free build (byte-identical envelope), and the signed bytes append nothing (D36).
+        // transform-free build (byte-identical envelope), and the signed bytes append nothing.
         var transforms = transformAssociations is { Count: > 0 } ? transformAssociations : null;
         var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch, revoked, containers, transforms);
 

@@ -51,7 +51,7 @@ public sealed class PlanAction
     public string EffectiveSourcePath => ResolvedSourcePath ?? Package.SourcePath;
 
     /// <summary>
-    /// The package's declared MSI transforms (.mst, D36) resolved to their absolute extracted paths on
+    /// The package's declared MSI transforms (.mst) resolved to their absolute extracted paths on
     /// the TARGET machine, keyed by transform id. <see cref="FalkForge.Engine.Pipeline.ApplyStep"/>
     /// resolves each <see cref="PackageInfo.Transforms"/> entry under the bootstrapper-forwarded payload
     /// root with the same containment guard the MSI itself uses, and the elevated executor forwards the

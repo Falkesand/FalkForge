@@ -116,12 +116,12 @@ internal static class BundleIntegritySigner
     }
 
     /// <summary>
-    /// Builds the signed package-to-transform association map (D36) from the manifest's declared
+    /// Builds the signed package-to-transform association map from the manifest's declared
     /// transforms: for each package that declares one or more transforms, an entry binding the package
     /// id to its transform ids. Folded into the ECDSA-signed message so an attacker cannot re-associate
     /// a signed transform onto a different package, add one, or strip one. Returns null when no package
     /// declares a transform, so a transform-free bundle signs the byte-identical files-only message it
-    /// signed before D36.
+    /// signed before transforms existed.
     /// </summary>
     private static IReadOnlyList<PackageTransformAssociation>? BuildTransformAssociations(
         InstallerManifest manifest)

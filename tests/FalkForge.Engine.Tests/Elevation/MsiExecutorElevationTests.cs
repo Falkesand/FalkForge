@@ -267,7 +267,7 @@ public sealed class MsiExecutorElevationTests
         Assert.DoesNotContain("SQLPASSWORD", additionalArgs);
         Assert.DoesNotContain("s3cr3t", additionalArgs);
 
-        // The per-package transform block (D36) is always present; none declared here, so count 0.
+        // The per-package transform block is always present; none declared here, so count 0.
         Assert.Equal(0, reader.ReadInt32());
 
         // It rides the trailing secret block instead.
@@ -282,7 +282,7 @@ public sealed class MsiExecutorElevationTests
     [Fact]
     public async Task ExecuteAsync_WithElevationClient_ForwardsResolvedTransformPaths()
     {
-        // D36 Part 2b (Part B): the engine forwards the (transformId, resolved path) pairs the ApplyStep
+        // The engine forwards the (transformId, resolved path) pairs the ApplyStep
         // resolved under the payload root, on the transform block that sits between the manifest and the
         // optional secret block. The companion re-binds each to its signed hash and association.
         var mockClient = new MockElevationClient();
@@ -332,7 +332,7 @@ public sealed class MsiExecutorElevationTests
         reader.ReadString(); // declared hash
         reader.ReadString(); // package id
         reader.ReadString(); // manifest
-        // The per-package transform block (D36) is always present; none declared here, so count 0.
+        // The per-package transform block is always present; none declared here, so count 0.
         Assert.Equal(0, reader.ReadInt32());
         // No trailing secret block for a non-secret install — the stream ends after the transform block.
         Assert.Equal(stream.Length, stream.Position);

@@ -7,7 +7,7 @@ using Xunit;
 namespace FalkForge.Engine.Protocol.Tests.Integrity;
 
 /// <summary>
-/// D36 signed-transform plumbing: the integrity envelope carries a signed package-to-transform
+/// Signed-transform plumbing: the integrity envelope carries a signed package-to-transform
 /// association map (which signed transforms a package may have applied). The map must be inside the
 /// signed bytes so an attacker cannot re-associate a signed transform onto a different package, add
 /// one, or strip one, without invalidating the signature.

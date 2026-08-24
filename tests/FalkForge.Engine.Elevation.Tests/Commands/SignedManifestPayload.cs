@@ -88,7 +88,7 @@ internal static class SignedManifestPayload
     }
 
     /// <summary>
-    /// A manifest that declares one installable MSI package plus one or more signed MSI transforms (D36).
+    /// A manifest that declares one installable MSI package plus one or more signed MSI transforms.
     /// <paramref name="declaredTransforms"/> lists (owning package id, transform id, transform hash): each
     /// becomes a signed envelope file entry and a <see cref="PackageTransformInfo"/> under its owning
     /// package, so the integrity gate binds it (Direction 1) without the transform being installable.
@@ -165,7 +165,7 @@ internal static class SignedManifestPayload
         writer.Write(packageId);
         writer.Write(manifestJson);
 
-        // The per-package transform block (D36) is always present (count 0 when none), and sits before the
+        // The per-package transform block is always present (count 0 when none), and sits before the
         // optional secret block so the secret block stays detectable by stream position.
         writer.Write(transforms?.Length ?? 0);
         foreach (var (id, path) in transforms ?? [])

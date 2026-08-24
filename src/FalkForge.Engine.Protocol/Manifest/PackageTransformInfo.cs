@@ -1,7 +1,7 @@
 namespace FalkForge.Engine.Protocol.Manifest;
 
 /// <summary>
-/// One MSI transform (.mst) an author declared for a package (D36). The transform's bytes are embedded
+/// One MSI transform (.mst) an author declared for a package. The transform's bytes are embedded
 /// as a signed bundle payload keyed by <see cref="Id"/>, and this record carries the id together with
 /// the payload's <see cref="Sha256Hash"/> so the runtime integrity gate can bind the signed transform
 /// entry to the manifest-declared hash — the same binding it performs for an installable package.

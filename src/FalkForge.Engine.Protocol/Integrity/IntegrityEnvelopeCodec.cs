@@ -92,7 +92,7 @@ public static class IntegrityEnvelopeCodec
         var hasContainers = containersCanonical.Length > 0;
 
         // The transform-association canonical form is likewise empty for a null/empty map, so a bundle
-        // with no declared transforms appends nothing here and stays byte-identical (D36).
+        // with no declared transforms appends nothing here and stays byte-identical.
         var transformsCanonical = CanonicalizeTransformAssociations(transformAssociations);
         var hasTransforms = transformsCanonical.Length > 0;
 
@@ -122,7 +122,7 @@ public static class IntegrityEnvelopeCodec
         if (hasContainers)
             sb.Append('').Append("extcontainers=").Append(containersCanonical);
 
-        // The package-to-transform association map (D36), when present, is bound under its own separated,
+        // The package-to-transform association map, when present, is bound under its own separated,
         // length-prefixed segment. Appended AFTER the external-container segment; a bundle with no declared
         // transforms appends nothing here and stays byte-identical. Binding it into the signed message is
         // what stops an attacker re-associating a signed transform onto a different package, adding one, or
@@ -190,8 +190,8 @@ public static class IntegrityEnvelopeCodec
     }
 
     /// <summary>
-    /// The canonical, injective, order-independent string form of a package-to-transform association map
-    /// (D36). This is the exact representation folded into the signed message by
+    /// The canonical, injective, order-independent string form of a package-to-transform association map.
+    /// This is the exact representation folded into the signed message by
     /// <see cref="ComputeSignedBytes(IReadOnlyList{ManifestFileEntry}, int, IReadOnlyList{string}, IReadOnlyList{ExternalContainerInfo}, IReadOnlyList{PackageTransformAssociation})"/>.
     /// A null or empty map yields the empty string, so a bundle with no declared transforms appends nothing
     /// to the signed message — the backward-compatibility property that keeps every already-shipped bundle's
@@ -331,7 +331,7 @@ public static class IntegrityEnvelopeCodec
             // Normalize empty → null so a container-free envelope's wire form is byte-identical to before
             // (the field is omitted entirely under WhenWritingNull).
             ExternalContainers = externalContainers is { Count: > 0 } ? externalContainers : null,
-            // Same empty → null normalization so a transform-free envelope stays byte-identical (D36).
+            // Same empty → null normalization so a transform-free envelope stays byte-identical.
             TransformAssociations = transformAssociations is { Count: > 0 } ? transformAssociations : null
         };
     }

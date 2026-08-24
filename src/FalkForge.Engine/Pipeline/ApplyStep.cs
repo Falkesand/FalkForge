@@ -337,7 +337,7 @@ internal sealed class ApplyStep : IApplyStep
 
             action.ResolvedSourcePath = resolved.Value;
 
-            // Per-package MSI transforms (D36): a declared transform is an embedded payload keyed by its
+            // Per-package MSI transforms: a declared transform is an embedded payload keyed by its
             // id, extracted to {payloadRoot}/{transformId} exactly like the MSI. Resolve each under the
             // same containment guard so a crafted transform id cannot redirect the elevated install to an
             // out-of-cache file, and record the (id, resolved path) pairs the elevated executor forwards
