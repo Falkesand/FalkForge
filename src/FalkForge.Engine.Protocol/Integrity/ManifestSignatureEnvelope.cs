@@ -95,4 +95,19 @@ public sealed class ManifestSignatureEnvelope
     [JsonPropertyName("externalContainers")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<ExternalContainerInfo>? ExternalContainers { get; set; }
+
+    /// <summary>
+    /// The signed package-to-transform association map (D36): for each package id, the ids of the signed
+    /// MSI transforms (.mst) it is permitted to have applied. Folded into the ECDSA-signed message
+    /// <b>only when present</b> (same compat rule as <see cref="Epoch"/>/<see cref="Revoked"/>/
+    /// <see cref="ExternalContainers"/>), so a bundle with no association map signs the byte-identical
+    /// files-only message every already-shipped bundle signed — see
+    /// <see cref="IntegrityEnvelopeCodec.CanonicalizeTransformAssociations(IReadOnlyList{PackageTransformAssociation})"/>.
+    /// Binding it into the signature is what stops an attacker re-associating a signed transform onto a
+    /// different package, adding one, or stripping one. Null (and omitted from the wire) on v1 envelopes
+    /// and on every bundle with no declared transforms.
+    /// </summary>
+    [JsonPropertyName("transformAssociations")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<PackageTransformAssociation>? TransformAssociations { get; set; }
 }
