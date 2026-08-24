@@ -181,7 +181,8 @@ public sealed partial class EngineSession
         var msiExecutor = new MsiExecutor(
             static () => null,
             () => variableStore,
-            static () => OperatingSystem.IsWindows() ? new WindowsMsiApi() : null);
+            static () => OperatingSystem.IsWindows() ? new WindowsMsiApi() : null,
+            () => manifest);
         var msuExecutor = new MsuExecutor(processRunner);
         var mspExecutor = new MspExecutor(processRunner);
         var cacheLayout = new CacheLayout(manifest.Scope);

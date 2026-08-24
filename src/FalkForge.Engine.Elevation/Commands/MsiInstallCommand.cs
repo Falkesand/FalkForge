@@ -3,7 +3,11 @@ namespace FalkForge.Engine.Elevation.Commands;
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Versioning;
+using System.Text.Json;
+using FalkForge.Engine.Integrity;
+using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Integrity;
+using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Platform.Windows;
 
 public sealed class MsiInstallCommand : IElevatedCommand
@@ -38,6 +42,9 @@ public sealed class MsiInstallCommand : IElevatedCommand
 
     private readonly IMsiApi _msiApi;
     private readonly ISecureTransformStaging _staging;
+    private readonly IReadOnlySet<string> _trustedFingerprints;
+    private readonly IReadOnlyDictionary<string, TrustRole> _trustedRoles;
+    private readonly IReadOnlyDictionary<string, string> _trustedPqCompanions;
 
     public MsiInstallCommand(IMsiApi msiApi)
         : this(msiApi, new SecureTransformStaging())
@@ -48,9 +55,29 @@ public sealed class MsiInstallCommand : IElevatedCommand
     // the SYSTEM + Administrators-only directory under %ProgramData%; a test injects a writable temp
     // directory so the generation, merge, and cleanup can be exercised without elevation.
     internal MsiInstallCommand(IMsiApi msiApi, ISecureTransformStaging staging)
+        : this(msiApi, staging,
+            BakedTrustedKeys.Fingerprints, BakedTrustedKeys.Roles, BakedTrustedKeys.PqCompanions)
+    {
+    }
+
+    // Test seam: the baked publisher-key set this companion independently verifies the MSI against before
+    // installing it. Production always uses the engine's compile-time BakedTrustedKeys (empty unless the
+    // publisher baked a key; with an empty set a SYSTEM MSI install is refused because authorship cannot be
+    // established). A test injects a known trusted set so the require-signed gate can be exercised without a
+    // baked build. The injection never WEAKENS the production default: the two overloads above always pass
+    // the baked set.
+    internal MsiInstallCommand(
+        IMsiApi msiApi,
+        ISecureTransformStaging staging,
+        IReadOnlySet<string> trustedFingerprints,
+        IReadOnlyDictionary<string, TrustRole> trustedRoles,
+        IReadOnlyDictionary<string, string> trustedPqCompanions)
     {
         _msiApi = msiApi;
         _staging = staging;
+        _trustedFingerprints = trustedFingerprints;
+        _trustedRoles = trustedRoles;
+        _trustedPqCompanions = trustedPqCompanions;
     }
 
     public string Name => "MsiInstall";
@@ -62,7 +89,7 @@ public sealed class MsiInstallCommand : IElevatedCommand
             "and hands back null. Nothing else holds a reference, so this `using` is the only disposal.")]
     public Result<byte[]> Execute(byte[] payload, Action<int>? onProgress = null)
     {
-        string msiPath, additionalArgs, expectedHashHex;
+        string msiPath, additionalArgs, packageId, manifestJson;
         List<SecretProperty> secrets;
         using (var stream = new MemoryStream(payload))
         using (var reader = new BinaryReader(stream))
@@ -71,12 +98,21 @@ public sealed class MsiInstallCommand : IElevatedCommand
             {
                 msiPath = reader.ReadString();
                 additionalArgs = reader.ReadString();
-                expectedHashHex = reader.ReadString();
+                // The caller-asserted expected hash. Read for wire compatibility but NEVER used as a trust
+                // input: a same-user caller can name any hash. The authoritative hash is the one inside the
+                // publisher-signed envelope, resolved in VerifyPublisherAndResolveSignedHash below.
+                _ = reader.ReadString();
+                // The bundle package id being installed, and the full installer manifest (carrying the
+                // signed integrity envelope). Both are required: a payload with no manifest is refused,
+                // never treated as a legacy allow-through.
+                packageId = reader.ReadString();
+                manifestJson = reader.ReadString();
             }
             catch (Exception ex) when (ex is EndOfStreamException or FormatException or IOException)
             {
                 return Result<byte[]>.Failure(ErrorKind.SecurityError,
-                    "MSI install request is truncated: expected msiPath, additionalArgs and a SHA-256 hash");
+                    "MSI install request is truncated: expected msiPath, additionalArgs, a SHA-256 hash, " +
+                    "the package id and the signed manifest");
             }
 
             var secretsResult = ReadSecretProperties(stream, reader);
@@ -92,6 +128,17 @@ public sealed class MsiInstallCommand : IElevatedCommand
         if (argsValidation.IsFailure)
             return Result<byte[]>.Failure(argsValidation.Error);
 
+        // Independently prove authorship before opening the file: verify the manifest's signed integrity
+        // envelope against this companion's OWN baked publisher-key set, then resolve the SIGNED hash for
+        // the named package. This is what stops a same-user caller from having an arbitrary MSI installed as
+        // SYSTEM — the caller cannot forge a signature the baked set trusts, and the file below is bound to
+        // the signed hash, not to anything the caller asserted. Runs before the file is opened, so a
+        // rejection here means InstallProduct never runs.
+        var trust = VerifyPublisherAndResolveSignedHash(packageId, manifestJson);
+        if (trust.IsFailure)
+            return Result<byte[]>.Failure(trust.Error);
+        var signedHash = trust.Value;
+
         // Open the file ourselves and hold the handle for the rest of this call, instead of
         // trusting the unelevated engine's own File.Exists + hash check. FileShare.Read denies
         // other processes write/rename/delete for as long as the handle lives, so the bytes we
@@ -99,8 +146,9 @@ public sealed class MsiInstallCommand : IElevatedCommand
         // handle after hashing and reopening for install would leave the same
         // check-then-use window open in a smaller box. HashBoundFile owns the open-hash-compare
         // sequence and is shared with the engine's pre-UI prerequisite launcher, which needs the
-        // identical property; the two crossings used to carry drifting copies of it.
-        var bound = HashBoundFile.Open(msiPath, expectedHashHex);
+        // identical property; the two crossings used to carry drifting copies of it. The hash bound
+        // against is the publisher-SIGNED hash resolved above, never the caller-asserted value.
+        var bound = HashBoundFile.Open(msiPath, signedHash);
         if (bound.Status != HashBoundFileStatus.Verified)
             return DescribeBindingFailure(msiPath, bound);
 
@@ -134,8 +182,107 @@ public sealed class MsiInstallCommand : IElevatedCommand
     }
 
     /// <summary>
-    /// Reads the optional secret-property block that trails the required three fields. Absent for a
-    /// non-secret install and for a legacy peer that never wrote it (the stream is already at its end).
+    /// Verifies the installer manifest's signed integrity envelope against this companion's baked
+    /// publisher-key set and returns the SIGNED SHA-256 hash for <paramref name="packageId"/>. Fails closed
+    /// on every path that cannot establish publisher authorship for an installable MSI:
+    /// <list type="bullet">
+    /// <item>a missing or unparseable manifest (never a legacy allow-through);</item>
+    /// <item>an unsigned manifest, an empty baked set, or a signature from an untrusted key
+    /// (INT007/INT009/INT001 from <see cref="PayloadIntegrityGate"/> under the require-signed policy);</item>
+    /// <item>a signed entry whose declared manifest hash was tampered (INT002), which is what makes the
+    /// bind be to the signed hash rather than the manifest's declared hash;</item>
+    /// <item>a named package that is not an installable MSI — the reserved elevation companion id, a pre-UI
+    /// prerequisite, an id absent from the manifest packages, or a duplicated id.</item>
+    /// </list>
+    /// </summary>
+    private Result<string> VerifyPublisherAndResolveSignedHash(string packageId, string manifestJson)
+    {
+        if (string.IsNullOrEmpty(manifestJson))
+            return Result<string>.Failure(ErrorKind.SecurityError,
+                "MSI install request carries no signed manifest; refusing to install without proof of " +
+                "publisher authorship.");
+
+        InstallerManifest? manifest;
+        try
+        {
+            manifest = JsonSerializer.Deserialize(
+                manifestJson, BundleTrustJsonContext.Default.InstallerManifest);
+        }
+        catch (JsonException)
+        {
+            return Result<string>.Failure(ErrorKind.SecurityError,
+                "MSI install request carries an unparseable manifest.");
+        }
+
+        if (manifest is null)
+            return Result<string>.Failure(ErrorKind.SecurityError,
+                "MSI install request carries an empty manifest.");
+
+        // Always require a publisher signature for a SYSTEM MSI install, with fresh-install semantics. The
+        // companion cannot read fresh-vs-update from the wire and must never let the caller assert it, so it
+        // never consults the persisted epoch (isUpdatePath: false, storedEpoch: 0). An empty baked set makes
+        // this fail closed (INT009).
+        var policy = TrustPolicy.FromBakedKeys(
+            _trustedFingerprints, _trustedRoles, _trustedPqCompanions,
+            requireSigned: true, isUpdatePath: false, storedEpoch: 0);
+        var gate = PayloadIntegrityGate.Verify(manifest, policy);
+        if (gate.IsFailure)
+            return Result<string>.Failure(ErrorKind.SecurityError, gate.Error.Message);
+
+        // The gate proved authorship and bound every signed entry to its manifest package hash. It does NOT
+        // prove the named package is an installable MSI: the signed envelope carries only name + sha256, not
+        // a type, and the type field lives in the attacker-controlled unsigned manifest. So refuse anything
+        // that is signed but not an installable MSI, independently of that unsigned type field.
+        if (string.Equals(packageId, EngineCompanionPayload.PackageId, StringComparison.Ordinal))
+            return Result<string>.Failure(ErrorKind.SecurityError,
+                "MSI install request names the elevation companion payload, which is not an installable MSI.");
+
+        foreach (var preUI in manifest.PreUIPackages)
+        {
+            if (string.Equals(preUI.Id, packageId, StringComparison.Ordinal))
+                return Result<string>.Failure(ErrorKind.SecurityError,
+                    "MSI install request names a pre-UI prerequisite, which is not installable via MsiInstall.");
+        }
+
+        var matches = 0;
+        foreach (var package in manifest.Packages)
+        {
+            if (string.Equals(package.Id, packageId, StringComparison.Ordinal))
+                matches++;
+        }
+
+        if (matches == 0)
+            return Result<string>.Failure(ErrorKind.SecurityError,
+                "MSI install request names a package not present in the verified manifest.");
+        if (matches > 1)
+            return Result<string>.Failure(ErrorKind.SecurityError,
+                "MSI install request names a duplicated package id in the manifest.");
+
+        // Resolve the hash from the SIGNED envelope (the verified object), never the unsigned manifest
+        // package field. The gate guaranteed the signature is present and parseable, so this re-parse cannot
+        // fail; guard defensively anyway.
+        if (manifest.ManifestSignature is not { } signatureJson)
+            return Result<string>.Failure(ErrorKind.SecurityError,
+                "MSI install request manifest lost its signature after verification.");
+
+        var envelope = IntegrityEnvelopeCodec.Parse(signatureJson);
+        if (envelope is null)
+            return Result<string>.Failure(ErrorKind.SecurityError,
+                "MSI install request manifest signature could not be re-parsed.");
+
+        foreach (var entry in envelope.Files)
+        {
+            if (string.Equals(entry.Name, packageId, StringComparison.Ordinal))
+                return entry.Sha256;
+        }
+
+        return Result<string>.Failure(ErrorKind.SecurityError,
+            "MSI install request names a package with no signed integrity entry.");
+    }
+
+    /// <summary>
+    /// Reads the optional secret-property block that trails the required fields. Absent for a
+    /// non-secret install (the stream is already at its end).
     /// A present-but-malformed block fails closed as a security error rather than throwing.
     /// </summary>
     private static Result<List<SecretProperty>> ReadSecretProperties(MemoryStream stream, BinaryReader reader)

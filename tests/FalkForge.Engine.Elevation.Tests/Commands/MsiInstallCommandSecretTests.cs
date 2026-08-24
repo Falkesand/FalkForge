@@ -21,13 +21,27 @@ using Xunit;
 [SupportedOSPlatform("windows")]
 public sealed class MsiInstallCommandSecretTests : IDisposable
 {
+    private const string PackageId = "SecretApp.Main";
+
     private readonly string _tempDir =
         Path.Combine(Path.GetTempPath(), $"MsiInstallSecret_{Guid.NewGuid():N}");
     private readonly MockMsiApi _mockMsiApi = new();
+    private readonly ECDsa _publisherKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
 
     public MsiInstallCommandSecretTests() => Directory.CreateDirectory(_tempDir);
 
-    public void Dispose() => TestTemp.TryDelete(_tempDir);
+    public void Dispose()
+    {
+        _publisherKey.Dispose();
+        TestTemp.TryDelete(_tempDir);
+    }
+
+    // The require-signed publisher gate now runs before every install. These tests sign a manifest with an
+    // injected trusted key over the base MSI's real hash, so the gate accepts the (trusted) publisher and the
+    // secret-transform behavior under test is reached exactly as before.
+    private MsiInstallCommand Command(ISecureTransformStaging staging) =>
+        new(_mockMsiApi, staging, SignedManifestPayload.TrustedSet(_publisherKey),
+            SignedManifestPayload.NoRoles, SignedManifestPayload.NoPqCompanions);
 
     private string CompileBaseMsi()
     {
@@ -61,7 +75,7 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
         var staging = Path.Combine(_tempDir, "staging");
         Directory.CreateDirectory(staging);
         var fake = new FakeStaging(staging);
-        var command = new MsiInstallCommand(_mockMsiApi, fake);
+        var command = Command(fake);
 
         const string password = "P@ss \" & | ; < > w0rd!";
         string? valueDuringInstall = null;
@@ -97,7 +111,7 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
         var baseMsi = CompileBaseMsi();
         var staging = Path.Combine(_tempDir, "staging2");
         Directory.CreateDirectory(staging);
-        var command = new MsiInstallCommand(_mockMsiApi, new FakeStaging(staging));
+        var command = Command(new FakeStaging(staging));
 
         var payload = BuildPayload(
             baseMsi, " TRANSFORMS=\"C:\\author\\lang.mst\"", HashOf(baseMsi),
@@ -118,7 +132,7 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
         // transform instead of the command line. The name is validated against ^[A-Z_][A-Z0-9_.]*$.
         var baseMsi = Path.Combine(_tempDir, "fake.msi");
         File.WriteAllBytes(baseMsi, [0x00]);
-        var command = new MsiInstallCommand(_mockMsiApi, new FakeStaging(_tempDir));
+        var command = Command(new FakeStaging(_tempDir));
 
         var payload = BuildPayload(
             baseMsi, string.Empty, HashOf(baseMsi), [("bad name!", "x"u8.ToArray())]);
@@ -137,7 +151,7 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
             Assert.Skip("Windows only");
 
         var baseMsi = CompileBaseMsi();
-        var command = new MsiInstallCommand(_mockMsiApi, new FakeStaging(_tempDir));
+        var command = Command(new FakeStaging(_tempDir));
 
         // Three-field payload, no trailing secret block — the wire shape a non-secret install produces.
         var payload = BuildPayload(baseMsi, string.Empty, HashOf(baseMsi), []);
@@ -156,14 +170,12 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
     {
         var baseMsi = Path.Combine(_tempDir, "fake.msi");
         File.WriteAllBytes(baseMsi, [0x00]);
-        var command = new MsiInstallCommand(_mockMsiApi, new FakeStaging(_tempDir));
+        var command = Command(new FakeStaging(_tempDir));
 
         using var stream = new MemoryStream();
         using (var w = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true))
         {
-            w.Write(baseMsi);
-            w.Write(string.Empty);
-            w.Write(HashOf(baseMsi));
+            WritePrefix(w, baseMsi, HashOf(baseMsi));
             w.Write(count);
         }
 
@@ -179,14 +191,12 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
     {
         var baseMsi = Path.Combine(_tempDir, "fake.msi");
         File.WriteAllBytes(baseMsi, [0x00]);
-        var command = new MsiInstallCommand(_mockMsiApi, new FakeStaging(_tempDir));
+        var command = Command(new FakeStaging(_tempDir));
 
         using var stream = new MemoryStream();
         using (var w = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true))
         {
-            w.Write(baseMsi);
-            w.Write(string.Empty);
-            w.Write(HashOf(baseMsi));
+            WritePrefix(w, baseMsi, HashOf(baseMsi));
             w.Write(1);           // one secret announced
             w.Write("SECRET");    // name
             w.Write(32);          // says 32 bytes follow
@@ -205,14 +215,12 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
     {
         var baseMsi = Path.Combine(_tempDir, "fake.msi");
         File.WriteAllBytes(baseMsi, [0x00]);
-        var command = new MsiInstallCommand(_mockMsiApi, new FakeStaging(_tempDir));
+        var command = Command(new FakeStaging(_tempDir));
 
         using var stream = new MemoryStream();
         using (var w = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true))
         {
-            w.Write(baseMsi);
-            w.Write(string.Empty);
-            w.Write(HashOf(baseMsi));
+            WritePrefix(w, baseMsi, HashOf(baseMsi));
             w.Write(1);
             w.Write("SECRET");
             w.Write((64 * 1024) + 1); // one byte over MaxSecretValueBytes
@@ -285,27 +293,23 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
         return commandLine[start..end];
     }
 
-    private static byte[] BuildPayload(
+    private byte[] BuildPayload(
         string msiPath, string additionalArgs, string hash, (string name, byte[] value)[] secrets)
     {
-        using var stream = new MemoryStream();
-        using var writer = new BinaryWriter(stream, Encoding.UTF8);
-        writer.Write(msiPath);
-        writer.Write(additionalArgs);
-        writer.Write(hash);
-        if (secrets.Length > 0)
-        {
-            writer.Write(secrets.Length);
-            foreach (var (name, value) in secrets)
-            {
-                writer.Write(name);
-                writer.Write(value.Length);
-                writer.Write(value);
-            }
-        }
+        var manifestJson = SignedManifestPayload.ManifestJson(PackageId, hash, _publisherKey);
+        return SignedManifestPayload.Build(msiPath, additionalArgs, PackageId, manifestJson, secrets);
+    }
 
-        writer.Flush();
-        return stream.ToArray();
+    // Writes the five required wire fields (path, args, caller hash, package id, signed manifest) so an
+    // inline test can append a deliberately-malformed secret block after them. The secret-block bounds are
+    // checked while decoding, before the publisher gate, so the manifest here only has to be present.
+    private void WritePrefix(BinaryWriter w, string msiPath, string hash)
+    {
+        w.Write(msiPath);
+        w.Write(string.Empty); // additionalArgs
+        w.Write(hash);         // caller-asserted hash, ignored by the companion
+        w.Write(PackageId);
+        w.Write(SignedManifestPayload.ManifestJson(PackageId, hash, _publisherKey));
     }
 
     private static string HashOf(string path)
