@@ -13,21 +13,16 @@ public enum PreUIBootstrapOutcome
     LaunchUi,
 
     /// <summary>
-    /// This process is the elevated child and all prerequisites were installed successfully.
-    /// The parent process should <c>Environment.Exit(0)</c> — do NOT launch the UI.
-    /// The unelevated parent will continue to the UI launch upon receiving exit code 0.
-    /// </summary>
-    ExitSuccess,
-
-    /// <summary>
-    /// The user cancelled the operation (UAC dismissal or cancellation token).
+    /// The user cancelled the operation (cancellation token triggered mid-install).
     /// The parent process should <c>Environment.Exit(2)</c>.
     /// </summary>
     ExitCancelled,
 
     /// <summary>
-    /// A prerequisite installer exited with a non-zero failure code.
-    /// The parent process should <c>Environment.Exit(1)</c>.
+    /// Either a prerequisite installer exited with a non-zero failure code, or prerequisites
+    /// are missing and this process is not elevated (so it cannot install them itself). The
+    /// parent process should <c>Environment.Exit(1)</c>. In the latter case
+    /// <see cref="PreUIBootstrapResult.MissingPrerequisiteNames"/> names what is missing.
     /// </summary>
     ExitFailed,
 

@@ -71,9 +71,8 @@ internal static partial class Program
         // Bootstrapper mode: if we ARE the bundle, extract and orchestrate
         if (manifestPath is null && EngineProgramHelpers.HasEmbeddedBundle())
         {
-            var bootstrapperArgs = BootstrapperArgs.Parse(args);
             return await BootstrapperRunner.RunAsync(
-                programArgs, bootstrapperArgs, baseBundlePath, requireSigned,
+                programArgs, baseBundlePath, requireSigned,
                 ignoreDependencies: ignoreDependencies);
         }
 

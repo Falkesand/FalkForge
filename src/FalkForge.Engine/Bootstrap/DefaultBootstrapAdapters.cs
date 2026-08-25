@@ -34,17 +34,6 @@ internal sealed class DefaultElevationProbe : IElevationProbe
 }
 
 /// <summary>
-/// Production <see cref="IElevatedSelfRelauncher"/> that delegates to
-/// <see cref="ElevatedSelfRelauncher"/>.
-/// </summary>
-[SupportedOSPlatform("windows")]
-internal sealed class DefaultElevatedSelfRelauncher : IElevatedSelfRelauncher
-{
-    public int Relaunch(string executablePath, string cacheDir, IReadOnlyList<string>? forwarded = null)
-        => ElevatedSelfRelauncher.Relaunch(executablePath, cacheDir, forwarded);
-}
-
-/// <summary>
 /// Production <see cref="IProgressSinkFactory"/> that creates a <see cref="TaskDialogProgressSink"/>.
 /// </summary>
 [SupportedOSPlatform("windows")]

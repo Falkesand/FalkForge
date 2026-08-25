@@ -69,16 +69,6 @@ public sealed class PreUIBootstrapEndToEndTests
         public bool IsElevated() => _elevated;
     }
 
-    private sealed class FakeRelauncher : IElevatedSelfRelauncher
-    {
-        public int CallCount { get; private set; }
-        public int Relaunch(string executablePath, string cacheDir, IReadOnlyList<string>? forwarded = null)
-        {
-            CallCount++;
-            return 0;
-        }
-    }
-
     private sealed class NullProgressSinkFactory : IProgressSinkFactory
     {
         public IProgressSinkHandle Create() => new NullSink();
@@ -174,28 +164,24 @@ public sealed class PreUIBootstrapEndToEndTests
             var detector   = new RecordingDetector(reportMissing: true);
             var installer  = new RecordingInstaller();
             var probe      = new FakeElevationProbe(elevated: true);   // already elevated → install in-process
-            var relauncher = new FakeRelauncher();
 
             var orchestrator = new PreUIBootstrapOrchestrator(
                 detector,
                 installer,
                 probe,
-                relauncher,
                 new NullProgressSinkFactory());
 
-            var outcome = await orchestrator.RunAsync(
+            var result = await orchestrator.RunAsync(
                 manifest: manifest,
-                args: BootstrapperArgs.Default,
                 extractionDir: tempDir,
                 ownExecutablePath: Path.Combine(tempDir, "setup.exe"),
                 ct: CancellationToken.None);
 
             // ── Step 6: assertions ────────────────────────────────────────────
-            // Elevated in-process path: installer ran → LaunchUi (not ExitSuccess).
-            Assert.Equal(PreUIBootstrapOutcome.LaunchUi, outcome);
+            // Elevated in-process path: installer ran → LaunchUi.
+            Assert.Equal(PreUIBootstrapOutcome.LaunchUi, result.Outcome);
             Assert.Equal(1, detector.CallCount);
             Assert.Equal(1, installer.CallCount);
-            Assert.Equal(0, relauncher.CallCount);   // no relaunch needed (already elevated)
 
             // The installer received exactly the DotNet10Desktop package.
             Assert.NotNull(installer.LastMissing);
@@ -252,26 +238,22 @@ public sealed class PreUIBootstrapEndToEndTests
             var detector   = new RecordingDetector(reportMissing: false);
             var installer  = new RecordingInstaller();
             var probe      = new FakeElevationProbe(elevated: false);
-            var relauncher = new FakeRelauncher();
 
             var orchestrator = new PreUIBootstrapOrchestrator(
                 detector,
                 installer,
                 probe,
-                relauncher,
                 new NullProgressSinkFactory());
 
-            var outcome = await orchestrator.RunAsync(
+            var result = await orchestrator.RunAsync(
                 manifest: manifest2,
-                args: BootstrapperArgs.Default,
                 extractionDir: tempDir,
                 ownExecutablePath: Path.Combine(tempDir, "setup.exe"),
                 ct: CancellationToken.None);
 
-            Assert.Equal(PreUIBootstrapOutcome.LaunchUi, outcome);
+            Assert.Equal(PreUIBootstrapOutcome.LaunchUi, result.Outcome);
             Assert.Equal(0, detector.CallCount);
             Assert.Equal(0, installer.CallCount);
-            Assert.Equal(0, relauncher.CallCount);
         }
         finally
         {
