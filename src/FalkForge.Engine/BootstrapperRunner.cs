@@ -36,7 +36,7 @@ internal static class BootstrapperRunner
     /// byte-identical to the original inline code.
     /// </param>
     internal static async Task<int> RunAsync(
-        ProgramArgs? programArgs = null, BootstrapperArgs? bootstrapperArgs = null, string? baseBundlePath = null,
+        ProgramArgs? programArgs = null, string? baseBundlePath = null,
         bool requireSigned = false, string? exePathOverride = null, bool ignoreDependencies = false)
     {
         if (!OperatingSystem.IsWindows())
@@ -218,19 +218,17 @@ internal static class BootstrapperRunner
                 bootstrapCts.Cancel();
             }
 
-            PreUIBootstrapOutcome bootstrapOutcome;
+            PreUIBootstrapResult bootstrapResult;
             try
             {
                 var orchestrator = new PreUIBootstrapOrchestrator(
                     new DefaultPreUIPrerequisiteDetector(),
                     new PreUIPrerequisiteInstaller(new ProcessRunner(), cacheDir),
                     new DefaultElevationProbe(),
-                    new DefaultElevatedSelfRelauncher(),
                     new TaskDialogProgressSinkFactory());
 
-                bootstrapOutcome = await orchestrator.RunAsync(
+                bootstrapResult = await orchestrator.RunAsync(
                     manifest,
-                    bootstrapperArgs ?? BootstrapperArgs.Default,
                     extractionDir: cacheDir,
                     ownExecutablePath: exePath,
                     ct: bootstrapCts.Token);
@@ -242,18 +240,25 @@ internal static class BootstrapperRunner
                 Console.CancelKeyPress -= BootstrapCancelHandler;
             }
 
-            switch (bootstrapOutcome)
+            switch (bootstrapResult.Outcome)
             {
                 case PreUIBootstrapOutcome.LaunchUi:
                     break; // continue to UI launch below
-
-                case PreUIBootstrapOutcome.ExitSuccess:
-                    return 0; // elevated child: done; parent continues to UI
 
                 case PreUIBootstrapOutcome.ExitCancelled:
                     return 2;
 
                 case PreUIBootstrapOutcome.ExitFailed:
+                    // Surface WHY: BootstrapperRunner constructs the orchestrator without a
+                    // logger, so the orchestrator's own logging calls are no-ops here. Without
+                    // this, a missing prerequisite would exit 1 with nothing printed anywhere.
+                    if (bootstrapResult.MissingPrerequisiteNames.Count > 0)
+                    {
+                        await Console.Error.WriteLineAsync(
+                            "Missing required prerequisite(s): " +
+                            string.Join(", ", bootstrapResult.MissingPrerequisiteNames) +
+                            ". Install them manually, then run setup again.");
+                    }
                     return 1;
 
                 case PreUIBootstrapOutcome.ExitRebootRequired:
