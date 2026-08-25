@@ -1,0 +1,66 @@
+<Project>
+
+  <!-- ============================================================
+       Explains a known Visual Studio toolchain bug that otherwise
+       shows up as an opaque NativeAOT publish failure.
+
+       On a machine with the environment variable
+       NoDefaultCurrentDirectoryInExePath set, `dotnet publish` for a
+       PublishAot project can fail with MSB3073 and a corrupted
+       CppLinker value containing text like:
+
+         'vswhere.exe' is not recognized as an internal or external
+         command, operable program or batch file.
+
+       Chain of causes (verified 2026-08-25, machine has the variable
+       set): the ILCompiler targets locate the native C++ toolchain by
+       running vcvarsall.bat, which calls VsDevCmd.bat. VsDevCmd.bat
+       pushd's into the Visual Studio Installer folder and invokes
+       vswhere.exe by its bare name, relying on cmd.exe resolving it
+       from the current directory. NoDefaultCurrentDirectoryInExePath
+       disables exactly that resolution, so the lookup fails and
+       writes an error to stderr. findvcvarsall.bat redirects only
+       stdout, and the ILCompiler targets' ConsoleToMSBuild capture
+       folds that stderr text into the CppLinker property. The
+       resulting error blames a missing platform linker on a machine
+       where the linker is installed and correct.
+
+       This is a Visual Studio bug, not a FalkForge bug. This target
+       only detects and explains the condition; it never clears or
+       overrides the variable itself. It is a deliberate
+       machine-hardening setting, and silently working around a
+       security control to make a build convenient is the wrong move
+       here.
+
+       Scoped narrowly so it never fires on an ordinary solution
+       build or on any of the other 60+ projects:
+         - only for a project that sets PublishAot=true (only
+           FalkForge.Engine and FalkForge.Engine.Elevation import
+           this file)
+         - only on Windows (the bug is in cmd.exe's search behavior)
+         - only when this is an actual publish, gated on
+           $(_IsPublishing), the SDK's own marker for a real publish
+           operation (set true by `dotnet publish` or `dotnet pack`
+           on a PackAsTool project, empty on a plain `dotnet build`).
+           BeforeTargets is
+           set to both "Build" and "Publish": measured empirically
+           (2026-08-25) that hooking "Publish" alone never ran here,
+           most likely because `dotnet publish -r <RID>` on this SDK
+           re-evaluates the project through an inner MSBuild
+           invocation for RID resolution, and only the "Build" hook
+           reliably lands inside that inner evaluation, right after
+           the inner Build completes and before the native link step
+           that actually fails. The $(_IsPublishing) condition is
+           what keeps this off a plain `dotnet build`, confirmed by
+           the same measurement: $(_IsPublishing) is empty during
+           `dotnet build` and "true" during `dotnet publish`.
+         - only when the environment variable is actually set on this
+           machine
+       ============================================================ -->
+
+  <Target Name="_FalkDiagnoseAotLinkerEnv" BeforeTargets="Build;Publish"
+          Condition="'$(PublishAot)' == 'true' AND '$(_IsPublishing)' == 'true' AND '$(OS)' == 'Windows_NT' AND '$(NoDefaultCurrentDirectoryInExePath)' != ''">
+    <Warning Text="FALKAOT001: NoDefaultCurrentDirectoryInExePath is set on this machine, which triggers a Visual Studio toolchain bug during NativeAOT publish (vcvarsall.bat -&gt; VsDevCmd.bat calls vswhere.exe by bare name, relying on current-directory search that this variable disables). vswhere.exe then fails to resolve, and the resulting stderr text gets folded into the linker path, so the publish fails with MSB3073 blaming a &quot;missing&quot; platform C++ linker that is actually installed and correct. This is a Visual Studio bug, not a FalkForge one. Workaround: clear the variable for this build session only, then publish, e.g. in PowerShell: $env:NoDefaultCurrentDirectoryInExePath = $null ; dotnet publish. Do not disable it machine-wide; it is a deliberate hardening setting." />
+  </Target>
+
+</Project>

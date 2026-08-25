@@ -1460,6 +1460,22 @@ dotnet publish -c Release</code></pre>
     uses a custom binary protocol.
   </p>
 
+  <div class="note">
+    <strong>Publish fails with MSB3073 "missing" C++ linker, but the linker is installed?</strong>
+    Check whether the environment variable <code>NoDefaultCurrentDirectoryInExePath</code> is set.
+    If it is, a Visual Studio toolchain bug is the real cause, not a FalkForge problem:
+    <code>vcvarsall.bat</code> calls <code>VsDevCmd.bat</code>, which resolves
+    <code>vswhere.exe</code> by bare name from the current directory. That environment variable
+    disables exactly that resolution, the failed lookup's stderr text gets folded into the linker
+    path, and the build fails blaming a linker that is actually fine. The build itself detects
+    this and prints a <code>FALKAOT001</code> warning naming the cause. Workaround: clear the
+    variable for the build session only, then publish &mdash; in PowerShell,
+    <code>$env:NoDefaultCurrentDirectoryInExePath = $null</code>. Do not disable it machine-wide;
+    it is typically set deliberately as a hardening control. The check lives in
+    <code>src/FalkForge.Engine/NativeAotPublishDiagnostics.targets</code>, imported by both
+    NativeAOT projects.
+  </div>
+
   <h3>CLI Tool &mdash; <code>forge</code></h3>
   <p>
     The <code>FalkForge.Cli</code> project provides the <code>forge</code> command-line tool built
