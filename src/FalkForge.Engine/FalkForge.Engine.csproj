@@ -23,4 +23,6 @@
 
   <!-- Build-time injection of the trusted publisher-key set into a generated BakedTrustedKeys constant. -->
   <Import Project="TrustedKeys.targets" />
+  <!-- Explains a Visual Studio toolchain bug that otherwise looks like a missing NativeAOT linker. -->
+  <Import Project="NativeAotPublishDiagnostics.targets" />
 </Project>

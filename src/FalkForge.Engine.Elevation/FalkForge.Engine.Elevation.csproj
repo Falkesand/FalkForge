@@ -19,4 +19,6 @@
     <ProjectReference Include="..\FalkForge.Platform.Windows\FalkForge.Platform.Windows.csproj" />
   </ItemGroup>
   <Import Project="..\FalkForge.Engine\TrustedKeys.targets" />
+  <!-- Explains a Visual Studio toolchain bug that otherwise looks like a missing NativeAOT linker. -->
+  <Import Project="..\FalkForge.Engine\NativeAotPublishDiagnostics.targets" />
 </Project>
