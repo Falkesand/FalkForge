@@ -74,7 +74,11 @@ public sealed class TrustedKeysTargetsValidationTests : IDisposable
     [Fact]
     public void NoFingerprintSupplied_BuildSucceedsWithEmptySet()
     {
-        var result = RunGenerateTarget(extraArgs: null);
+        // Explicit empty override, not extraArgs: null -- ProcessStartInfo.Environment copies the whole
+        // parent environment into the child, and MSBuild reads environment variables as properties. A
+        // machine or CI runner with FalkForgeTrustedKey set in its own environment would otherwise leak
+        // into this "no fingerprint supplied" case and make the Assert.DoesNotContain below fail.
+        var result = RunGenerateTarget("-p:FalkForgeTrustedKey=");
 
         Assert.Equal(0, result.ExitCode);
         var generated = File.ReadAllText(GeneratedFilePath());

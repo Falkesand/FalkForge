@@ -13480,7 +13480,7 @@ openssl ecparam -name prime256v1 -genkey -noout -out falkforge-signing.pem</code
     (that is what makes rotation safe &mdash; see Key Rotation below):</p>
 
 <pre><code class="language-bash"># Build your engine trusting one publisher key (repeat the flag for more)
-dotnet publish src/FalkForge.Engine -c Release -p:FalkForgeTrustedKey=A1B2C3...</code></pre>
+dotnet publish src/FalkForge.Engine -c Release -p:FalkForgeTrustedKey=&lt;64-hex fingerprint&gt;</code></pre>
 
 <p><strong>Way B &mdash; register it in code.</strong> Since you already rebuild the engine per publisher, you
     can add trusted keys from your own bootstrap code. This runs at the very top of the engine's startup,
@@ -13782,8 +13782,8 @@ return await Installer.BuildBundleAsync(args, async outputPath =>
 
 <pre><code class="language-xml">&lt;!-- In the engine project: give each pinned key its role(s) --&gt;
 &lt;ItemGroup&gt;
-  &lt;FalkForgeTrustedKey Include="A1B2C3..." Roles="Release" /&gt;
-  &lt;FalkForgeTrustedKey Include="D4E5F6..." Roles="Recovery;Security" /&gt;
+  &lt;FalkForgeTrustedKey Include="&lt;release key fp, 64 hex&gt;" Roles="Release" /&gt;
+  &lt;FalkForgeTrustedKey Include="&lt;recovery/security key fp, 64 hex&gt;" Roles="Recovery;Security" /&gt;
 &lt;/ItemGroup&gt;</code></pre>
 
 <pre><code class="language-csharp">// ...or in Program.TrustConfig.cs, a key that holds two roles:
@@ -13903,8 +13903,8 @@ File.WriteAllText("falkforge-mldsa.pub.pem", key.ExportSubjectPublicKeyInfoPem()
     hybrid pinning uses the item form or code:</p>
 
 <pre><code class="language-xml">&lt;ItemGroup&gt;
-  &lt;FalkForgeTrustedKey Include="A1B2C3..." Roles="release"
-                       PqFingerprint="C3D4E5..." PqAlgorithm="ML-DSA-65" /&gt;
+  &lt;FalkForgeTrustedKey Include="&lt;classical fp, 64 hex&gt;" Roles="release"
+                       PqFingerprint="&lt;ML-DSA fp, 64 hex&gt;" PqAlgorithm="ML-DSA-65" /&gt;
 &lt;/ItemGroup&gt;</code></pre>
 
 <pre><code class="language-csharp">// ...or in Program.TrustConfig.cs:
