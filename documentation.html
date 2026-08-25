@@ -10897,6 +10897,7 @@ public sealed record WixUnmappedFeature(
         <tr><td>FALKPQ001</td><td>Build-time warning: the baked trusted-key set mixes hybrid keys (with <code>PqFingerprint=</code>) and non-hybrid keys &mdash; a non-hybrid key is the quantum weakest link</td></tr>
         <tr><td>FALKPQ002</td><td>Build-time error: a <code>FalkForgeTrustedKey</code> item has a malformed <code>PqFingerprint</code> (must be the 64-hex SHA-256 of the ML-DSA public key)</td></tr>
         <tr><td>FALKPQ003</td><td>Build-time error: duplicate trusted-key fingerprint in the baked <code>FalkForgeTrustedKey</code> set</td></tr>
+        <tr><td>FALKPQ004</td><td>Build-time error: a <code>FalkForgeTrustedKey</code> item has a malformed classical fingerprint (must be the 64-hex SHA-256 of the signing key's SubjectPublicKeyInfo)</td></tr>
     </tbody>
 </table>
 

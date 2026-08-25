@@ -85,9 +85,26 @@ if (Fingerprints != null)
 {
     foreach (var item in Fingerprints)
     {
-        var fp = normalizeFp(item.ItemSpec);
-        if (fp.Length == 0)
+        var fpRaw = item.ItemSpec ?? string.Empty;
+        var fp = normalizeFp(fpRaw);
+        if (fpRaw.Trim().Length == 0)
             continue;
+
+        // Mirror the PqFingerprint check below: a supplied classical fingerprint must normalize to
+        // exactly 64 hex chars (SHA-256 of the signing key's SubjectPublicKeyInfo). A typo'd or
+        // truncated value would otherwise bake a pin no real key can ever match, so every bundle
+        // from this signer fails verification at the customer's install, not on the build box.
+        if (fp.Length != 64)
+        {
+            Log.LogError(
+                "FALKPQ004: FalkForgeTrustedKey item '{0}' is a malformed classical fingerprint: " +
+                "it normalizes to {1} hex characters, expected exactly 64 (the SHA-256 of the " +
+                "signing key's SubjectPublicKeyInfo). Baking it would pin the engine to a " +
+                "fingerprint no real key can match, so every bundle from this signer would fail " +
+                "verification at the customer's install, not on the build box.",
+                item.ItemSpec, fp.Length);
+            continue;
+        }
 
         // Resolve the Roles metadata (semicolon or comma separated) into an OR of TrustRole members.
         var rolesMeta = item.GetMetadata("Roles") ?? string.Empty;
