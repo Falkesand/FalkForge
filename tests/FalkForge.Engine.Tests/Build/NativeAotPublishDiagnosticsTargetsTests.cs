@@ -2,22 +2,38 @@ namespace FalkForge.Engine.Tests.Build;
 
 using System.Diagnostics;
 using System.Runtime.Versioning;
+using System.Xml.Linq;
 using Xunit;
 
 /// <summary>
 /// Pins the firing condition of <c>src/FalkForge.Engine/NativeAotPublishDiagnostics.targets</c>:
 /// a machine-hardening environment variable, <c>NoDefaultCurrentDirectoryInExePath</c>,
-/// triggers a Visual Studio toolchain bug during NativeAOT publish that fails with a misleading
-/// "missing platform linker" MSB3073. The target explains that condition instead of leaving the
-/// developer to debug a Visual Studio bug from a FalkForge error.
+/// can trigger a Visual Studio toolchain bug during NativeAOT publish that fails with a misleading
+/// "missing platform linker" MSB3073. The target detects the underlying symptom -- ILCompiler's
+/// own $(CppLinker) property not resolving to a real file -- and explains the two known causes
+/// instead of leaving the developer to debug an opaque native-link failure.
 /// <para>
-/// This drives the real target directly against a scratch project with MSBuild
+/// Two independent checks are needed, because they catch different mistakes:
+/// </para>
+/// <para>
+/// <see cref="Target_FiresOnlyWhenWindowsAndToolsNotEnvironmentalAndLinkerUnresolved"/> drives the
+/// real target directly against a scratch project with MSBuild
 /// <c>-t:_FalkDiagnoseAotLinkerEnv -p:Name=Value</c> overrides for each input, the pattern used
-/// by the trusted-key validation tests for <c>TrustedKeys.targets</c>. It does not run a real
-/// NativeAOT publish: that would cost 30s-2min of framework compilation per case for a check
-/// that is a pure property/condition evaluation, unrelated to whether the native compile itself
-/// succeeds. Overriding every input via <c>-p:</c> also makes the test deterministic regardless
-/// of whether the CI or developer machine actually has the variable set.
+/// by the trusted-key validation tests for <c>TrustedKeys.targets</c>. It proves the condition
+/// clause is correct without paying for a real NativeAOT publish (30s-2min of framework
+/// compilation per case), but <c>-t:</c> names the target directly and so never exercises how
+/// MSBuild decides to run it -- a build that deleted the target's <c>AfterTargets</c> hook would
+/// still pass every case here, because <c>-t:</c> runs the target regardless of what would
+/// normally trigger it.
+/// </para>
+/// <para>
+/// <see cref="HookWiring_AfterTargetsIsSetupOSSpecificProps"/> closes exactly that gap by reading
+/// the production targets file's XML and asserting the hook attribute's value, instead of
+/// invoking anything. Confirmed by mutation on 2026-08-25: with the <c>AfterTargets</c> attribute
+/// blanked out in the real file, this test goes RED (<c>Assert.Equal</c> failure, expected
+/// "SetupOSSpecificProps" got ""); reverting the file returns it to GREEN. The condition-clause
+/// test above stayed green throughout that mutation, which is exactly the coverage gap this second
+/// test exists to close.
 /// </para>
 /// </summary>
 [SupportedOSPlatform("windows")]
@@ -25,12 +41,14 @@ public sealed class NativeAotPublishDiagnosticsTargetsTests : IDisposable
 {
     private const string TargetName = "_FalkDiagnoseAotLinkerEnv";
     private const string WarningCode = "FALKAOT001";
+    private const string ExpectedAfterTargets = "SetupOSSpecificProps";
 
     private static readonly TimeSpan RunTimeout = TimeSpan.FromMinutes(2);
 
     private readonly string _tempRoot = Path.Combine(
         Path.GetTempPath(), $"falk-aot-diag-{Guid.NewGuid():N}");
     private readonly string _scratchProjectPath;
+    private readonly string _existingLinkerPath;
 
     public NativeAotPublishDiagnosticsTargetsTests()
     {
@@ -47,28 +65,38 @@ public sealed class NativeAotPublishDiagnosticsTargetsTests : IDisposable
               <Import Project="{targetsPath}" />
             </Project>
             """);
+
+        // A real file, used as a CppLinker value that Exists() must find, so the "linker actually
+        // resolved" cases don't depend on any path that happens to exist on the host.
+        _existingLinkerPath = Path.Combine(_tempRoot, "existing-linker.exe");
+        File.WriteAllText(_existingLinkerPath, "not a real linker, just needs to exist");
     }
 
     [Theory]
-    // PublishAot, _IsPublishing, OS, NoDefaultCurrentDirectoryInExePath, expect warning
-    [InlineData("true", "true", "Windows_NT", "1", true)]
-    // Win32's own documented rule is presence, not value -- "0" must still count as "set".
-    [InlineData("true", "true", "Windows_NT", "0", true)]
-    // A plain `dotnet build` never sets _IsPublishing; must stay silent even with the
-    // variable present, or every engineer with the hardening setting sees a spurious warning
-    // on every ordinary build.
-    [InlineData("true", "", "Windows_NT", "1", false)]
-    // Only the two PublishAot projects (Engine, Engine.Elevation) import this file, but a
-    // project that imported it without PublishAot must still not warn.
-    [InlineData("false", "true", "Windows_NT", "1", false)]
+    // OS, IlcUseEnvironmentalTools, CppLinker, NoDefaultCurrentDirectoryInExePath, expect warning
+    //
+    // The symptom itself: CppLinker resolved to a non-empty value that is not a real file.
+    [InlineData("Windows_NT", "", "C:\\does\\not\\exist\\link.exe", "", true)]
+    // IlcUseEnvironmentalTools=true skips findvcvarsall.bat, leaving CppLinker at the SDK's bare
+    // "link" default. Exists() cannot see whether the later PATH-based Exec would resolve it, so
+    // this diagnostic must stay out of the way rather than guess -- measured 2026-08-25: with a
+    // real VC Developer environment on PATH, that mode publishes successfully even though
+    // CppLinker never becomes a real path.
+    [InlineData("Windows_NT", "true", "link", "", false)]
+    // CppLinker resolved to a real file: the normal successful-publish case.
+    [InlineData("Windows_NT", "", "EXISTING", "", false)]
+    // CppLinker empty: SetupOSSpecificProps hasn't set anything yet, nothing to diagnose.
+    [InlineData("Windows_NT", "", "", "", false)]
     // The bug is in cmd.exe's search behavior; it does not apply off Windows.
-    [InlineData("true", "true", "Unix", "1", false)]
-    // The documented no-op case: the variable is simply not set on this machine.
-    [InlineData("true", "true", "Windows_NT", "", false)]
-    public void Target_FiresOnlyWhenPublishAotAndPublishingAndWindowsAndVariableSet(
-        string publishAot, string isPublishing, string os, string envVarValue, bool expectWarning)
+    [InlineData("Unix", "", "C:\\does\\not\\exist\\link.exe", "", false)]
+    public void Target_FiresOnlyWhenWindowsAndToolsNotEnvironmentalAndLinkerUnresolved(
+        string os, string ilcUseEnvironmentalTools, string cppLinker,
+        string envVarValue, bool expectWarning)
     {
-        var (exitCode, output) = RunTarget(publishAot, isPublishing, os, envVarValue);
+        if (cppLinker == "EXISTING")
+            cppLinker = _existingLinkerPath;
+
+        var (exitCode, output) = RunTarget(os, ilcUseEnvironmentalTools, cppLinker, envVarValue);
 
         // A Warning task must never fail the build: MSBuild-level warnings are not promoted to
         // errors by this repo's TreatWarningsAsErrors, which is a compiler-level, not
@@ -81,15 +109,58 @@ public sealed class NativeAotPublishDiagnosticsTargetsTests : IDisposable
             Assert.DoesNotContain(WarningCode, output, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Message_NamesTheVisualStudioBugWhenTheEnvironmentVariableIsSet()
+    {
+        var (_, output) = RunTarget(
+            "Windows_NT", ilcUseEnvironmentalTools: "", cppLinker: "C:\\does\\not\\exist\\link.exe",
+            envVarValue: "1");
+
+        Assert.Contains("NoDefaultCurrentDirectoryInExePath is set on this machine", output,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Message_NamesTheMissingToolchainWhenTheEnvironmentVariableIsNotSet()
+    {
+        var (_, output) = RunTarget(
+            "Windows_NT", ilcUseEnvironmentalTools: "", cppLinker: "C:\\does\\not\\exist\\link.exe",
+            envVarValue: "");
+
+        Assert.Contains("Desktop development with C++", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("NoDefaultCurrentDirectoryInExePath is set on this machine", output,
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Reads the production targets file's own XML rather than invoking anything, so it catches
+    /// what <c>-t:</c>-driven invocation cannot: whether MSBuild would actually run this target on
+    /// a real publish. Mutation-confirmed 2026-08-25 (see class remarks).
+    /// </summary>
+    [Fact]
+    public void HookWiring_AfterTargetsIsSetupOSSpecificProps()
+    {
+        var targetsPath = ResolveTargetsPath();
+        var doc = XDocument.Load(targetsPath);
+        var ns = doc.Root!.Name.Namespace;
+
+        var target = doc.Descendants(ns + "Target")
+            .SingleOrDefault(t => (string?)t.Attribute("Name") == TargetName);
+
+        Assert.NotNull(target);
+        Assert.Equal(ExpectedAfterTargets, (string?)target.Attribute("AfterTargets"));
+    }
+
     private (int ExitCode, string Output) RunTarget(
-        string publishAot, string isPublishing, string os, string envVarValue)
+        string os, string ilcUseEnvironmentalTools, string cppLinker, string envVarValue)
     {
         using var process = new Process();
         process.StartInfo = new ProcessStartInfo
         {
             FileName = "dotnet",
             Arguments = $"build \"{_scratchProjectPath}\" -t:{TargetName} " +
-                        $"-p:PublishAot={publishAot} -p:_IsPublishing={isPublishing} -p:OS={os} " +
+                        $"-p:OS={os} -p:IlcUseEnvironmentalTools={ilcUseEnvironmentalTools} " +
+                        $"-p:CppLinker=\"{cppLinker}\" " +
                         $"-p:NoDefaultCurrentDirectoryInExePath={envVarValue} -nologo -v:normal",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
