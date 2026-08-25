@@ -60,4 +60,20 @@ public sealed class UpdateLauncherTests
         Assert.Contains("--require-signed", args);
         Assert.DoesNotContain("--base-bundle", args);
     }
+
+    [Fact]
+    public void BuildStartInfo_does_not_use_shell_execute_so_a_registry_verb_override_cannot_redirect_the_update()
+    {
+        // The Authenticode check above this call verifies the bytes at updatePath. Launching through
+        // the shell (UseShellExecute = true, no Verb) resolves the default verb from
+        // HKCU\Software\Classes\exefile\shell\open\command, which any same-user process can rewrite.
+        // A shell launch could then run an attacker's command line with the verified file as an
+        // argument, so the file that was checked would not be the file that runs. Starting the
+        // process directly removes the registry lookup entirely.
+        var startInfo = DefaultUpdateLauncher.BuildStartInfo("C:\\cache\\update.exe", basePath: null);
+
+        Assert.False(startInfo.UseShellExecute);
+        Assert.Equal("C:\\cache\\update.exe", startInfo.FileName);
+        Assert.Contains("--require-signed", startInfo.ArgumentList);
+    }
 }

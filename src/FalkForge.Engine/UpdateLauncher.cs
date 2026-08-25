@@ -71,9 +71,7 @@ internal sealed class DefaultUpdateLauncher : IUpdateLauncher
 
         try
         {
-            var startInfo = new ProcessStartInfo(updatePath) { UseShellExecute = true };
-            foreach (var arg in BuildRelaunchArguments(Environment.ProcessPath))
-                startInfo.ArgumentList.Add(arg);
+            var startInfo = BuildStartInfo(updatePath, Environment.ProcessPath);
 
             using var process = Process.Start(startInfo);
             return Result<Unit>.Success(Unit.Value);
@@ -83,6 +81,26 @@ internal sealed class DefaultUpdateLauncher : IUpdateLauncher
             return Result<Unit>.Failure(new Error(ErrorKind.EngineError,
                 $"UPD005: Failed to launch update: {ex.Message}"));
         }
+    }
+
+    /// <summary>
+    /// Builds the <see cref="ProcessStartInfo"/> used to launch the verified update bundle.
+    /// Deliberately does not use the shell: <c>UseShellExecute = true</c> with no explicit
+    /// <c>Verb</c> resolves the default verb from <c>HKCU\Software\Classes\exefile\shell\open\command</c>,
+    /// which any process running as the same user can overwrite with no elevation. The Authenticode
+    /// check above verifies the bytes at <paramref name="updatePath"/>, but a shell launch could then
+    /// run an attacker's command line with that verified path merely passed as an argument — the file
+    /// that was checked would not be the file that runs. <c>UseShellExecute = false</c> starts the
+    /// verified path directly through <c>CreateProcessW</c>, so no registry lookup happens at all.
+    /// Internal so tests can assert on the constructed info without spawning a process.
+    /// </summary>
+    internal static ProcessStartInfo BuildStartInfo(string updatePath, string? basePath)
+    {
+        var startInfo = new ProcessStartInfo(updatePath) { UseShellExecute = false };
+        foreach (var arg in BuildRelaunchArguments(basePath))
+            startInfo.ArgumentList.Add(arg);
+
+        return startInfo;
     }
 
     /// <summary>
