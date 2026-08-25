@@ -1463,15 +1463,19 @@ dotnet publish -c Release</code></pre>
   <div class="note">
     <strong>Publish fails with MSB3073 "missing" C++ linker, but the linker is installed?</strong>
     Check whether the environment variable <code>NoDefaultCurrentDirectoryInExePath</code> is set.
-    If it is, a Visual Studio toolchain bug is the real cause, not a FalkForge problem:
+    If it is, a Visual Studio toolchain bug is the likely cause, not a FalkForge problem:
     <code>vcvarsall.bat</code> calls <code>VsDevCmd.bat</code>, which resolves
     <code>vswhere.exe</code> by bare name from the current directory. That environment variable
-    disables exactly that resolution, the failed lookup's stderr text gets folded into the linker
-    path, and the build fails blaming a linker that is actually fine. The build itself detects
-    this and prints a <code>FALKAOT001</code> warning naming the cause. Workaround: clear the
-    variable for the build session only, then publish &mdash; in PowerShell,
-    <code>$env:NoDefaultCurrentDirectoryInExePath = $null</code>. Do not disable it machine-wide;
-    it is typically set deliberately as a hardening control. The check lives in
+    disables exactly that resolution, and the failed lookup can corrupt the linker path the build
+    then blames. The build detects the underlying symptom &mdash; ILCompiler's own linker path not
+    resolving to a real file &mdash; and prints a <code>FALKAOT001</code> warning naming the two
+    known causes: this Visual Studio bug, and the C++ build toolchain simply not being installed.
+    It cannot always tell which applies, so treat it as a pointer to check, not a diagnosis.
+    Workaround for the Visual Studio bug: clear the variable for the build session only, then
+    publish &mdash; in PowerShell, <code>$env:NoDefaultCurrentDirectoryInExePath = $null</code>.
+    Do not disable it machine-wide; it is typically set deliberately as a hardening control. If
+    that does not fix the publish, install the "Desktop development with C++" workload from Build
+    Tools for Visual Studio 2022. The check lives in
     <code>src/FalkForge.Engine/NativeAotPublishDiagnostics.targets</code>, imported by both
     NativeAOT projects.
   </div>
