@@ -235,6 +235,40 @@ public sealed class UiEmbeddingTests : IDisposable
         Assert.Equal(Sha256Of(ui), manifest.EngineUiSha256, ignoreCase: true);
     }
 
+    /// <summary>
+    /// The other half of the rule, and the half nothing else pins: UI resolution honours an engine
+    /// location a person NAMED, and never the one <c>EngineStubResolver</c> COMPUTES. The computed
+    /// location is an outcome, and a planned change relocates the rebuilt engine; if UI resolution
+    /// followed it, that change would move the UI out from under the compiler with no test failing.
+    /// <para>
+    /// Here the engine and the UI sit in a directory reachable only through the resolver — no
+    /// <c>EngineStubPath</c>, no <c>UiPath</c>, and the directory is a fresh temp folder that no
+    /// probing candidate walks. So the UI in it must not be the one that gets embedded. Whether
+    /// the compile then fails for want of a UI or finds a different one through the machine's own
+    /// environment is not this test's business; either way the resolver's directory was not used.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Compile_ComputedEngineLocation_IsNotUsedToResolveTheUi()
+    {
+        var (engine, ui) = WritePublishLayout();
+        var compiler = new BundleCompiler
+        {
+            EngineStubResolver = () => Result<string>.Success(engine)
+        };
+
+        var result = compiler.Compile(BuildModel(), Path.Combine(_tempDir, "out-computed-engine"));
+
+        if (result.IsFailure)
+        {
+            Assert.Contains("FalkForge.Ui.exe", result.Error.Message, StringComparison.Ordinal);
+            return;
+        }
+
+        var (manifest, _) = ReadBundle(result.Value);
+        Assert.NotEqual(Sha256Of(ui), manifest.EngineUiSha256, StringComparer.OrdinalIgnoreCase);
+    }
+
     // ── fail loud: a runnable bundle whose UI cannot be resolved ─────────────
 
     [Fact]
