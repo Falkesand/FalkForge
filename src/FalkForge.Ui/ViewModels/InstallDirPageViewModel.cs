@@ -72,25 +72,33 @@ public sealed class InstallDirPageViewModel : InstallerPageViewModel, IReactiveO
 
     public override bool CanNavigateNext()
     {
+        // A blank box overrides nothing: each package installs where its own MSI puts it. That is
+        // the state the page opens in, because a bundle carries no default directory for the UI to
+        // offer. Refusing to continue here stopped a fresh install dead on this page, with an empty
+        // box, a disabled Next and no message saying what was wrong.
         if (string.IsNullOrWhiteSpace(InstallDirectory))
         {
             ValidationError = null;
-            return false;
+            return true;
         }
 
         string fullPath;
         try
         {
-            fullPath = Path.GetFullPath(InstallDirectory);
-            if (!Path.IsPathFullyQualified(fullPath))
+            // Tested against the text the user typed, not against Path.GetFullPath's output: the
+            // expanded form is always fully qualified, so checking it there could never fail and a
+            // relative path was silently resolved against the installer's working directory.
+            if (!Path.IsPathFullyQualified(InstallDirectory))
             {
-                ValidationError = null;
+                ValidationError = "Enter a full path, for example C:\\Program Files\\Product.";
                 return false;
             }
+
+            fullPath = Path.GetFullPath(InstallDirectory);
         }
-        catch
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            ValidationError = null;
+            ValidationError = "That is not a valid folder path.";
             return false;
         }
 
@@ -99,8 +107,8 @@ public sealed class InstallDirPageViewModel : InstallerPageViewModel, IReactiveO
         if (!DriveInfoProvider.IsLongPathsEnabled() &&
             fullPath.Length > MaxPathLengthWithoutLongPaths)
         {
-            ValidationError = $"The path is too long ({{fullPath.Length}} characters). " +
-                              $"Keep it under {{MaxPathLengthWithoutLongPaths}} characters, " +
+            ValidationError = $"The path is too long ({fullPath.Length} characters). " +
+                              $"Keep it under {MaxPathLengthWithoutLongPaths} characters, " +
                               "or enable long path support in Windows settings.";
             return false;
         }
@@ -109,9 +117,9 @@ public sealed class InstallDirPageViewModel : InstallerPageViewModel, IReactiveO
         var freeSpace = DriveInfoProvider.GetAvailableFreeSpace(fullPath);
         if (freeSpace < MinFreeSpaceBytes)
         {
-            ValidationError = $"Insufficient free disk space. " +
-                              $"At least {{MinFreeSpaceBytes / (1024 * 1024)}} MB is required; " +
-                              $"{{freeSpace / (1024 * 1024)}} MB available.";
+            ValidationError = "Insufficient free disk space. " +
+                              $"At least {MinFreeSpaceBytes / (1024 * 1024)} MB is required; " +
+                              $"{freeSpace / (1024 * 1024)} MB available.";
             return false;
         }
 
