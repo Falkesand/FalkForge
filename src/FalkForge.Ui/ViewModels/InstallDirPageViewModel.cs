@@ -25,6 +25,7 @@ public sealed class InstallDirPageViewModel : InstallerPageViewModel, IReactiveO
     public InstallDirPageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
     {
+        ReactiveNotifications.Enable(this);
         _installDirectory = engine.InstallDirectory;
     }
 

@@ -17,6 +17,7 @@ public sealed class MaintenancePageViewModel : InstallerPageViewModel, IReactive
     public MaintenancePageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
     {
+        ReactiveNotifications.Enable(this);
         var canExecute = this.WhenAnyValue(x => x.IsOperationInProgress, inProgress => !inProgress);
 
         ModifyCommand = ReactiveCommand.CreateFromTask(ExecuteModifyAsync, canExecute);

@@ -13,6 +13,7 @@ public sealed class FeaturesPageViewModel : InstallerPageViewModel, IReactiveObj
     public FeaturesPageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
     {
+        ReactiveNotifications.Enable(this);
     }
 
     public override string Title => "Features";

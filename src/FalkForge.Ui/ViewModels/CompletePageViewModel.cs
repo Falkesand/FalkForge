@@ -15,6 +15,7 @@ public sealed class CompletePageViewModel : InstallerPageViewModel, IReactiveObj
     public CompletePageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
     {
+        ReactiveNotifications.Enable(this);
         OpenLogCommand = new RelayCommand(
             () => { LogPathActions.OpenLog(LogPath); return Task.CompletedTask; },
             () => LogPathActions.CanOpen(LogPath));
