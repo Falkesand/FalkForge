@@ -4,6 +4,7 @@ using System.Diagnostics;
 using FalkForge.Diagnostics;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Protocol;
+using FalkForge.Engine.Protocol.Manifest;
 
 /// <summary>
 /// Elevation phase step. Calls <see cref="IElevatedCommandGateway.StartAsync"/> to
@@ -17,9 +18,10 @@ internal sealed class ElevateStep : IElevateStep
     private readonly IElevatedCommandGateway _gateway;
     private readonly IUiChannel _uiChannel;
     private readonly Guid _correlationId;
+    private readonly InstallerManifest? _manifest;
 
     public ElevateStep(IElevatedCommandGateway gateway, IUiChannel uiChannel)
-        : this(gateway, uiChannel, Guid.Empty)
+        : this(gateway, uiChannel, Guid.Empty, manifest: null)
     {
     }
 
@@ -29,15 +31,40 @@ internal sealed class ElevateStep : IElevateStep
     /// <see cref="IElevatedCommandGateway.StartAsync"/> succeeds.
     /// </summary>
     public ElevateStep(IElevatedCommandGateway gateway, IUiChannel uiChannel, Guid correlationId)
+        : this(gateway, uiChannel, correlationId, manifest: null)
+    {
+    }
+
+    /// <summary>
+    /// Creates an <see cref="ElevateStep"/> that decides from <paramref name="manifest"/> whether
+    /// this install needs administrator rights at all. Pass <see langword="null"/> when there is no
+    /// manifest (ordering-only pipelines): absence of a scope is not read as "per-user".
+    /// </summary>
+    public ElevateStep(
+        IElevatedCommandGateway gateway,
+        IUiChannel uiChannel,
+        Guid correlationId,
+        InstallerManifest? manifest)
     {
         _gateway = gateway;
         _uiChannel = uiChannel;
         _correlationId = correlationId;
+        _manifest = manifest;
     }
 
     /// <inheritdoc/>
     public async Task<Result<Unit>> ExecuteAsync(PipelineContext ctx, CancellationToken ct)
     {
+        // A per-user bundle installs entirely under the user's own profile and needs no
+        // administrator rights. Launching the companion anyway raises a UAC prompt for nothing, and
+        // when it does not come back the whole install fails: measured on a real per-user bundle,
+        // "Elevation failed: Pipe is broken" ended the session with exit code 1 before a single
+        // package was touched. The companion travels in every bundle the compiler builds, so the
+        // gateway is always wired and this phase always ran.
+        var scope = _manifest?.Scope ?? ctx.Manifest?.Scope;
+        if (scope == InstallScope.PerUser)
+            return Unit.Value;
+
         var startTs = Stopwatch.GetTimestamp();
         try
         {

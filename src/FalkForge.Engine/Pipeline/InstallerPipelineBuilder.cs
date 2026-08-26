@@ -282,7 +282,7 @@ public sealed class InstallerPipelineBuilder
         // can forward it to the elevated companion via SetCorrelationId after handshake.
         var correlationId = _logger?.SessionCorrelationId ?? Guid.Empty;
         IElevateStep? elevateStep = _elevationGateway is not null
-            ? new ElevateStep(_elevationGateway, uiChannel, correlationId)
+            ? new ElevateStep(_elevationGateway, uiChannel, correlationId, _manifest)
             : null;
 
         IApplyStep? applyStep = (_packageExecutor is not null && _journalStore is not null)
