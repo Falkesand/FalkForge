@@ -132,8 +132,20 @@ public class InstallDirPageViewModelTests
 
     // ── Basic validation still works ─────────────────────────────────────────
 
+    /// <summary>
+    /// A blank box means "do not override anything": every package in the chain installs where
+    /// its own MSI puts it. That is the state the page opens in, because a bundle carries no
+    /// default directory for the UI to show — the engine's InstallDirectory starts empty and no
+    /// manifest field feeds it.
+    /// <para>
+    /// This assertion was the other way round until 2026-08-26. Measured by driving the real
+    /// wizard: the box was empty, Next &gt; was disabled, Back went to a licence page that could
+    /// not move forward either, and a fresh install stopped dead on this page. Refusing to
+    /// continue is only right for a directory the user typed and got wrong.
+    /// </para>
+    /// </summary>
     [Fact]
-    public void CanNavigateNext_WhenPathEmpty_ReturnsFalse()
+    public void CanNavigateNext_WhenPathEmpty_ReturnsTrue()
     {
         var shell = MakeShell();
         var vm = GetVm(shell);
@@ -141,7 +153,33 @@ public class InstallDirPageViewModelTests
 
         vm.InstallDirectory = string.Empty;
 
+        Assert.True(vm.CanNavigateNext());
+        Assert.Null(vm.ValidationError);
+    }
+
+    [Fact]
+    public void CanNavigateNext_WhenPathIsWhitespace_ReturnsTrue()
+    {
+        var shell = MakeShell();
+        var vm = GetVm(shell);
+        vm.DriveInfoProvider = new FakeDriveInfoProvider(isWritable: true, availableBytes: 500L * 1024 * 1024, longPathsEnabled: true);
+
+        vm.InstallDirectory = "   ";
+
+        Assert.True(vm.CanNavigateNext());
+    }
+
+    [Fact]
+    public void CanNavigateNext_WhenPathIsNotFullyQualified_ReturnsFalse()
+    {
+        var shell = MakeShell();
+        var vm = GetVm(shell);
+        vm.DriveInfoProvider = new FakeDriveInfoProvider(isWritable: true, availableBytes: 500L * 1024 * 1024, longPathsEnabled: true);
+
+        vm.InstallDirectory = "not-a-rooted-path";
+
         Assert.False(vm.CanNavigateNext());
+        Assert.NotNull(vm.ValidationError);
     }
 
     // ── Fake ─────────────────────────────────────────────────────────────────
