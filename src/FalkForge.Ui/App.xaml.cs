@@ -35,7 +35,15 @@ public partial class App : Application
             return;
         }
 
-        _ = BuiltInUiHost.LaunchAsync(this, resolved.Value, manifest.Value);
+        // The launch task cannot be awaited here (WPF must reach its message loop), but it must
+        // not be discarded either: a discarded task swallowed every startup exception, so a
+        // failing installer showed no window, printed nothing and still exited 0.
+        _ = BuiltInUiHost.RunAndReportFailureAsync(
+            BuiltInUiHost.LaunchAsync(this, resolved.Value, manifest.Value),
+            ex => FailLoud(
+                "The installer UI failed to start."
+                + Environment.NewLine + Environment.NewLine
+                + ex.Message));
     }
 
     private void FailLoud(string message)
