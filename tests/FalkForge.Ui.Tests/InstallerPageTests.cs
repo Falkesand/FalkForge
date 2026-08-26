@@ -341,6 +341,18 @@ public class InstallerPageTests
         Assert.All(data, b => Assert.Equal(0, b));
     }
 
+    [Fact]
+    public void SetLicenseAccepted_StoresValue()
+    {
+        var engine = new NullInstallerEngine();
+
+        Assert.Null(engine.LicenseAccepted);
+
+        engine.SetLicenseAccepted(true);
+
+        Assert.True(engine.LicenseAccepted);
+    }
+
     // --- Lifecycle Hook Defaults ---
 
     [Fact]

@@ -45,6 +45,7 @@ public class ReactiveViewModelNotificationTests
         var seen = Record(vm, () => vm.IsAccepted = true);
 
         Assert.Contains(nameof(vm.IsAccepted), seen);
+        Assert.True(_engine.LicenseAccepted);
     }
 
     [Fact]
