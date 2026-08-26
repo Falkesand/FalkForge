@@ -16,16 +16,20 @@
 # (VersionPrefix + VersionSuffix) unless overridden with -Version.
 #
 # The engine ships to NuGet consumers: by default this script first publishes the NativeAOT
-# FalkForge.Engine.exe + FalkForge.Engine.Elevation.exe to <repo>/artifacts/publish/engine
-# (the same output scripts/publish.ps1 produces) and packs them into
-# FalkForge.Engine.Runtime.win-x64 and into the FalkForge.Tool global tool. The binaries are
-# never committed to git — packing always consumes a fresh publish output.
+# FalkForge.Engine.exe + FalkForge.Engine.Elevation.exe, plus the framework-dependent
+# single-file FalkForge.Ui.exe, to <repo>/artifacts/publish/engine (the same output
+# scripts/publish.ps1 produces) and packs them into FalkForge.Engine.Runtime.win-x64 and
+# into the FalkForge.Tool global tool. The binaries are never committed to git — packing
+# always consumes a fresh publish output.
 #
 # Usage:
 #   ./scripts/pack.ps1                              # -> ./artifacts/nuget (publishes engine first)
 #   ./scripts/pack.ps1 -Output C:\feed              # custom feed folder
 #   ./scripts/pack.ps1 -Version 0.1.0-alpha.2       # override the single-source version
-#   ./scripts/pack.ps1 -SkipEnginePublish           # reuse existing artifacts/publish/engine
+#   ./scripts/pack.ps1 -SkipEnginePublish           # reuse existing artifacts/publish/engine —
+#                                                   # if that folder predates the UI publish, the
+#                                                   # pack guard below fails loudly rather than
+#                                                   # silently shipping a UI-less package
 #   ./scripts/pack.ps1 -NoEngine                    # pack WITHOUT engine binaries (explicit
 #                                                   # opt-out: no runtime package, engine-less
 #                                                   # tool; consumers must set FALKFORGE_ENGINE_STUB)
@@ -85,6 +89,11 @@ elseif (-not $SkipEnginePublish) {
     dotnet publish (Join-Path $root "src/FalkForge.Engine.Elevation/FalkForge.Engine.Elevation.csproj") `
         -c Release -r win-x64 -o $engineDir
     if ($LASTEXITCODE -ne 0) { throw "Engine.Elevation publish failed" }
+
+    Write-Host "Publishing UI (framework-dependent single-file)..." -ForegroundColor Yellow
+    dotnet publish (Join-Path $root "src/FalkForge.Ui/FalkForge.Ui.csproj") `
+        -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o $engineDir
+    if ($LASTEXITCODE -ne 0) { throw "UI publish failed" }
 }
 
 # Idempotent: clean the feed folder.
