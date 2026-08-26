@@ -51,7 +51,17 @@ public sealed partial class EngineSession : IAsyncDisposable
     private readonly FalkForge.Engine.Download.PayloadDownloader? _updatePayloadDownloader;
     private readonly bool _isPlanOnly;
     private readonly string? _planOnlyOutputPath;
+    // How long RunUntilShutdown waits for the UI to complete the pipe handshake, and the UI process
+    // itself when the caller started one. Both null on every path that does not spawn a UI.
+    private readonly TimeSpan? _handshakeTimeout;
+    private readonly IUiProcessHandle? _uiProcess;
     private bool _disposed;
+
+    /// <summary>
+    /// How long <see cref="RunUntilShutdown"/> waits for the UI to complete the pipe handshake when
+    /// the caller did not set <see cref="EngineSessionOptions.HandshakeTimeout"/>.
+    /// </summary>
+    private static readonly TimeSpan DefaultHandshakeTimeout = TimeSpan.FromSeconds(60);
 
     /// <summary>
     /// Test-visible accessor for the session-owned logger. Exposed via
@@ -108,8 +118,12 @@ public sealed partial class EngineSession : IAsyncDisposable
         HttpClient? updateHttpClient = null,
         bool isPlanOnly = false,
         string? planOnlyOutputPath = null,
-        FalkForge.Engine.Download.PayloadDownloader? updatePayloadDownloader = null)
+        FalkForge.Engine.Download.PayloadDownloader? updatePayloadDownloader = null,
+        TimeSpan? handshakeTimeout = null,
+        IUiProcessHandle? uiProcess = null)
     {
+        _handshakeTimeout = handshakeTimeout;
+        _uiProcess = uiProcess;
         _channel = channel;
         _pipeline = pipeline;
         _logger = logger;
@@ -224,15 +238,23 @@ public sealed partial class EngineSession : IAsyncDisposable
         // If this is a production channel that needs connection, connect now.
         if (_channel is NamedPipeUiChannel namedPipeChannel)
         {
-            var handshakeTimeout = TimeSpan.FromSeconds(60);
+            var handshakeTimeout = _handshakeTimeout ?? DefaultHandshakeTimeout;
             using var connectCts = new CancellationTokenSource(handshakeTimeout);
-            var connectResult = await namedPipeChannel.StartAsync(connectCts.Token).ConfigureAwait(false);
+            var connectResult = await ConnectToUiAsync(namedPipeChannel, connectCts).ConfigureAwait(false);
             if (connectResult.IsFailure)
             {
-                _logger?.Error("Engine", $"UI pipe connection failed: {connectResult.Error.Message}");
+                var handshakeError = DescribeHandshakeFailure(connectResult.Error, handshakeTimeout);
+                _logger?.Error("Engine", $"UI pipe connection failed: {handshakeError.Message}");
+
+                // The UI is never going to talk to us, and it may be sitting on a window or a modal
+                // dialog the user cannot act on. Take it down with the engine rather than leaving it
+                // behind, which is what happened before: the bootstrapper started the process and
+                // never touched it again.
+                _uiProcess?.KillTree();
+
                 return new EngineOutcome(
                     EngineTerminalState.Failed,
-                    connectResult.Error,
+                    handshakeError,
                     Rollback: null,
                     Duration: TimeSpan.Zero,
                     LogFiles: BuildLogFileList());
@@ -240,6 +262,71 @@ public sealed partial class EngineSession : IAsyncDisposable
 
             _logger?.Info("Engine", "UI pipe connected");
         }
+
+        return await RunPipelineAsync(ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Waits for the UI to complete the pipe handshake, racing that against the UI process dying.
+    /// Without the race a UI that exits on startup still costs the caller the whole handshake
+    /// timeout before anything is reported, which is the difference between an installer that says
+    /// what went wrong and one that appears to freeze.
+    /// </summary>
+    private async Task<Result<Unit>> ConnectToUiAsync(
+        NamedPipeUiChannel namedPipeChannel, CancellationTokenSource connectCts)
+    {
+        var connectTask = namedPipeChannel.StartAsync(connectCts.Token);
+        if (_uiProcess is null)
+            return await connectTask.ConfigureAwait(false);
+
+        // WaitForExitAsync completes on cancellation instead of throwing, so the losing side of
+        // this race never leaves an unobserved faulted task behind.
+        var exitTask = _uiProcess.WaitForExitAsync(connectCts.Token);
+        var first = await Task.WhenAny(connectTask, exitTask).ConfigureAwait(false);
+
+        if (first == exitTask && !connectTask.IsCompleted)
+            await connectCts.CancelAsync().ConfigureAwait(false);
+
+        var result = await connectTask.ConfigureAwait(false);
+
+        // Let the exit watch unwind before the caller disposes connectCts.
+        await exitTask.ConfigureAwait(false);
+        return result;
+    }
+
+    /// <summary>
+    /// Turns the transport's "connection timed out" into something a user can act on, by asking the
+    /// UI process which of the two failures happened.
+    /// </summary>
+    private Error DescribeHandshakeFailure(Error transportError, TimeSpan handshakeTimeout)
+    {
+        if (_uiProcess is null)
+            return transportError;
+
+        if (_uiProcess.HasExited)
+            return new Error(
+                ErrorKind.EngineError,
+                $"The installer UI could not start: its process exited before it connected to the " +
+                $"engine, with exit code 0x{_uiProcess.ExitCode:X8}. Any explanation it printed " +
+                "appears above this message. The usual cause is a missing or wrong .NET Desktop " +
+                "Runtime — this installer needs the Windows Desktop Runtime, not the console-only " +
+                "one. Install it and run setup again.");
+
+        return new Error(
+            ErrorKind.EngineError,
+            $"The installer UI started (process {_uiProcess.ProcessId}) but never connected to the " +
+            $"engine within {handshakeTimeout.TotalSeconds:0.###} seconds, so setup cannot " +
+            "continue. It is being closed. This is not a failure to start: the process was still " +
+            "running and simply never answered, so the fault is inside the UI rather than in the " +
+            "runtime it needs.");
+    }
+
+    /// <summary>
+    /// Runs the pipeline to its terminal state. Split out of <see cref="RunUntilShutdown"/> so the
+    /// handshake and the run read as two separate concerns.
+    /// </summary>
+    private async Task<EngineOutcome> RunPipelineAsync(CancellationToken ct)
+    {
 
         var sw = Stopwatch.StartNew();
         _logger?.Info("Engine", "Starting installer pipeline");

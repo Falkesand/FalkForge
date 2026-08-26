@@ -54,6 +54,20 @@ public sealed record EngineSessionOptions
     public TimeSpan? HandshakeTimeout { get; init; }
 
     /// <summary>
+    /// The UI process the caller started, so the handshake wait can end the moment it dies and can
+    /// say which way it failed. When <c>null</c> (any caller that did not start a UI itself) the
+    /// wait behaves as before: it runs until <see cref="HandshakeTimeout"/> and reports the
+    /// transport's own error.
+    /// <para>
+    /// Supplying it changes three things. A UI that exits ends the wait immediately instead of
+    /// running the timeout down. The failure message names the exit code when the process died, or
+    /// the process id when it is still running and silent. And the process is terminated on
+    /// handshake failure, so a UI stuck on a modal dialog does not outlive the engine.
+    /// </para>
+    /// </summary>
+    public IUiProcessHandle? UiProcess { get; init; }
+
+    /// <summary>
     /// When <c>true</c> (default), a <see cref="FileSystemJournalStore"/> is created
     /// and wired into the pipeline to support rollback.
     /// </summary>

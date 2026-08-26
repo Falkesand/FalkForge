@@ -356,6 +356,11 @@ internal static class BootstrapperRunner
             new EngineSessionOptions
             {
                 PipeOptions = pipeOptions,
+                // Carry the UI process across to the handshake wait. Without it the wait cannot
+                // tell a UI that died on startup from one that is running and silent, it runs the
+                // full timeout down either way, and the process is left behind when the engine
+                // gives up — a UI stuck on a modal dialog outlived the engine that started it.
+                UiProcess = new SystemUiProcessHandle(process),
                 LogPath = programArgs?.LogPath,
                 MinimumLogLevel = programArgs?.MinimumLogLevel,
                 // The manifest object deserialized from the bundle's own embedded bytes above and
@@ -406,6 +411,13 @@ internal static class BootstrapperRunner
         await Console.Out.WriteLineAsync($"Session: {session.CorrelationId:D}");
 
         var outcome = await session.RunUntilShutdown(CancellationToken.None);
+
+        // Every other failure in this method prints why before returning; this one used to return
+        // an exit code and nothing else, so a UI that never connected looked like a silent freeze
+        // followed by a bare non-zero exit. The reason was written only to the log file, which the
+        // user has no reason to know exists.
+        if (outcome.Error is { } outcomeError)
+            await Console.Error.WriteLineAsync(outcomeError.Message);
 
         return EngineProgramHelpers.ToExitCode(outcome.State);
     }

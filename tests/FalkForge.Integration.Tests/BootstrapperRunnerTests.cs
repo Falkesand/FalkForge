@@ -17,11 +17,12 @@ namespace FalkForge.Integration.Tests;
 /// <see cref="SelfExtractionMode"/>: an optional <c>exePathOverride</c> parameter that defaults to the
 /// production <c>Environment.ProcessPath!</c> behavior when omitted.
 /// <para>
-/// Deliberately stops at three early-return failure branches (corrupt embedded manifest, the signed-payload
-/// trust gate, and no UI executable found) — reaching the happy path requires actually spawning and driving
-/// a real UI process (<see cref="UiProcessLauncher.TryStartUiProcess"/> / <see cref="EngineSession.RunUntilShutdown"/>),
-/// which needs a real UI executable and is covered by the opt-in (<c>FALKFORGE_E2E</c>) end-to-end suite, not
-/// by these fast unit tests.
+/// Three of these stop at early-return failure branches (corrupt embedded manifest, the signed-payload
+/// trust gate, and no UI executable found). The fourth goes further and drives the real UI launch and
+/// handshake (<see cref="UiProcessLauncher.TryStartUiProcess"/> / <see cref="EngineSession.RunUntilShutdown"/>)
+/// using a stand-in UI that exits at once, which is what a machine with no .NET Desktop Runtime produces.
+/// The happy path — a UI that connects and drives an install — still needs a real published UI and stays in
+/// the opt-in (<c>FALKFORGE_E2E</c>) end-to-end suite.
 /// </para>
 /// </summary>
 public sealed class BootstrapperRunnerTests : IDisposable
@@ -187,6 +188,46 @@ public sealed class BootstrapperRunnerTests : IDisposable
 
         Assert.NotEqual(0, exitCode);
         Assert.Contains(UiPayload.PackageId, stdErr, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RunAsync_UiExitsBeforeHandshake_TellsTheUserWhyOnStdErr()
+    {
+        // WHY: this is what a machine without the .NET Desktop Runtime does. The UI process starts,
+        // the host cannot load a runtime, and it exits. Before this test the engine sat on the pipe
+        // for a full minute and then returned exit code 1 having printed nothing at all: the reason
+        // went into the log file and the outcome object, and the user watching the console saw a
+        // one-minute freeze and no explanation.
+        //
+        // The stand-in UI is a copy of where.exe, which exits with code 2 in about 15 ms when given
+        // arguments it does not understand — the same shape as a host that cannot start, without
+        // needing a published UI or a broken runtime on the test machine.
+        var uiStub = Path.Combine(_tempDir, "ui-stub.exe");
+        File.Copy(
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "where.exe"),
+            uiStub);
+
+        var payloadPath = Path.Combine(_tempDir, "HandshakeMsi.msi");
+        File.WriteAllBytes(payloadPath, RandomNumberGenerator.GetBytes(256));
+
+        var model = new BundleBuilder()
+            .Name("HandshakeFailureTest")
+            .Manufacturer("Integration Tests")
+            .Version("1.0.0")
+            .UseSilentUI()
+            .Chain(chain => chain.MsiPackage(payloadPath, pkg => pkg.Id("HandshakeMsi").Version("1.0.0")))
+            .Build();
+
+        var buildResult = new BundleCompiler { AllowPlaceholderStub = true, UiPath = uiStub }
+            .Compile(model, Path.Combine(_tempDir, "out-handshake"));
+        Assert.True(buildResult.IsSuccess, buildResult.IsFailure ? buildResult.Error.Message : null);
+
+        var (exitCode, stdErr) = RunCapturingStdErr(
+            () => BootstrapperRunner.RunAsync(exePathOverride: buildResult.Value));
+
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains("exited", stdErr, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("0x00000002", stdErr, StringComparison.Ordinal);
     }
 
     /// <summary>
