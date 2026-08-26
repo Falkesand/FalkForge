@@ -41,6 +41,39 @@ public sealed class UiProcessLauncherTests
     }
 
     [Fact]
+    public void BuildStartInfo_DisablesTheHostErrorDialog()
+    {
+        // Intent: the UI is a WinExe, so when the .NET host cannot start it the host shows a modal
+        // dialog and the process never exits. Measured on this machine: a missing runtime and a
+        // wrong-major runtime both hang that way (20 s, killed), while the same two cases with
+        // DOTNET_DISABLE_GUI_ERRORS=1 exit in under 30 ms with the diagnostic on stderr
+        // (0x80008083 and 0x80008096). The engine cannot report a failure it is still waiting on,
+        // so turning that dialog off is what converts the hang into something reportable. The
+        // variable is harmless when the runtime is healthy — the UI came up normally with it set.
+        var startInfo = UiProcessLauncher.BuildStartInfo("C:\\nowhere\\ui.exe", "--manifest x");
+
+        Assert.False(startInfo.UseShellExecute,
+            "the environment block is only honoured when the process is started directly");
+        Assert.Equal("1", startInfo.Environment["DOTNET_DISABLE_GUI_ERRORS"]);
+    }
+
+    [Fact]
+    public void BuildStartInfo_LeavesStderrInherited()
+    {
+        // Intent: measured on this machine — with UseShellExecute=false and NO redirect, the
+        // child's host diagnostic lands on the engine's own stderr by handle inheritance (the full
+        // "You must install .NET to run this application" block appeared in the parent's redirected
+        // stderr file, between the parent's own two lines). Redirecting instead would make the
+        // engine own a pipe it must drain for the whole life of a healthy UI, and buy nothing the
+        // user does not already see. So the detail is surfaced by inheritance and the engine's rule
+        // keys on the exit, which also covers the measured case of an exit with no output at all.
+        var startInfo = UiProcessLauncher.BuildStartInfo("C:\\nowhere\\ui.exe", "--manifest x");
+
+        Assert.False(startInfo.RedirectStandardError);
+        Assert.False(startInfo.RedirectStandardOutput);
+    }
+
+    [Fact]
     public void TryStartUiProcess_ValidExecutable_ReturnsSuccess()
     {
         // Intent: the happy path must keep working — the helper is not allowed to turn a

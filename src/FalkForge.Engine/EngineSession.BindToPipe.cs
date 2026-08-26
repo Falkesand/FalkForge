@@ -414,7 +414,9 @@ public sealed partial class EngineSession
             instanceLock, updateHttpClient,
             isPlanOnly: options.IsPlanOnly,
             planOnlyOutputPath: options.PlanOnlyOutputPath,
-            updatePayloadDownloader: payloadDownloader);
+            updatePayloadDownloader: payloadDownloader,
+            handshakeTimeout: options.HandshakeTimeout,
+            uiProcess: options.UiProcess);
     }
 
     /// <summary>
