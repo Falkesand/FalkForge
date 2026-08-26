@@ -23,6 +23,7 @@ public sealed class PackageFeaturesPageViewModel : InstallerPageViewModel, IReac
     public PackageFeaturesPageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
     {
+        ReactiveNotifications.Enable(this);
         _channel = engine as IPackageMsiFeatureChannel;
         Sections = BuildSections();
     }

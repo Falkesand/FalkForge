@@ -21,6 +21,7 @@ public sealed class ProgressPageViewModel : InstallerPageViewModel, IReactiveObj
     public ProgressPageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
     {
+        ReactiveNotifications.Enable(this);
     }
 
     public override string Title => "Installing";

@@ -12,6 +12,7 @@ public sealed class LicensePageViewModel : InstallerPageViewModel, IReactiveObje
     public LicensePageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
     {
+        ReactiveNotifications.Enable(this);
     }
 
     public override string Title => "License Agreement";
