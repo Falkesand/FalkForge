@@ -279,9 +279,17 @@ public sealed partial class EngineSession : IAsyncDisposable
         if (_uiProcess is null)
             return await connectTask.ConfigureAwait(false);
 
+        // The exit watch gets its OWN token so it can be called off the moment the handshake wins.
+        // It used to share connectCts, which nothing cancelled on the success path, so the final
+        // await below waited for the UI process to exit — the engine did not start the installer
+        // pipeline until the window the user was working in had closed. Measured on a real bundle:
+        // the UI connected, sent Detect and then Plan, and the engine answered neither until the
+        // user pressed Cancel.
+        using var exitWatchCts = CancellationTokenSource.CreateLinkedTokenSource(connectCts.Token);
+
         // WaitForExitAsync completes on cancellation instead of throwing, so the losing side of
         // this race never leaves an unobserved faulted task behind.
-        var exitTask = _uiProcess.WaitForExitAsync(connectCts.Token);
+        var exitTask = _uiProcess.WaitForExitAsync(exitWatchCts.Token);
         var first = await Task.WhenAny(connectTask, exitTask).ConfigureAwait(false);
 
         if (first == exitTask && !connectTask.IsCompleted)
@@ -289,7 +297,8 @@ public sealed partial class EngineSession : IAsyncDisposable
 
         var result = await connectTask.ConfigureAwait(false);
 
-        // Let the exit watch unwind before the caller disposes connectCts.
+        // Call the exit watch off and let it unwind before the caller disposes either source.
+        await exitWatchCts.CancelAsync().ConfigureAwait(false);
         await exitTask.ConfigureAwait(false);
         return result;
     }
