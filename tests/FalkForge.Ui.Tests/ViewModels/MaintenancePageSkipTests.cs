@@ -39,7 +39,9 @@ public class MaintenancePageSkipTests
         Assert.True(shell.CanGoBack);
         await shell.NavigateBack();
 
-        Assert.IsType<InstallDirPageViewModel>(shell.CurrentPage);
+        // The directory page sits between the licence page and Features but is out of the walk
+        // (see InstallDirPageIsOutOfTheWalkTests), so Back steps over it.
+        Assert.IsType<LicensePageViewModel>(shell.CurrentPage);
     }
 
     [Theory]

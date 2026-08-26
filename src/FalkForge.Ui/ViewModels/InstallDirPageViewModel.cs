@@ -33,6 +33,29 @@ public sealed class InstallDirPageViewModel : InstallerPageViewModel, IReactiveO
     public override string Description => "Choose where to install the application.";
 
     /// <summary>
+    /// Out of the wizard's straight-line walk, because the directory the user types here does not
+    /// reach the install. The page validates the path and sends it to the engine, the engine
+    /// records it on the plan request, and the plan is built without ever reading it: every package
+    /// installs where its own MSI puts it. The user typed a path, read "Installation completed
+    /// successfully", and the product went somewhere else.
+    /// <para>
+    /// Closing that gap is not a wiring job. A bundle installs several packages and nothing in the
+    /// manifest says which of them the directory applies to, nor which property each one reads it
+    /// from: FalkForge's own MSIs use INSTALLDIR, a third-party MSI in the same chain may use
+    /// another name or none, and a public property has to be in SecureCustomProperties to survive
+    /// an elevated install. Stamping one name onto every action would redirect prerequisites into
+    /// the application's folder.
+    /// </para>
+    /// <para>
+    /// The page stays registered, so a custom shell that navigates to it deliberately keeps what it
+    /// had. <c>PlanIgnoresInstallDirectoryTests</c> in FalkForge.Engine.Tests pins the engine half
+    /// and fails the day the directory does reach the plan, which is the signal to delete this
+    /// override.
+    /// </para>
+    /// </summary>
+    public override bool IsSkippedInLinearFlow => true;
+
+    /// <summary>
     /// Injectable drive-info provider; defaults to the real OS implementation.
     /// Replace in tests to avoid filesystem/registry access.
     /// </summary>
