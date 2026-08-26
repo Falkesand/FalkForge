@@ -98,6 +98,18 @@ public sealed class MaintenancePageViewModel : InstallerPageViewModel, IReactive
         PropertyChanged?.Invoke(this, args);
     }
 
+    /// <summary>
+    /// Out of the straight-line walk unless this machine actually has the product on it. The page
+    /// is headed "Modify Setup" and says the product is already installed, and it deliberately
+    /// refuses both Next and Back so the user has to choose Modify, Repair or Uninstall. On a fresh
+    /// install that combination was a dead end: the wizard walked into it after Features and left
+    /// the user with Cancel as the only working button.
+    /// </summary>
+    public override bool IsSkippedInLinearFlow =>
+        Engine.DetectedState is not (InstallState.Installed
+            or InstallState.OlderVersion
+            or InstallState.NewerVersion);
+
     public override bool CanNavigateNext()
     {
         return false;
@@ -123,12 +135,20 @@ public sealed class MaintenancePageViewModel : InstallerPageViewModel, IReactive
         await PlanAndNavigateAsync(InstallAction.Uninstall, ct);
     }
 
+    /// <summary>
+    /// Hands the chosen action to the progress page and shows it. The progress page owns the whole
+    /// run: it plans, applies and reports the outcome. This page used to call <c>PlanAsync</c>
+    /// itself and then navigate, which planned the work and never executed it.
+    /// </summary>
     private async Task PlanAndNavigateAsync(InstallAction action, CancellationToken ct)
     {
         IsOperationInProgress = true;
         try
         {
-            await Engine.PlanAsync(action, ct);
+            var progress = Navigation.Pages.OfType<ProgressPageViewModel>().FirstOrDefault();
+            if (progress is not null)
+                progress.RequestedAction = action;
+
             await Navigation.NavigateTo<ProgressPageViewModel>();
         }
         finally
