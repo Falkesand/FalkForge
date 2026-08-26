@@ -20,10 +20,20 @@ public sealed class LicensePageViewModel : InstallerPageViewModel, IReactiveObje
 
     public string LicenseText => Engine.Manifest.LicenseFile ?? "No license text available.";
 
+    /// <summary>
+    /// Whether the user ticked the accept checkbox. Setting it tells the engine, which refuses to
+    /// plan a bundle carrying a licence file until it has been told. Ticking the box used to change
+    /// nothing but this field, so the install died at the plan with "License agreement has not been
+    /// accepted."
+    /// </summary>
     public bool IsAccepted
     {
         get => _isAccepted;
-        set => this.RaiseAndSetIfChanged(ref _isAccepted, value);
+        set
+        {
+            this.RaiseAndSetIfChanged(ref _isAccepted, value);
+            Engine.SetLicenseAccepted(value);
+        }
     }
 
     public event PropertyChangingEventHandler? PropertyChanging;

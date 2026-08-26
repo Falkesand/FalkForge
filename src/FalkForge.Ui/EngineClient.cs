@@ -25,6 +25,11 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IP
 
     private TaskCompletionSource<DetectResult>? _detectTcs;
     private string _installDirectory = string.Empty;
+
+    // Null until the UI reports a licence decision; see SetLicenseAccepted for why the message is
+    // held here rather than sent the moment the checkbox changes.
+    private bool? _licenseAccepted;
+
     private TaskCompletionSource<PlanResult>? _planTcs;
     private TaskCompletionSource<int>? _shutdownTcs;
 
@@ -106,6 +111,24 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IP
         FailIfPipeAlreadyClosed(_planTcs);
         using var registration = ct.Register(() => _planTcs.TrySetCanceled(ct));
 
+        // The licence decision must be on the wire before the plan request: the engine bundles
+        // whichever decision it has already received into the plan it builds. Nothing is sent when
+        // the UI never asked about a licence, which is what a bundle without a licence file does.
+        if (_licenseAccepted is { } accepted)
+        {
+            var licenseSend = await _pipe.SendAsync(
+                new LicenseMessage
+                {
+                    Action = accepted ? LicenseAction.Accepted : LicenseAction.Declined
+                }, ct);
+
+            if (licenseSend.IsFailure)
+            {
+                _planTcs.TrySetException(new InvalidOperationException(licenseSend.Error.Message));
+                return await _planTcs.Task;
+            }
+        }
+
         var sendResult = await _pipe.SendAsync(new RequestPlanMessage { Action = action }, ct);
         if (sendResult.IsFailure) _planTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
 
@@ -137,6 +160,19 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IP
     public void SetProperty(string name, string value)
     {
         _ = SendSetPropertyAsync(name, value);
+    }
+
+    /// <summary>
+    ///     Records the user's licence decision. The message itself goes out from
+    ///     <see cref="PlanAsync"/>, immediately before the plan request and on the same await
+    ///     chain, because the engine only reads the decision it received BEFORE the plan request
+    ///     arrives. Sending it here instead would be a fire-and-forget write racing the plan
+    ///     request down the same pipe, and losing that race refuses the install with "License
+    ///     agreement has not been accepted."
+    /// </summary>
+    public void SetLicenseAccepted(bool accepted)
+    {
+        _licenseAccepted = accepted;
     }
 
     public void SetSecureProperty(string name, SensitiveBytes value)

@@ -30,6 +30,17 @@ public interface IInstallerEngine
     void SetProperty(string name, string value);
 
     /// <summary>
+    /// Tells the engine whether the user accepted the licence agreement.
+    /// </summary>
+    /// <remarks>
+    /// The engine refuses to plan a bundle whose manifest carries a licence file until it has been
+    /// told the licence was accepted, and this is the only thing that tells it. Call it whenever
+    /// the acceptance state changes, before requesting a plan; the engine records the latest value
+    /// and applies it to the next plan request.
+    /// </remarks>
+    void SetLicenseAccepted(bool accepted);
+
+    /// <summary>
     /// Sets a secure property value transported via named pipe to the MSI session.
     /// Never appears on the command line or in logs.
     /// </summary>
