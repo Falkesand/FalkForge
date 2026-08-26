@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Input;
 using FalkForge.Engine.Protocol;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
@@ -14,7 +15,20 @@ public sealed class WelcomePageViewModel : InstallerPageViewModel, INotifyProper
     public WelcomePageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
     {
+        InstallCommand = new RelayCommand(StartInstallAsync, () => CanInstall);
     }
+
+    /// <summary>
+    /// Drives the Install button on the welcome page. The button bound Content, Style, Width and
+    /// Visibility and nothing else, so pressing it did nothing whatsoever.
+    /// </summary>
+    public ICommand InstallCommand { get; }
+
+    /// <summary>
+    /// Starts the install by moving on to the next page of the wizard, which is what the Install
+    /// button and the Next button both mean here.
+    /// </summary>
+    internal Task StartInstallAsync() => Navigation.NavigateNext();
 
     public override string Title => "Welcome";
     public override string Description => $"Welcome to the {Engine.Manifest.Name} installer.";
