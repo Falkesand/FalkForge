@@ -6701,6 +6701,25 @@ public class WelcomePage : InstallerPage&lt;WelcomePageView&gt;
     </tbody>
   </table>
 
+  <div class="warning">
+    <strong>Added (breaking).</strong> <code>SetLicenseAccepted(bool accepted)</code> is a new member on
+    <code>IInstallerEngine</code>, and it has no default implementation. Any custom engine that
+    implements this interface directly &mdash; rather than using the built-in <code>EngineClient</code> or
+    <code>NullInstallerEngine</code> &mdash; stops compiling on upgrade until it adds the method.
+    <br><br>
+    There is deliberately no default. A no-op default would keep such an engine compiling, but it would
+    also make it silently fail the licence gate this method exists for: <code>PlanStep</code> refuses to
+    plan a bundle whose manifest carries a licence file until this call has told it the licence was
+    accepted, so an engine that never records the decision would send every licensed plan request to that
+    refusal with no compiler signal that anything was missing. A compile error, caught immediately, is
+    preferable to a runtime failure a licensed installer only hits once it is already in a customer's
+    hands.
+    <br><br>
+    To fix a custom engine: implement <code>SetLicenseAccepted</code> to record the decision and apply it
+    the same way <code>EngineClient</code> does &mdash; see the row above, and
+    <code>src/FalkForge.Ui/EngineClient.cs</code> for the reference implementation.
+  </div>
+
   <!-- 11.8 PageResult -->
   <h3 id="custom-ui-page-result">11.8 PageResult</h3>
   <p>
