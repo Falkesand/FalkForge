@@ -30,8 +30,27 @@ public abstract class InstallerShellViewModel : INavigationService
     public InstallerPageViewModel? CurrentPage =>
         _currentPageIndex >= 0 && _currentPageIndex < _pages.Count ? _pages[_currentPageIndex] : null;
 
-    public bool CanGoBack => _currentPageIndex > 0 && (CurrentPage?.CanNavigateBack() ?? false);
-    public bool CanGoNext => _currentPageIndex < _pages.Count - 1 && (CurrentPage?.CanNavigateNext() ?? false);
+    public bool CanGoBack => FindNavigableIndex(_currentPageIndex - 1, -1) >= 0
+                             && (CurrentPage?.CanNavigateBack() ?? false);
+
+    public bool CanGoNext => FindNavigableIndex(_currentPageIndex + 1, 1) >= 0
+                             && (CurrentPage?.CanNavigateNext() ?? false);
+
+    /// <summary>
+    /// Walks from <paramref name="start"/> in <paramref name="step"/> increments and returns the
+    /// first page that takes part in the straight-line flow, or -1 when there is none. A page can
+    /// declare itself out of the walk for this run (see
+    /// <see cref="InstallerPageViewModel.IsSkippedInLinearFlow"/>) while still being reachable by
+    /// an explicit <see cref="NavigateTo(InstallerPageViewModel)"/>.
+    /// </summary>
+    private int FindNavigableIndex(int start, int step)
+    {
+        for (var i = start; i >= 0 && i < _pages.Count; i += step)
+            if (!_pages[i].IsSkippedInLinearFlow)
+                return i;
+
+        return -1;
+    }
 
     public IReadOnlyList<InstallerPageViewModel> Pages => _pages.AsReadOnly();
 
@@ -48,25 +67,35 @@ public abstract class InstallerShellViewModel : INavigationService
     public async Task NavigateNext()
     {
         if (!CanGoNext) return;
+        var target = FindNavigableIndex(_currentPageIndex + 1, 1);
+        if (target < 0) return;
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatingFromAsync();
-        _currentPageIndex++;
+        _currentPageIndex = target;
         ObserveCurrentPage();
+        // Announce the new page BEFORE it starts working. A page whose OnNavigatedToAsync does
+        // something slow (the progress page runs the whole install there) would otherwise leave
+        // the window showing the page the user just left until the work finished.
+        OnCurrentPageChanged();
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatedToAsync();
-        OnCurrentPageChanged();
     }
 
     public async Task NavigateBack()
     {
         if (!CanGoBack) return;
+        var target = FindNavigableIndex(_currentPageIndex - 1, -1);
+        if (target < 0) return;
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatingFromAsync();
-        _currentPageIndex--;
+        _currentPageIndex = target;
         ObserveCurrentPage();
+        // Announce the new page BEFORE it starts working. A page whose OnNavigatedToAsync does
+        // something slow (the progress page runs the whole install there) would otherwise leave
+        // the window showing the page the user just left until the work finished.
+        OnCurrentPageChanged();
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatedToAsync();
-        OnCurrentPageChanged();
     }
 
     public async Task NavigateTo(InstallerPageViewModel page)
@@ -77,9 +106,12 @@ public abstract class InstallerShellViewModel : INavigationService
             await CurrentPage.OnNavigatingFromAsync();
         _currentPageIndex = index;
         ObserveCurrentPage();
+        // Announce the new page BEFORE it starts working. A page whose OnNavigatedToAsync does
+        // something slow (the progress page runs the whole install there) would otherwise leave
+        // the window showing the page the user just left until the work finished.
+        OnCurrentPageChanged();
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatedToAsync();
-        OnCurrentPageChanged();
     }
 
     public async Task NavigateTo<T>() where T : InstallerPageViewModel
@@ -123,11 +155,11 @@ public abstract class InstallerShellViewModel : INavigationService
 
         _currentPageIndex = insertIndex;
         ObserveCurrentPage();
+        // Announce the new page BEFORE it starts working, for the same reason as NavigateNext.
+        OnCurrentPageChanged();
 
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatedToAsync();
-
-        OnCurrentPageChanged();
     }
 
     /// <summary>

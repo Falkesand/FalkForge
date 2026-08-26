@@ -18,8 +18,18 @@ public sealed class DefaultShellViewModel : InstallerShellViewModel, IReactiveOb
         RegisterPage(new InstallDirPageViewModel(engine, this));
         RegisterPage(new FeaturesPageViewModel(engine, this));
         RegisterPage(new MaintenancePageViewModel(engine, this));
-        RegisterPage(new ProgressPageViewModel(engine, this));
-        RegisterPage(new CompletePageViewModel(engine, this));
+
+        // The progress page runs the install and knows how it went; the completion page is what
+        // the user reads afterwards. Nothing else joins them, so the shell does.
+        var progress = new ProgressPageViewModel(engine, this);
+        var complete = new CompletePageViewModel(engine, this);
+        progress.InstallFinished += (succeeded, message) =>
+        {
+            complete.IsSuccess = succeeded;
+            complete.Message = message;
+        };
+        RegisterPage(progress);
+        RegisterPage(complete);
 
         if (engine is EngineClient engineClient)
         {

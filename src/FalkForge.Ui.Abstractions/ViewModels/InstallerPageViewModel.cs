@@ -13,6 +13,17 @@ public abstract class InstallerPageViewModel
         Navigation = navigation;
     }
 
+    /// <summary>
+    /// When true the shell steps over this page while walking Next and Back. The page stays in
+    /// <c>Pages</c> and can still be reached by an explicit <c>NavigateTo</c>; it just is not part
+    /// of the straight-line walk for this run.
+    /// <para>
+    /// Read fresh on every navigation rather than captured once, so a page can become part of the
+    /// walk after detection has told it what this machine looks like.
+    /// </para>
+    /// </summary>
+    public virtual bool IsSkippedInLinearFlow => false;
+
     public virtual Task OnNavigatedToAsync(CancellationToken ct = default) => Task.CompletedTask;
     public virtual Task OnNavigatingFromAsync(CancellationToken ct = default) => Task.CompletedTask;
     public virtual bool CanNavigateNext() => true;

@@ -35,14 +35,27 @@ internal sealed class TestInstallerEngine : IInstallerEngine
 
     public InstallAction? LastPlannedAction { get; private set; }
 
+    /// <summary>Thrown from <see cref="PlanAsync"/> when set, standing in for the engine's
+    /// ErrorMessage path (a refused plan surfaces to the UI as a faulted task).</summary>
+    public Exception? PlanFailure { get; set; }
+
+    public ApplyResult ApplyResult { get; set; } = new(0, null);
+
+    public bool ApplyCalled { get; private set; }
+
     public Task<PlanResult> PlanAsync(InstallAction action, CancellationToken ct = default)
     {
         LastPlannedAction = action;
-        return Task.FromResult(new PlanResult(["Install TestPackage"], 1024L));
+        return PlanFailure is not null
+            ? Task.FromException<PlanResult>(PlanFailure)
+            : Task.FromResult(new PlanResult(["Install TestPackage"], 1024L));
     }
 
     public Task<ApplyResult> ApplyAsync(CancellationToken ct = default)
-        => Task.FromResult(new ApplyResult(0, null));
+    {
+        ApplyCalled = true;
+        return Task.FromResult(ApplyResult);
+    }
 
     public bool CancelCalled { get; private set; }
 

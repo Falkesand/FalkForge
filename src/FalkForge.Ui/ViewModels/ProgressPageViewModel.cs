@@ -83,7 +83,29 @@ public sealed class ProgressPageViewModel : InstallerPageViewModel, IReactiveObj
         PropertyChanged?.Invoke(this, args);
     }
 
-    public override Task OnNavigatedToAsync(CancellationToken ct = default)
+    /// <summary>
+    /// The action this page runs when it is shown. Install for the straight-line wizard; the
+    /// maintenance page sets Modify, Repair or Uninstall before navigating here.
+    /// </summary>
+    public InstallAction RequestedAction { get; set; } = InstallAction.Install;
+
+    /// <summary>
+    /// Raised once the run has finished, with whether it succeeded and the message to show the
+    /// user. The shell forwards it to the completion page, which is the only page that has
+    /// anything to say about the outcome.
+    /// </summary>
+    public event Action<bool, string>? InstallFinished;
+
+    /// <summary>
+    /// Runs the install. Showing this page IS the confirmation the wizard collects, so arriving
+    /// here plans and then applies.
+    /// <para>
+    /// Nothing did this before 2026-08-26: the page subscribed to the engine's streams and
+    /// returned, and no other page in the built-in wizard called <c>PlanAsync</c> or
+    /// <c>ApplyAsync</c> for an install. The bar sat at 0% and the engine never touched a package.
+    /// </para>
+    /// </summary>
+    public override async Task OnNavigatedToAsync(CancellationToken ct = default)
     {
         _progressSubscription = Engine.Progress
             .ObserveOn(RxSchedulers.MainThreadScheduler)
@@ -97,8 +119,49 @@ public sealed class ProgressPageViewModel : InstallerPageViewModel, IReactiveObj
             .ObserveOn(RxSchedulers.MainThreadScheduler)
             .Subscribe(OnPhaseChanged);
 
-        return Task.CompletedTask;
+        await RunAsync(ct);
     }
+
+    private async Task RunAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Engine.PlanAsync(RequestedAction, ct);
+            var result = await Engine.ApplyAsync(ct);
+
+            var succeeded = result.ExitCode == 0;
+            Finish(succeeded, succeeded
+                ? SuccessMessage(RequestedAction)
+                : $"The installer stopped with exit code {result.ExitCode}."
+                  + (string.IsNullOrWhiteSpace(result.ErrorMessage) ? string.Empty : " " + result.ErrorMessage));
+        }
+        catch (OperationCanceledException)
+        {
+            Finish(succeeded: false, "The operation was cancelled.");
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+        {
+            // The engine reports a refusal (an unaccepted licence, a missing dependency, a broken
+            // pipe) by faulting the request. Say what it said: a progress bar that never moves and
+            // never explains itself is the worst thing this page can do.
+            Finish(succeeded: false, ex.Message);
+        }
+    }
+
+    private void Finish(bool succeeded, string message)
+    {
+        StatusText = message;
+        IsComplete = true;
+        InstallFinished?.Invoke(succeeded, message);
+    }
+
+    private static string SuccessMessage(InstallAction action) => action switch
+    {
+        InstallAction.Uninstall => "Uninstall completed successfully.",
+        InstallAction.Repair => "Repair completed successfully.",
+        InstallAction.Modify => "The installation was modified successfully.",
+        _ => "Installation completed successfully."
+    };
 
     public override Task OnNavigatingFromAsync(CancellationToken ct = default)
     {
