@@ -48,6 +48,23 @@ internal sealed class InstallerPipeline : IInstallerPipeline
     /// </summary>
     internal string? PayloadRoot => _ctx.PayloadRoot;
 
+    /// <summary>
+    /// The elevation gateway <see cref="ElevateStep"/> established for this run, or
+    /// <see langword="null"/> when it established none (a per-user bundle, or elevation has not run
+    /// yet). This is a read-only view onto <see cref="PipelineContext.ElevationGateway"/>, which is
+    /// the single source of the gateway and has exactly one writer, <see cref="ElevateStep"/>.
+    /// <see cref="EngineSession.BindToPipe"/> reads it through this property so <c>MsiExecutor</c>
+    /// resolves the answer at execute time rather than caching one taken before elevation ran.
+    /// <para>
+    /// Non-null means the companion WAS started and the handshake succeeded. It does not mean the
+    /// companion is still alive: <c>NamedPipeElevationGateway</c> never clears its started flag, so
+    /// a companion that died leaves this non-null and the next send fails loudly on a broken pipe.
+    /// That is deliberate. Falling back to an in-process install there would run the MSI under the
+    /// user's own token and call it success.
+    /// </para>
+    /// </summary>
+    internal IElevatedCommandGateway? ActiveElevationGateway => _ctx.ElevationGateway;
+
     internal InstallerPipeline(
         IDetectStep? detectStep,
         IPlanStep? planStep,

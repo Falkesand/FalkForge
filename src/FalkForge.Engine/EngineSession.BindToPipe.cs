@@ -1,6 +1,7 @@
 namespace FalkForge.Engine;
 
 using FalkForge.Diagnostics;
+using FalkForge.Engine.Bootstrap;
 using FalkForge.Engine.Cache;
 using FalkForge.Engine.Download;
 using FalkForge.Engine.Elevation;
@@ -178,8 +179,71 @@ public sealed partial class EngineSession
         // one VariableStore per session, not two disconnected ones.
         var variableStore = new VariableStore();
 
+        // Is THIS engine process already elevated? Asked once: a process token's elevation cannot
+        // change after the process starts. The engine's own manifest is asInvoker, so the normal
+        // double-click flow answers false and reaches per-machine work through the companion. A
+        // user who picked "Run as administrator" answers true, and that run installs per-machine
+        // in-process today, successfully, because it already holds the privileges Windows wants.
+        //
+        // WHICH question this asks. ElevationProbe uses GetTokenInformation(TokenElevation): is
+        // THIS process token the elevated one. That is deliberately not the question
+        // WindowsEnvironment.IsElevated asks, which is group membership via
+        // WindowsPrincipal.IsInRole and is what BuiltInVariables.cs:138-153 consumes for the
+        // Privileged variable. Do not add a third way to compute this. What matters here is
+        // whether MsiInstallProductW will succeed in this process, which is a property of this
+        // token and nothing else.
+        //
+        // WHICH WAY it fails. ElevationProbe returns false when OpenProcessToken fails
+        // (ElevationProbe.cs:33) and returns `ok && elevation != 0` (:46), so every P/Invoke
+        // failure answers "not elevated" and routes the install to the companion. That costs
+        // availability on an elevated engine with no baked publisher key and never costs
+        // privilege. Do NOT "fix" it to fail open.
+        var engineAlreadyElevated =
+            (options.ElevationProbe
+             ?? (OperatingSystem.IsWindows() ? new DefaultElevationProbe() : null))
+            ?.IsElevated() == true;
+
+        // Assigned once the pipeline exists, a few dozen lines below. The accessor is called during
+        // Apply, long after that, and reads the answer then rather than caching one taken now.
+        InstallerPipeline? livePipeline = null;
+
         var msiExecutor = new MsiExecutor(
-            static () => null,
+            // Two conditions, one source.
+            //
+            // The gateway comes from exactly one place: PipelineContext.ElevationGateway, whose only
+            // writer is ElevateStep. ElevateStep sets it only after it has actually started the
+            // companion and the handshake succeeded, and it returns early without starting anything
+            // for a per-user bundle. Reading it here, at execute time, means a per-user install
+            // provably resolves null and keeps running in-process, while an unelevated per-machine
+            // install sends the MSI to the companion. Storing that answer anywhere else would be a
+            // second source that can drift, and that drift has already ended a real per-user install
+            // with "Elevation failed: Pipe is broken". The session's own elevationGateway field is
+            // NOT usable here: the bundle compiler puts the companion into every bundle, so that
+            // field is non-null for a per-user bundle too.
+            //
+            // The second condition is whether a privilege boundary exists at all. The companion is
+            // there to stop an unelevated engine from telling an elevated process what to install
+            // without proving publisher authorship. When this engine process is already elevated it
+            // can install per-machine itself, so sending the work to a companion would gate an
+            // operation the caller could already perform, and would refuse it outright on any build
+            // with no baked publisher key. So an elevated engine keeps installing in-process,
+            // exactly as it does today.
+            //
+            // That is a compatibility decision, not a claim that the in-process path checks as much
+            // as the companion does. It checks less: no manifest-envelope verification, no
+            // install-time hash binding, no package-id refusal, no TRANSFORMS/PATCH refusal, no UNC
+            // refusal. Both paths get only the property key pattern and the prohibited value
+            // characters (ExecuteAsync validates before this branch). That gap is the current
+            // behaviour of every install on every path; this line narrows who lands in it rather
+            // than widening it. See the plan section "What the in-process path does not check".
+            //
+            // The companion still starts for a per-machine bundle either way. Per-machine dependency
+            // registration and the verified-apply trust-store advance both read
+            // ctx.ElevationGateway (ApplyStep.cs:459 and :238), and both work today for an elevated
+            // engine. Suppressing the companion instead of narrowing here would break them.
+            () => !engineAlreadyElevated && livePipeline?.ActiveElevationGateway is { } gateway
+                ? new GatewayElevationClient(gateway)
+                : null,
             () => variableStore,
             static () => OperatingSystem.IsWindows() ? new WindowsMsiApi() : null,
             () => manifest);
@@ -408,6 +472,13 @@ public sealed partial class EngineSession
                     FalkForge.Engine.Integrity.EngineTrustAnchor.EffectivePqCompanions));
 
         var pipeline = pipelineBuilder.Build();
+
+        // Close the loop on the elevation-client accessor above. Build() is declared to return the
+        // interface but always constructs InstallerPipeline, and EngineSession.cs:87 already reaches
+        // the concrete type the same way for PayloadRoot. A null here would leave the accessor
+        // resolving null, which is the in-process path — the behaviour before this wiring existed,
+        // not a new failure mode.
+        livePipeline = pipeline as InstallerPipeline;
 
         return new EngineSession(
             uiChannel, pipeline, logger, logFilePath, journalStore, elevationGateway,
