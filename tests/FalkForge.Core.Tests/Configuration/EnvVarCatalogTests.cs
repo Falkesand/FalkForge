@@ -33,6 +33,7 @@ public sealed class EnvVarCatalogTests : IDisposable
         Assert.Equal("FALKFORGE_NO_SIGN", EnvVarCatalog.NoSign);
         Assert.Equal("FALKFORGE_ENGINE_STUB", EnvVarCatalog.EngineStub);
         Assert.Equal("FALKFORGE_ELEVATION_COMPANION", EnvVarCatalog.ElevationCompanion);
+        Assert.Equal("FALKFORGE_UI", EnvVarCatalog.Ui);
         Assert.Equal("SIGNSERVER_URL", EnvVarCatalog.SignServerUrl);
         Assert.Equal("SIGNSERVER_WORKER", EnvVarCatalog.SignServerWorker);
         Assert.Equal("SIGNSERVER_AUTH", EnvVarCatalog.SignServerAuth);
