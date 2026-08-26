@@ -69,6 +69,14 @@ internal sealed class NullInstallerEngine : IInstallerEngine
         _properties[name] = value;
     }
 
+    /// <summary>Last licence decision handed to this engine; null until one is made.</summary>
+    public bool? LicenseAccepted { get; private set; }
+
+    public void SetLicenseAccepted(bool accepted)
+    {
+        LicenseAccepted = accepted;
+    }
+
     public void SetSecureProperty(string name, SensitiveBytes value)
     {
         if (_secureProperties.TryGetValue(name, out var existing))

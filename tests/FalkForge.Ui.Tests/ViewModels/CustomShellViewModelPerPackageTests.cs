@@ -162,6 +162,8 @@ public sealed class CustomShellViewModelPerPackageTests
         public void Cancel() { }
         public void LaunchUpdate() { }
         public void SetProperty(string name, string value) { }
+
+        public void SetLicenseAccepted(bool accepted) { }
         public void SetSecureProperty(string name, SensitiveBytes value) { }
         public Task<int> ShutdownAsync() => Task.FromResult(0);
 
