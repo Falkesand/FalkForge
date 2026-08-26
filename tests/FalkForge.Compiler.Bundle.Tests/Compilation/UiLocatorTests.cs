@@ -55,6 +55,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: explicitUi,
             allowPlaceholderStub: false,
             uiEnvironmentValue: probedUi,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: probedUi,
             baseDirectory: probedDir,
             currentDirectory: null);
@@ -73,6 +74,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: missing,
             allowPlaceholderStub: false,
             uiEnvironmentValue: null,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: null,
             baseDirectory: null,
             currentDirectory: null);
@@ -96,6 +98,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: null,
             allowPlaceholderStub: true,
             uiEnvironmentValue: Path.Combine(ignoredDir, "FalkForge.Ui.exe"),
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: ignoredDir,
             baseDirectory: ignoredDir,
             currentDirectory: ignoredDir);
@@ -134,6 +137,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: null,
             allowPlaceholderStub: false,
             uiEnvironmentValue: uiDir,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: null,
             baseDirectory: null,
             currentDirectory: null);
@@ -155,6 +159,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: null,
             allowPlaceholderStub: false,
             uiEnvironmentValue: missing,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: null,
             baseDirectory: fallbackBase,
             currentDirectory: null);
@@ -177,6 +182,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: null,
             allowPlaceholderStub: false,
             uiEnvironmentValue: null,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: enginePath,
             baseDirectory: null,
             currentDirectory: null);
@@ -195,6 +201,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: null,
             allowPlaceholderStub: false,
             uiEnvironmentValue: null,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: engineDir,
             baseDirectory: null,
             currentDirectory: null);
@@ -221,6 +228,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: null,
             allowPlaceholderStub: false,
             uiEnvironmentValue: null,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: engineDir,
             baseDirectory: unrelatedEmptyDir,
             currentDirectory: unrelatedEmptyDir);
@@ -245,12 +253,119 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: null,
             allowPlaceholderStub: false,
             uiEnvironmentValue: null,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: engineDirWithNoUi,
             baseDirectory: baseDir,
             currentDirectory: null);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         Assert.Equal(ui, result.Value);
+    }
+
+    // ── explicit EngineStubPath-relative resolution ──────────────────────────
+
+    /// <summary>
+    /// A compiler configured with an explicit <c>EngineStubPath</c> names a location the same way
+    /// the environment variable does, so the UI is found beside it. This used to be the one
+    /// declared engine location that was ignored: the elevation companion resolved from it and the
+    /// UI did not, so pointing the compiler at a publish directory gave the companion and then
+    /// failed on the UI.
+    /// </summary>
+    [Fact]
+    public void Resolve_ExplicitEngineStubPath_ResolvesUiBesideIt()
+    {
+        var engineDir = Path.Combine(_tempDir, "declared-stub");
+        var ui = WriteFakeUi(engineDir);
+        var engine = Path.Combine(engineDir, "FalkForge.Engine.exe");
+        File.WriteAllBytes(engine, [(byte)'M', (byte)'Z']);
+
+        var result = UiLocator.Resolve(
+            explicitUiPath: null,
+            allowPlaceholderStub: false,
+            uiEnvironmentValue: null,
+            explicitEngineStubPath: engine,
+            engineStubEnvironmentValue: null,
+            baseDirectory: null,
+            currentDirectory: null);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(ui, result.Value);
+    }
+
+    /// <summary>
+    /// The compiler property is the more specific declaration of the two, so it is consulted
+    /// before the environment variable that was set for the whole machine.
+    /// </summary>
+    [Fact]
+    public void Resolve_ExplicitEngineStubPath_IsPreferredOverTheEngineStubEnvironmentValue()
+    {
+        var explicitDir = Path.Combine(_tempDir, "explicit-stub-dir");
+        var explicitUi = WriteFakeUi(explicitDir);
+        var envDir = Path.Combine(_tempDir, "env-stub-dir");
+        WriteFakeUi(envDir);
+
+        var result = UiLocator.Resolve(
+            explicitUiPath: null,
+            allowPlaceholderStub: false,
+            uiEnvironmentValue: null,
+            explicitEngineStubPath: explicitDir,
+            engineStubEnvironmentValue: envDir,
+            baseDirectory: null,
+            currentDirectory: null);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(explicitUi, result.Value);
+    }
+
+    /// <summary>
+    /// <c>FALKFORGE_UI</c> names the UI itself and stays authoritative: an engine location, however
+    /// declared, only says where the engine is.
+    /// </summary>
+    [Fact]
+    public void Resolve_UiEnvironmentValue_StillWinsOverTheExplicitEngineStubPath()
+    {
+        var uiDir = Path.Combine(_tempDir, "ui-env-dir");
+        var declaredUi = WriteFakeUi(uiDir);
+        var stubDir = Path.Combine(_tempDir, "stub-dir-with-other-ui");
+        WriteFakeUi(stubDir);
+
+        var result = UiLocator.Resolve(
+            explicitUiPath: null,
+            allowPlaceholderStub: false,
+            uiEnvironmentValue: declaredUi,
+            explicitEngineStubPath: stubDir,
+            engineStubEnvironmentValue: null,
+            baseDirectory: null,
+            currentDirectory: null);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(declaredUi, result.Value);
+    }
+
+    /// <summary>
+    /// An engine location with no UI beside it is not a configuration error, because it declares
+    /// where the engine is, not where the UI is. Resolution falls through to probing rather than
+    /// failing loud, the same policy the environment variable already had.
+    /// </summary>
+    [Fact]
+    public void Resolve_ExplicitEngineStubPathHasNoUiBesideIt_FallsThroughToProbing()
+    {
+        var stubDir = Path.Combine(_tempDir, "stub-without-ui");
+        Directory.CreateDirectory(stubDir);
+        var probedDir = Path.Combine(_tempDir, "probed-host");
+        var probedUi = WriteFakeUi(probedDir);
+
+        var result = UiLocator.Resolve(
+            explicitUiPath: null,
+            allowPlaceholderStub: false,
+            uiEnvironmentValue: null,
+            explicitEngineStubPath: stubDir,
+            engineStubEnvironmentValue: null,
+            baseDirectory: probedDir,
+            currentDirectory: null);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(probedUi, result.Value);
     }
 
     // ── independent probing (normal route) ───────────────────────────────────
@@ -265,6 +380,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: null,
             allowPlaceholderStub: false,
             uiEnvironmentValue: null,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: null,
             baseDirectory: baseDir,
             currentDirectory: null);
@@ -284,6 +400,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: null,
             allowPlaceholderStub: false,
             uiEnvironmentValue: null,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: null,
             baseDirectory: baseDir,
             currentDirectory: null);
@@ -306,6 +423,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: null,
             allowPlaceholderStub: false,
             uiEnvironmentValue: null,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: null,
             baseDirectory: forgeDir,
             currentDirectory: null);
@@ -332,6 +450,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: null,
             allowPlaceholderStub: false,
             uiEnvironmentValue: null,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: null,
             baseDirectory: deepBin,
             currentDirectory: null);
@@ -352,6 +471,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: bogus,
             allowPlaceholderStub: false,
             uiEnvironmentValue: null,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: null,
             baseDirectory: null,
             currentDirectory: null);
@@ -378,6 +498,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: ui,
             allowPlaceholderStub: false,
             uiEnvironmentValue: null,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: null,
             baseDirectory: null,
             currentDirectory: null);
@@ -399,6 +520,7 @@ public sealed class UiLocatorTests : IDisposable
             explicitUiPath: null,
             allowPlaceholderStub: false,
             uiEnvironmentValue: null,
+            explicitEngineStubPath: null,
             engineStubEnvironmentValue: null,
             baseDirectory: emptyBase,
             currentDirectory: emptyBase);

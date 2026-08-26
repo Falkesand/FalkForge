@@ -52,10 +52,10 @@ public sealed class BundleCompiler
     /// Explicit path to the UI executable (<c>FalkForge.Ui.exe</c>) to embed as a trust-covered
     /// payload. When set it wins over all default resolution — and it MUST exist; a
     /// configured-but-missing UI fails the build. When null the compiler resolves the published
-    /// UI via <see cref="UiLocator"/> (environment variable, beside the resolved engine stub's
-    /// environment declaration, then independent probing). Embedding the resolved binary into the
-    /// bundle's payload-trust chain is wired in a later landing; this seam exists ahead of that so
-    /// the UI can be resolved and validated independently.
+    /// UI via <see cref="UiLocator"/>: the <c>FALKFORGE_UI</c> environment variable, then beside a
+    /// declared engine location (<see cref="EngineStubPath"/>, then the raw
+    /// <c>FALKFORGE_ENGINE_STUB</c> value), then independent probing. The resolved binary is
+    /// embedded as a trust-covered payload before signing, exactly like the elevation companion.
     /// </summary>
     public string? UiPath { get; set; }
 
@@ -263,7 +263,8 @@ public sealed class BundleCompiler
         // companion-carrying bundle the engine behind that pipe holds an elevated gateway, so the
         // UI must not ride outside the payload-trust chain. Always embedded, never externalized —
         // it has to exist before any download step can run.
-        var uiResult = UiAppender.Append(embeddedPayloads, manifest, UiPath, AllowPlaceholderStub);
+        var uiResult = UiAppender.Append(
+            embeddedPayloads, manifest, UiPath, EngineStubPath, AllowPlaceholderStub);
         if (uiResult.IsFailure)
             return Result<(InstallerManifest, List<PayloadEntry>, List<PayloadEntry>)>.Failure(uiResult.Error);
 
