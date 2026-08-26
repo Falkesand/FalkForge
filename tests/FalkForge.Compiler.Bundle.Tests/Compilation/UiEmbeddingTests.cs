@@ -294,7 +294,7 @@ public sealed class UiEmbeddingTests : IDisposable
     [Fact]
     public void Compile_AuthoredPackageWithReservedUiId_FailsLoud()
     {
-        var (engine, ui) = WritePublishLayout();
+        var (engine, _) = WritePublishLayout();
         var compiler = new BundleCompiler { EngineStubPath = engine };
 
         var result = compiler.Compile(
@@ -313,7 +313,7 @@ public sealed class UiEmbeddingTests : IDisposable
         // own reserved-id guard runs, so the guard never sees an external payload. Validation is
         // the only check that sees both halves: without it an authored payload in a downloadable
         // container extracts to {cacheDir}/FalkForge.Ui.exe at runtime, on top of the real UI.
-        var (engine, ui) = WritePublishLayout();
+        var (engine, _) = WritePublishLayout();
         var compiler = new BundleCompiler { EngineStubPath = engine };
 
         var result = compiler.Compile(
@@ -358,7 +358,7 @@ public sealed class UiEmbeddingTests : IDisposable
     {
         // Round 2's finding: an appender wired after the snapshot produces a bundle whose TOC has
         // the UI but whose signed set does not, which fails INT004 at install instead of at build.
-        var (engine, ui) = WritePublishLayout();
+        var (engine, _) = WritePublishLayout();
 
         var baseResult = new BundleCompiler { EngineStubPath = engine }
             .Compile(BuildModel("DeltaSignedBase"), Path.Combine(_tempDir, "delta-signed-base"));
