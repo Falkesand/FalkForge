@@ -15,6 +15,16 @@ public abstract record UiRequest
     public sealed record Detect : UiRequest;
 
     /// <summary>UI asks the engine to plan with the given action and user inputs.</summary>
+    /// <param name="InstallDirectory">
+    /// Where the UI asked for the product to go. <b>Nothing reads this yet.</b>
+    /// <see cref="PlanStep"/> builds the plan from Action, LicenseAccepted, Properties,
+    /// FeatureSelections, PackageFeatureSelections and SecureProperties only, so every package
+    /// installs where its own MSI puts it. Deciding which package in a chain the directory applies
+    /// to, and which property each one reads it from, is an open design question — see
+    /// <c>PlanIgnoresInstallDirectoryTests</c>. The built-in wizard keeps its directory page out of
+    /// the walk for exactly this reason rather than reporting success for a control that did
+    /// nothing.
+    /// </param>
     /// <param name="PackageFeatureSelections">
     /// Per-package interactive MSI feature selections: packageId → selected feature ids.
     /// Distinct from <paramref name="FeatureSelections"/> (whole-package, bundle-level
