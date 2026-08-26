@@ -228,8 +228,8 @@ internal static class UiLocator
     /// genuine single-file publish (no sibling <c>FalkForge.Ui.dll</c> apphost pair). A UI
     /// published without <c>PublishSingleFile</c> produces exactly that shape — an apphost that
     /// cannot run once extracted alone at install time — so this guards against embedding a
-    /// misconfigured publish, not a trust check (the runtime trust binding is the manifest hash +
-    /// signature envelope, wired in a later landing).
+    /// misconfigured publish, not a trust check: the runtime trust binding is the manifest's
+    /// <c>EngineUiSha256</c> plus the signature envelope, checked by <c>BootstrapUiResolver</c>.
     /// <para>Deliberately NOT shared with <see cref="ElevationCompanionLocator"/>'s equivalent
     /// private, companion-typed <c>Validate</c> (which hardcodes
     /// <c>FalkForge.Engine.Elevation.dll</c> and returns <c>ElevationCompanionResolution</c>):
