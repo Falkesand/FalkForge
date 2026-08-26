@@ -295,6 +295,12 @@ public sealed class BuildCommandSigningTests : IDisposable
         File.WriteAllBytes(
             Path.Combine(engineDir, FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId),
             [(byte)'M', (byte)'Z', 0xE1, 0xE7]);
+        // The UI executable ships in the same publish directory, and UiLocator finds it beside the
+        // raw FALKFORGE_ENGINE_STUB value set below. Without it the default build fails loud
+        // rather than producing a bundle with nothing to launch.
+        File.WriteAllBytes(
+            Path.Combine(engineDir, FalkForge.Engine.Protocol.Bundle.UiPayload.PackageId),
+            [(byte)'M', (byte)'Z', 0x0C, 0x0D]);
         Environment.SetEnvironmentVariable(EngineStubLocator.EnvironmentVariableName, enginePath);
         _envVarsToClear.Add(EngineStubLocator.EnvironmentVariableName);
 

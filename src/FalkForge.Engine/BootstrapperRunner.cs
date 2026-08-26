@@ -118,7 +118,6 @@ internal static class BootstrapperRunner
         }
 
         // Extract all payload files to the cache directory
-        string? uiExePath = null;
         foreach (var entry in content.TocEntries)
         {
             var payloadFileName = entry.PackageId;
@@ -136,13 +135,6 @@ internal static class BootstrapperRunner
             {
                 await Console.Error.WriteLineAsync($"Failed to extract payload '{entry.PackageId}': {payloadResult.Error.Message}");
                 return 1;
-            }
-
-            // Identify the UI executable: an .exe that is not the engine itself
-            if (payloadFileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
-                && !payloadFileName.Contains("Engine", StringComparison.OrdinalIgnoreCase))
-            {
-                uiExePath = payloadResult.Value;
             }
         }
 
@@ -186,21 +178,35 @@ internal static class BootstrapperRunner
 
         var verifiedCompanionPath = companionResolution.Value.VerifiedPath;
 
-        if (uiExePath is null)
+        // UI executable: the same trust chain, for the same reason. The launched UI receives the
+        // session pipe name and the secret-pipe name and then drives the whole install, and on a
+        // companion-carrying bundle the engine behind that pipe holds an elevated gateway. So the
+        // launch target is resolved by its reserved payload id and bound to the manifest's declared
+        // hash — never guessed.
+        //
+        // What this replaced, and why both halves were wrong. The old code picked the launch target
+        // inside the extraction loop above: any payload whose file name ended in ".exe" and did not
+        // contain "Engine", with the LAST match winning, so an authored .exe payload took over the
+        // launch. When that found nothing it combined cacheDir with an ExePackage's SourcePath,
+        // which on a real build is the author's absolute path on the build machine —
+        // Path.Combine returns a rooted second argument unchanged, so it launched the author's own
+        // prerequisite installer, straight off the build box, as the UI.
+        var uiResolution = BootstrapUiResolver.Resolve(manifest, content.TocEntries, cacheDir);
+        if (uiResolution.IsFailure)
         {
-            // Fall back: look for any ExePackage in the manifest
-            var exePackage = Array.Find(manifest.Packages, p => p.Type == PackageType.ExePackage);
-            if (exePackage is not null)
-            {
-                var candidatePath = Path.Combine(cacheDir, exePackage.SourcePath);
-                if (File.Exists(candidatePath))
-                    uiExePath = candidatePath;
-            }
+            await Console.Error.WriteLineAsync(
+                $"UI executable verification failed: {uiResolution.Error.Message}");
+            return 1;
         }
 
-        if (uiExePath is null)
+        if (uiResolution.Value.VerifiedPath is not { } verifiedUiPath
+            || uiResolution.Value.ExpectedSha256 is not { } expectedUiSha256)
         {
-            await Console.Error.WriteLineAsync("No UI executable found in bundle payloads.");
+            await Console.Error.WriteLineAsync(
+                $"This bundle carries no UI executable payload ({UiPayload.PackageId}), so there " +
+                "is nothing to launch. It was built without one — a design-time placeholder build " +
+                "(AllowPlaceholderStub), or a build predating embedded UI payloads. Rebuild it " +
+                "with a published UI (scripts/publish.ps1).");
             return 1;
         }
 
@@ -277,10 +283,54 @@ internal static class BootstrapperRunner
             secretPipeName, PipeDirection.Out, maxNumberOfServerInstances: 1,
             PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
+        // Prove the UI's bytes AGAIN, at the moment of launch, and start the process from the path
+        // Windows reports for the handle that was hashed.
+        //
+        // BootstrapUiResolver proved these bytes while the bundle was being unpacked. Since then
+        // the external containers have been downloaded and extracted into this same directory, and
+        // the whole pre-UI prerequisite bootstrap has run, including its TaskDialog prompts, which
+        // wait for the user. The extraction directory is under %TEMP% and belongs to the user, so
+        // any process running as that user has had all of that time to overwrite the file or to
+        // drop a directory junction in the path. Whoever wins that race is handed the pipe name and
+        // the secret-pipe name below and drives the engine.
+        //
+        // The handle stays open for the rest of the session (FileShare.Read denies every other
+        // process write, rename and delete), so the file cannot be swapped between this check and
+        // CreateProcess, nor while the UI runs. This is the same binding EngineSession.BindToPipe
+        // applies to the elevation companion, on the same shared HashBoundFile.
+        var boundUi = HashBoundFile.Open(verifiedUiPath, expectedUiSha256);
+        if (boundUi.Status != HashBoundFileStatus.Verified)
+        {
+            await initPipe.DisposeAsync();
+            await Console.Error.WriteLineAsync(
+                $"The UI executable at '{verifiedUiPath}' did not verify at launch " +
+                $"({boundUi.Status}{(boundUi.Detail is null ? string.Empty : $": {boundUi.Detail}")}). " +
+                "It is handed the engine's session secret, so this is treated as tampering.");
+            return 1;
+        }
+
+        using var uiHandle = boundUi.Stream!;
+        var resolvedUiPath = boundUi.ResolvedPath!;
+
+        // The same two limits the elevation crossings apply to a resolved path. A UNC path means
+        // the file lives on a server that decides for itself whether to honour the deny-write share
+        // mode, so the held handle proves nothing there. A path past MAX_PATH is one CreateProcessW
+        // will not accept, and neither is the \\?\ form that would lift the limit. Both fail closed
+        // rather than falling back to the resolver's path, which would put the junctions back.
+        if (resolvedUiPath.StartsWith(@"\\", StringComparison.Ordinal)
+            || resolvedUiPath.Length > HashBoundFile.MaxLegacyPathLength)
+        {
+            await initPipe.DisposeAsync();
+            await Console.Error.WriteLineAsync(
+                $"The UI executable at '{verifiedUiPath}' resolves to '{resolvedUiPath}', which is " +
+                "either on a network path or too long to launch. Refusing to launch it.");
+            return 1;
+        }
+
         // Launch the UI process. BuildUiArgs forwards --log / --log-level when the user
         // supplied them so a `installer.exe --log foo.log` invocation actually produces a log.
         var uiArgs = Bootstrapper.BuildUiArgs(manifestPath, pipeName, secretPipeName, programArgs);
-        var launch = UiProcessLauncher.TryStartUiProcess(uiExePath, uiArgs);
+        var launch = UiProcessLauncher.TryStartUiProcess(resolvedUiPath, uiArgs);
         if (launch.IsFailure)
         {
             await initPipe.DisposeAsync();

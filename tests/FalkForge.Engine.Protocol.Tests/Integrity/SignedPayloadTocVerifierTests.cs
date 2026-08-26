@@ -559,6 +559,128 @@ public sealed class SignedPayloadTocVerifierTests
         Assert.Contains("INT012", result.Error.Message, StringComparison.Ordinal);
     }
 
+    // ── UI declaration <-> signed set binding (INT012) ───────────────────────────────────
+    //
+    // InstallerManifest.EngineUiSha256 is the field the bootstrapper wires the UI process from,
+    // and the UI drives the engine over the session pipe — on a companion-carrying bundle that
+    // engine holds an elevated gateway. Like the companion declaration it is a plain manifest
+    // field, outside the ECDSA-signed envelope bytes, so it needs the same direct assertion:
+    // signed envelope covers a UI entry <=> manifest declares the same hash.
+
+    private static InstallerManifest SignedManifestWithUi(
+        ECDsa key, string? declaredUiSha256, string? signedUiSha256)
+    {
+        var files = new List<ManifestFileEntry>
+        {
+            new() { Name = "AppMsi", Sha256 = HashA }
+        };
+        if (signedUiSha256 is not null)
+            files.Add(new ManifestFileEntry
+            {
+                Name = UiPayload.PackageId,
+                Sha256 = signedUiSha256
+            });
+
+        var envelope = IntegrityEnvelopeCodec.Sign(files, key);
+
+        return new InstallerManifest
+        {
+            Name = "T",
+            Manufacturer = "M",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new PackageInfo
+                {
+                    Id = "AppMsi",
+                    Type = PackageType.MsiPackage,
+                    DisplayName = "AppMsi",
+                    SourcePath = "AppMsi.msi",
+                    Sha256Hash = HashA
+                }
+            ],
+            EngineUiSha256 = declaredUiSha256,
+            ManifestSignature = IntegrityEnvelopeCodec.Serialize(envelope)
+        };
+    }
+
+    private const string UiHash = "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD";
+
+    [Fact]
+    public void SignedBundle_UiDeclaredAndCovered_Accepts()
+    {
+        // The legitimate build: the appender declares the hash, the signer covers the same hash.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifestWithUi(key, UiHash, UiHash);
+
+        var result = SignedPayloadTocVerifier.Verify(manifest, new[]
+        {
+            FullEntry("AppMsi", HashA),
+            FullEntry(UiPayload.PackageId, UiHash)
+        }, TrustSet(Fingerprint(key)));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void SignedBundle_UiDeclarationStripped_WhileEnvelopeCoversUi_Rejected_Int012()
+    {
+        // Attacker strips EngineUiSha256 from the signed manifest. The envelope still covers the
+        // real UI, so a missing declaration is TAMPER: the bootstrapper would fall back to
+        // "this bundle carries no UI" and abort, or worse, launch something unbound.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifestWithUi(key, declaredUiSha256: null, UiHash);
+
+        var result = SignedPayloadTocVerifier.Verify(manifest, new[]
+        {
+            FullEntry("AppMsi", HashA),
+            FullEntry(UiPayload.PackageId, UiHash)
+        }, TrustSet(Fingerprint(key)));
+
+        Assert.True(result.IsFailure, "a stripped UI declaration on a signed bundle must abort");
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT012", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SignedBundle_UiDeclarationEdited_Rejected_Int012()
+    {
+        // Attacker rewrites the declared hash, hoping the bootstrapper's resolver binds a
+        // different payload as the UI. Declaration must equal the signed UI hash.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifestWithUi(key, declaredUiSha256: HashB, UiHash);
+
+        var result = SignedPayloadTocVerifier.Verify(manifest, new[]
+        {
+            FullEntry("AppMsi", HashA),
+            FullEntry(UiPayload.PackageId, UiHash)
+        }, TrustSet(Fingerprint(key)));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT012", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SignedBundle_DeclaredUiNotInSignedSet_Rejected_Int012()
+    {
+        // The manifest declares a UI the signature never covered — an injected declaration on a
+        // UI-free signed bundle. The declaration is a trust decision, so it must sit inside the
+        // signed set like every executing payload.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = SignedManifestWithUi(key, UiHash, signedUiSha256: null);
+
+        var result = SignedPayloadTocVerifier.Verify(
+            manifest, new[] { FullEntry("AppMsi", HashA) }, TrustSet(Fingerprint(key)));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT012", result.Error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void UnsignedBundle_CompanionDeclared_PassesThrough_NoSignedSetToCheck()
     {

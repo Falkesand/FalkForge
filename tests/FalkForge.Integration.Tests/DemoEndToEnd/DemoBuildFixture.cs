@@ -42,6 +42,12 @@ public sealed class DemoBuildFixture : IDisposable
             Path.Combine(engineStubDir, Engine.Protocol.Bundle.EngineCompanionPayload.PackageId),
             [(byte)'M', (byte)'Z', 0xE1, 0xE7]);
 
+        // Same story for the UI executable: a runnable bundle embeds it as a trust-covered payload,
+        // and UiLocator finds it beside the raw FALKFORGE_ENGINE_STUB value set for the demo runs.
+        File.WriteAllBytes(
+            Path.Combine(engineStubDir, Engine.Protocol.Bundle.UiPayload.PackageId),
+            [(byte)'M', (byte)'Z', 0x0C, 0x0D]);
+
         // Force-killed test runs skip Dispose, leaving falk-demo-e2e-* roots in %TEMP%.
         // Self-heal on next run: delete sibling roots older than 24 hours (best-effort, never throw).
         try

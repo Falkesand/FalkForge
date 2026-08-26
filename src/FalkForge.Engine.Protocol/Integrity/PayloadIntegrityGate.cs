@@ -190,7 +190,8 @@ internal static class PayloadIntegrityGate
     /// Resolves the manifest-declared hash for a signed payload id across every place the
     /// manifest carries one: installable packages, pre-UI prerequisites, the elevation
     /// companion (whose reserved id binds to <see cref="InstallerManifest.EngineCompanionSha256"/>),
-    /// and per-package MSI transforms (carried under <see cref="PackageInfo.Transforms"/>).
+    /// the UI executable (<see cref="InstallerManifest.EngineUiSha256"/>), and per-package MSI
+    /// transforms (carried under <see cref="PackageInfo.Transforms"/>).
     /// A transform is a signed payload but not an installable package, so it is resolved here for the
     /// Direction 1 binding without ever entering <see cref="InstallerManifest.Packages"/> — the
     /// Direction 2 coverage loop and the S4 install guard both key off that list, so a transform id
@@ -212,6 +213,9 @@ internal static class PayloadIntegrityGate
 
         if (string.Equals(id, FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId, StringComparison.Ordinal))
             return manifest.EngineCompanionSha256;
+
+        if (string.Equals(id, FalkForge.Engine.Protocol.Bundle.UiPayload.PackageId, StringComparison.Ordinal))
+            return manifest.EngineUiSha256;
 
         // Per-package MSI transforms: a declared transform is a signed payload keyed by its id,
         // carried under the owning package's Transforms. Resolve it here so its signed entry binds

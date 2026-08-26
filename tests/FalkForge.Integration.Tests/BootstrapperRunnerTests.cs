@@ -170,19 +170,23 @@ public sealed class BootstrapperRunnerTests : IDisposable
     }
 
     [Fact]
-    public void RunAsync_NoUiExecutableNoExePackageFallback_ReturnsFailureExitCode()
+    public void RunAsync_BundleCarriesNoUiPayload_FailsLoudNamingTheRealCause()
     {
-        // WHY: an MSI-only bundle (no embedded .exe payload, no ExePackage declared in the manifest)
-        // has nothing for the bootstrapper to launch as the UI. RunAsync must fail loud with the
-        // documented "No UI executable found" message instead of launching nothing or crashing later
-        // when it tries to start a process that was never resolved.
+        // WHY: this bundle is a design-time placeholder build, so the compiler embedded no
+        // FalkForge.Ui.exe payload and the manifest declares no UI hash. There is nothing to
+        // launch, and the message must SAY that rather than the old "No UI executable found in
+        // bundle payloads", which described a symptom of a scan that no longer exists. The old
+        // scan took any .exe payload whose name did not contain "Engine" (last match won) and
+        // then fell back to combining the cache directory with an ExePackage's build-machine
+        // SourcePath — Path.Combine returns a rooted second argument unchanged, so on a build box
+        // that fallback launched the author's own prerequisite exe as the UI.
         var bundlePath = BuildUnsignedMsiOnlyBundle("NoUiMsi");
 
         var (exitCode, stdErr) = RunCapturingStdErr(
             () => BootstrapperRunner.RunAsync(exePathOverride: bundlePath));
 
         Assert.NotEqual(0, exitCode);
-        Assert.Contains("No UI executable found", stdErr, StringComparison.Ordinal);
+        Assert.Contains(UiPayload.PackageId, stdErr, StringComparison.Ordinal);
     }
 
     /// <summary>

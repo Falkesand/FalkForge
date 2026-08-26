@@ -50,7 +50,8 @@ internal static class SignedManifestPayload
         (string id, string sha256)[] packages,
         PreUIPackageInfo[] preUI,
         string? companionSha256,
-        ECDsa? signingKey)
+        ECDsa? signingKey,
+        string? uiSha256 = null)
     {
         string? signature = null;
         if (signingKey is not null)
@@ -81,6 +82,7 @@ internal static class SignedManifestPayload
                 .ToArray(),
             PreUIPackages = preUI,
             EngineCompanionSha256 = companionSha256,
+            EngineUiSha256 = uiSha256,
             ManifestSignature = signature
         };
 

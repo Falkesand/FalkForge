@@ -70,8 +70,18 @@ public sealed class BundleCompilerStubResolutionTests : IDisposable
         var companionPath = Path.Combine(
             _tempDir, FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId);
         File.WriteAllBytes(companionPath, [(byte)'M', (byte)'Z', 0xE1, 0xE7]);
+
+        // Same story for the UI executable, which a runnable bundle also embeds by default.
+        var uiPath = Path.Combine(_tempDir, FalkForge.Engine.Protocol.Bundle.UiPayload.PackageId);
+        File.WriteAllBytes(uiPath, [(byte)'M', (byte)'Z', 0x0C, 0x0D]);
         return path;
     }
+
+    /// <summary>
+    /// The UI is resolved from the compiler's explicit <c>UiPath</c> seam so these tests never
+    /// depend on a published UI on the build machine (<see cref="UiLocator"/>'s ambient probing).
+    /// </summary>
+    private string FakeUiPath => Path.Combine(_tempDir, FalkForge.Engine.Protocol.Bundle.UiPayload.PackageId);
 
     private static byte[] ReadPrefix(string path, int count)
     {
@@ -89,7 +99,8 @@ public sealed class BundleCompilerStubResolutionTests : IDisposable
         var engine = WriteFakeEngine();
         var compiler = new BundleCompiler
         {
-            EngineStubResolver = () => Result<string>.Success(engine)
+            EngineStubResolver = () => Result<string>.Success(engine),
+            UiPath = FakeUiPath
         };
 
         var result = compiler.Compile(BuildModel(), Path.Combine(_tempDir, "out-default"));
@@ -138,6 +149,7 @@ public sealed class BundleCompilerStubResolutionTests : IDisposable
         var compiler = new BundleCompiler
         {
             EngineStubPath = engine,
+            UiPath = FakeUiPath,
             EngineStubResolver = () => Result<string>.Failure(
                 ErrorKind.BundleError, "resolver must not be consulted")
         };
