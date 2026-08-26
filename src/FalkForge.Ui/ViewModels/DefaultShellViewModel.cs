@@ -12,6 +12,7 @@ public sealed class DefaultShellViewModel : InstallerShellViewModel, IReactiveOb
 {
     public DefaultShellViewModel(IInstallerEngine engine) : base(engine)
     {
+        ReactiveNotifications.Enable(this);
         RegisterPage(new WelcomePageViewModel(engine, this));
         RegisterPage(new LicensePageViewModel(engine, this));
         RegisterPage(new InstallDirPageViewModel(engine, this));
@@ -111,6 +112,11 @@ public sealed class DefaultShellViewModel : InstallerShellViewModel, IReactiveOb
     protected override void OnCurrentPageChanged()
     {
         RaisePropertyChanged(new PropertyChangedEventArgs(nameof(CurrentPage)));
+        OnNavigationStateChanged();
+    }
+
+    protected override void OnNavigationStateChanged()
+    {
         RaisePropertyChanged(new PropertyChangedEventArgs(nameof(CanGoBack)));
         RaisePropertyChanged(new PropertyChangedEventArgs(nameof(CanGoNext)));
     }

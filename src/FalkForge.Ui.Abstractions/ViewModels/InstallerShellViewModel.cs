@@ -1,9 +1,18 @@
 namespace FalkForge.Ui.Abstractions.ViewModels;
 
+using System.ComponentModel;
+
 public abstract class InstallerShellViewModel : INavigationService
 {
     private readonly List<InstallerPageViewModel> _pages = new();
     private int _currentPageIndex = -1;
+
+    // The page the shell is currently listening to. CanGoBack/CanGoNext read the current page's
+    // CanNavigateBack()/CanNavigateNext(), so anything the page changes that those methods read
+    // has to reach the shell as a notification or the wizard's buttons never update. Held
+    // separately from CurrentPage so the handler is always removed from the page it was added to,
+    // even if the page list shifted underneath.
+    private InstallerPageViewModel? _observedPage;
 
     public IInstallerEngine Engine { get; }
 
@@ -30,7 +39,10 @@ public abstract class InstallerShellViewModel : INavigationService
     {
         _pages.Add(page);
         if (_currentPageIndex < 0)
+        {
             _currentPageIndex = 0;
+            ObserveCurrentPage();
+        }
     }
 
     public async Task NavigateNext()
@@ -39,6 +51,7 @@ public abstract class InstallerShellViewModel : INavigationService
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatingFromAsync();
         _currentPageIndex++;
+        ObserveCurrentPage();
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatedToAsync();
         OnCurrentPageChanged();
@@ -50,6 +63,7 @@ public abstract class InstallerShellViewModel : INavigationService
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatingFromAsync();
         _currentPageIndex--;
+        ObserveCurrentPage();
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatedToAsync();
         OnCurrentPageChanged();
@@ -62,6 +76,7 @@ public abstract class InstallerShellViewModel : INavigationService
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatingFromAsync();
         _currentPageIndex = index;
+        ObserveCurrentPage();
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatedToAsync();
         OnCurrentPageChanged();
@@ -107,6 +122,7 @@ public abstract class InstallerShellViewModel : INavigationService
             await CurrentPage.OnNavigatingFromAsync();
 
         _currentPageIndex = insertIndex;
+        ObserveCurrentPage();
 
         if (CurrentPage is not null)
             await CurrentPage.OnNavigatedToAsync();
@@ -114,5 +130,38 @@ public abstract class InstallerShellViewModel : INavigationService
         OnCurrentPageChanged();
     }
 
+    /// <summary>
+    /// Moves the shell's <see cref="INotifyPropertyChanged"/> subscription to whichever page is
+    /// current now. A page that is no longer current must stop driving the shell: without the
+    /// detach, a late notification from an abandoned page would recompute the buttons for a page
+    /// the user has already left.
+    /// </summary>
+    private void ObserveCurrentPage()
+    {
+        if (ReferenceEquals(_observedPage, CurrentPage))
+            return;
+
+        if (_observedPage is INotifyPropertyChanged previous)
+            previous.PropertyChanged -= OnCurrentPagePropertyChanged;
+
+        _observedPage = CurrentPage;
+
+        if (_observedPage is INotifyPropertyChanged current)
+            current.PropertyChanged += OnCurrentPagePropertyChanged;
+    }
+
+    private void OnCurrentPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        OnNavigationStateChanged();
+    }
+
     protected virtual void OnCurrentPageChanged() { }
+
+    /// <summary>
+    /// Called when the current page reports that one of its own properties changed. Override to
+    /// re-raise <see cref="CanGoBack"/> and <see cref="CanGoNext"/>: both read the current page's
+    /// navigation predicates, so a page that changes what those predicates return (ticking the
+    /// licence checkbox, finishing an install) has to be able to update the wizard's buttons.
+    /// </summary>
+    protected virtual void OnNavigationStateChanged() { }
 }
