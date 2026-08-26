@@ -59,6 +59,9 @@ public static class EnvVarCatalog
     /// <summary>Path to the published elevation companion executable, or a directory containing it.</summary>
     public const string ElevationCompanion = "FALKFORGE_ELEVATION_COMPANION";
 
+    /// <summary>Path to the published UI executable, or a directory containing it.</summary>
+    public const string Ui = "FALKFORGE_UI";
+
     /// <summary>Base URL of the SignServer instance used for remote signing.</summary>
     public const string SignServerUrl = "SIGNSERVER_URL";
 

@@ -49,6 +49,17 @@ public sealed class BundleCompiler
     public string? ElevationCompanionPath { get; set; }
 
     /// <summary>
+    /// Explicit path to the UI executable (<c>FalkForge.Ui.exe</c>) to embed as a trust-covered
+    /// payload. When set it wins over all default resolution — and it MUST exist; a
+    /// configured-but-missing UI fails the build. When null the compiler resolves the published
+    /// UI via <see cref="UiLocator"/> (environment variable, beside the resolved engine stub's
+    /// environment declaration, then independent probing). Embedding the resolved binary into the
+    /// bundle's payload-trust chain is wired in a later landing; this seam exists ahead of that so
+    /// the UI can be resolved and validated independently.
+    /// </summary>
+    public string? UiPath { get; set; }
+
+    /// <summary>
     /// Test seam for default engine resolution. Production code keeps the default
     /// (<see cref="EngineStubLocator.Resolve()"/>); tests inject a deterministic resolver so the
     /// default-path policy can be asserted without depending on machine state.

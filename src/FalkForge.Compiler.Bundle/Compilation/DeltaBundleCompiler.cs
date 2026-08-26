@@ -45,6 +45,15 @@ public sealed class DeltaBundleCompiler
     public string? ElevationCompanionPath { get; set; }
 
     /// <summary>
+    /// Explicit path to the UI executable to embed. Same policy as
+    /// <see cref="BundleCompiler.UiPath"/>: set → must exist; null → default resolution via
+    /// <see cref="UiLocator"/>. Declared here rather than inherited because
+    /// <see cref="DeltaBundleCompiler"/> does not share <see cref="BundleCompiler"/>'s instance
+    /// state (see <see cref="ElevationCompanionPath"/> above, which has the same shape).
+    /// </summary>
+    public string? UiPath { get; set; }
+
+    /// <summary>
     /// Test seam for default engine resolution — mirrors
     /// <see cref="BundleCompiler.EngineStubResolver"/>.
     /// </summary>
