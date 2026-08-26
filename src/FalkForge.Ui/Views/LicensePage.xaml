@@ -33,17 +33,28 @@
             </Grid>
         </Border>
 
-        <!-- Content -->
-        <StackPanel Margin="24,18,20,18">
-            <TextBox Text="{Binding LicenseText, Mode=OneWay}"
+        <!-- Content.
+             A Grid, not a StackPanel, and the licence text has no fixed height: the checkbox is
+             the only way past this page, so it gets its space first and the text box takes what
+             is left. With a StackPanel and a 210px text box the two together wanted more room
+             than the page is given, and WPF's layout clip cut the checkbox away entirely — it
+             was still in the automation tree, and a person saw blank space where it should be. -->
+        <Grid Margin="24,18,20,18">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" MinHeight="60" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBox Grid.Row="0"
+                     Text="{Binding LicenseText, Mode=OneWay}"
                      IsReadOnly="True"
                      VerticalScrollBarVisibility="Auto"
                      TextWrapping="Wrap"
-                     Height="210"
                      Margin="0,0,0,12" />
 
-            <CheckBox Content="I accept the license agreement"
+            <CheckBox Grid.Row="1"
+                      Content="I accept the license agreement"
                       IsChecked="{Binding IsAccepted}" />
-        </StackPanel>
+        </Grid>
     </DockPanel>
 </UserControl>
