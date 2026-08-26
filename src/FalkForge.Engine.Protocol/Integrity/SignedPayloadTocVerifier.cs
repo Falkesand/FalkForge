@@ -273,6 +273,39 @@ public static class SignedPayloadTocVerifier
                 "companion is tamper, refusing to install.");
         }
 
+        // UI declaration ↔ signed set binding (INT012), on the same terms as the companion above.
+        // The manifest's EngineUiSha256 is what the bootstrapper binds the launched UI process to,
+        // and that process receives the session pipe name and the pipe secret — on a
+        // companion-carrying bundle the engine behind that pipe holds an elevated gateway. Like
+        // the companion declaration it is a plain manifest field, not part of the signed envelope
+        // bytes, so bind it DIRECTLY into the signed set in both directions. Stripping it turns a
+        // signed bundle into one the bootstrapper reads as carrying no UI; editing it repoints the
+        // resolver. Both are tamper, not a policy choice.
+        var declaredUi = manifest.EngineUiSha256;
+        var hasSignedUi = signedHashes.TryGetValue(UiPayload.PackageId, out var signedUiHash);
+        if (!string.IsNullOrEmpty(declaredUi))
+        {
+            if (!hasSignedUi)
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    $"INT012: The manifest declares a UI executable ({declaredUi}) that is not " +
+                    "covered by the integrity signature. The UI drives the install over the " +
+                    "engine's session pipe, so its declaration must be inside the signed set — " +
+                    "refusing to install.");
+
+            if (!string.Equals(declaredUi, signedUiHash, StringComparison.OrdinalIgnoreCase))
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    $"INT012: The manifest's declared UI hash ({declaredUi}) does not match the " +
+                    $"ECDSA-signed UI hash ({signedUiHash}). The declaration was edited after " +
+                    "signing — refusing to install.");
+        }
+        else if (hasSignedUi)
+        {
+            return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                $"INT012: The integrity signature covers a UI executable ({UiPayload.PackageId}) " +
+                "but the manifest declares none. The declaration was stripped after signing — " +
+                "refusing to install.");
+        }
+
         foreach (var entry in tocEntries)
         {
             // Coverage extension (§5.4): once a bundle is signed, EVERY payload it will extract and

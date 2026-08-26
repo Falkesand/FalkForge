@@ -254,14 +254,27 @@ public sealed class BundleCompiler
         if (companionResult.IsFailure)
             return Result<(InstallerManifest, List<PayloadEntry>, List<PayloadEntry>)>.Failure(companionResult.Error);
 
-        // Sign over embedded (incl. companion) ∪ external. The verifier accepts a signed set that is a
+        manifest = companionResult.Value;
+
+        // Step 3d: Embed the UI executable as a trust-covered payload, on the same terms as the
+        // companion (reserved TOC id, hash declared in the manifest, inside the signature envelope
+        // when Integrity is on). Added BEFORE the allPayloads assembly below, and therefore before
+        // signing: the bootstrapper hands the launched UI the session pipe secret, and on a
+        // companion-carrying bundle the engine behind that pipe holds an elevated gateway, so the
+        // UI must not ride outside the payload-trust chain. Always embedded, never externalized —
+        // it has to exist before any download step can run.
+        var uiResult = UiAppender.Append(embeddedPayloads, manifest, UiPath, AllowPlaceholderStub);
+        if (uiResult.IsFailure)
+            return Result<(InstallerManifest, List<PayloadEntry>, List<PayloadEntry>)>.Failure(uiResult.Error);
+
+        // Sign over embedded (incl. companion and UI) ∪ external. The verifier accepts a signed set that is a
         // superset of any single artifact's TOC, so the exe's embedded TOC and each external container's
         // TOC both bind to this one signature.
         var allPayloads = new List<PayloadEntry>(embeddedPayloads.Count + externalPayloads.Count);
         allPayloads.AddRange(embeddedPayloads);
         allPayloads.AddRange(externalPayloads);
 
-        return (companionResult.Value, allPayloads, embeddedPayloads);
+        return (uiResult.Value, allPayloads, embeddedPayloads);
     }
 
     /// <summary>

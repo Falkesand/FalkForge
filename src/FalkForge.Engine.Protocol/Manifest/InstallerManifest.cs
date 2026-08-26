@@ -116,4 +116,27 @@ public sealed record InstallerManifest
     /// </para>
     /// </summary>
     public string? EngineCompanionSha256 { get; init; }
+
+    /// <summary>
+    /// SHA-256 (hex) of the UI executable payload embedded in the bundle under the reserved TOC id
+    /// <see cref="FalkForge.Engine.Protocol.Bundle.UiPayload.PackageId"/>.
+    /// <para>
+    /// The UI is the process the bootstrapper launches and hands the session pipe secret to, and on
+    /// a companion-carrying bundle the engine behind that pipe holds an elevated gateway. So the
+    /// bootstrapper binds the extracted UI to this declared hash before launching it, and — when
+    /// the bundle is integrity-signed — the hash is additionally inside the ECDSA signature
+    /// envelope, so post-signing tamper is rejected before extraction like any payload.
+    /// </para>
+    /// <para>
+    /// Null means the bundle carries no UI (older bundles and design-time placeholder builds);
+    /// the bootstrapper then has nothing to launch and aborts saying so. Unknown to older engines,
+    /// which skip the field on deserialization — backward compatible in both directions.
+    /// </para>
+    /// <para>
+    /// Named <c>EngineUi</c> rather than <c>UiPayload</c> so a search for it does not collide with
+    /// the unrelated pre-UI prerequisite family (<c>PreUIPayloadMode</c> and friends), and so it
+    /// reads as the sibling of <see cref="EngineCompanionSha256"/> that it is.
+    /// </para>
+    /// </summary>
+    public string? EngineUiSha256 { get; init; }
 }

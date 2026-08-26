@@ -278,6 +278,17 @@ public sealed class MsiInstallCommand : IElevatedCommand
             return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError,
                 "MSI install request names the elevation companion payload, which is not an installable MSI.");
 
+        // The UI executable joined the signed set when the compiler started embedding it, and that
+        // is exactly what makes this refusal necessary. A forged Packages entry named
+        // FalkForge.Ui.exe carrying the real signed hash clears the whole gate above: Direction 1
+        // resolves it from Packages, and Direction 2 holds because the id genuinely IS signed. The
+        // extracted UI then sits in the cache with bytes matching that hash, so the binding below
+        // would succeed too and this command would hand a PE file to msiexec as SYSTEM. Refuse it
+        // here, before the Packages loop, on the same terms as the companion.
+        if (string.Equals(packageId, UiPayload.PackageId, StringComparison.Ordinal))
+            return Result<VerifiedInstall>.Failure(ErrorKind.SecurityError,
+                "MSI install request names the UI executable payload, which is not an installable MSI.");
+
         foreach (var preUI in manifest.PreUIPackages)
         {
             if (string.Equals(preUI.Id, packageId, StringComparison.Ordinal))

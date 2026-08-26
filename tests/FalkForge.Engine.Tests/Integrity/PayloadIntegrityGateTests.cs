@@ -239,6 +239,7 @@ public sealed class PayloadIntegrityGateTests
         string? signature,
         string? companionSha256 = null,
         PreUIPackageInfo[]? preUIPackages = null,
+        string? uiSha256 = null,
         params PackageInfo[] packages)
         => new()
         {
@@ -251,6 +252,7 @@ public sealed class PayloadIntegrityGateTests
             Packages = packages,
             ManifestSignature = signature,
             EngineCompanionSha256 = companionSha256,
+            EngineUiSha256 = uiSha256,
             PreUIPackages = preUIPackages ?? []
         };
 
@@ -281,6 +283,63 @@ public sealed class PayloadIntegrityGateTests
         var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void Verify_SignedUiEntry_BindsToManifestDeclaredHash_ReturnsSuccess()
+    {
+        // The UI executable is a signed payload but not an installable package: its hash lives in
+        // InstallerManifest.EngineUiSha256, not in Packages. Without a resolver branch for the
+        // reserved UI id, every UI-carrying signed bundle fails INT002 at install time — the
+        // bundle builds, shows nothing, and refuses itself.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key,
+            ("A", "AABB"),
+            (FalkForge.Engine.Protocol.Bundle.UiPayload.PackageId, "U100"));
+        var manifest = ManifestWithCoveredExtras(
+            sig, uiSha256: "U100", packages: Package("A", "AABB"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void Verify_SignedUiEntry_ManifestDeclaresDifferentHash_ReturnsInt002()
+    {
+        // Post-signing tamper of the manifest's UI declaration must be rejected: the signed hash is
+        // the source of truth for the bytes that will drive the engine's elevated gateway.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key,
+            ("A", "AABB"),
+            (FalkForge.Engine.Protocol.Bundle.UiPayload.PackageId, "U100"));
+        var manifest = ManifestWithCoveredExtras(
+            sig, uiSha256: "BEEF", packages: Package("A", "AABB"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT002", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Verify_SignedUiEntry_ManifestDeclaresNoUi_ReturnsInt002()
+    {
+        // An envelope entry for the UI with no manifest declaration to bind to is a contract
+        // violation (the declaration was stripped after signing) — fail closed.
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key,
+            ("A", "AABB"),
+            (FalkForge.Engine.Protocol.Bundle.UiPayload.PackageId, "U100"));
+        var manifest = ManifestWithCoveredExtras(
+            sig, uiSha256: null, packages: Package("A", "AABB"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.IntegrityError, result.Error.Kind);
+        Assert.Contains("INT002", result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

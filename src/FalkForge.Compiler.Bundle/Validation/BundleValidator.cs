@@ -1,5 +1,6 @@
 namespace FalkForge.Compiler.Bundle.Validation;
 
+using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Sbom;
 
@@ -42,16 +43,19 @@ public sealed class BundleValidator
             return Result<Unit>.Failure(ErrorKind.BundleError,
                 $"BDL005: Duplicate package IDs: {string.Join(", ", duplicateIds)}");
 
-        // BDL036: a declared MSI transform id shares the same signed payload keyspace as package
-        // and pre-UI prerequisite ids — PayloadIntegrityGate.FindCoveredPayloadHash resolves a
-        // signed entry's hash by walking package ids, then pre-UI ids, then transform ids, so a
-        // transform id that collides with any of them resolves to the wrong payload's hash there.
-        // That used to surface only as a runtime integrity failure at install; reject the collision
-        // here instead, at build time, so it is an authoring error.
-        var duplicatePayloadIds = model.Packages
+        // BDL036: package ids, pre-UI prerequisite ids and MSI transform ids all share ONE signed
+        // payload keyspace. PayloadIntegrityGate.FindCoveredPayloadHash resolves a signed entry's
+        // hash by walking that keyspace in a fixed order, so two payloads under the same id resolve
+        // to whichever the walk reaches first — the wrong payload's hash. That used to surface only
+        // as a runtime integrity failure at install; reject the collision here instead, at build
+        // time, so it is an authoring error.
+        var authoredPayloadIds = model.Packages
             .Select(p => p.Id)
             .Concat(model.PreUIPackages.Select(p => p.Id))
             .Concat(model.Packages.SelectMany(p => p.Transforms).Select(t => t.Id))
+            .ToArray();
+
+        var duplicatePayloadIds = authoredPayloadIds
             .GroupBy(id => id, StringComparer.Ordinal)
             .Where(g => g.Count() > 1)
             .Select(g => g.Key)
@@ -59,8 +63,23 @@ public sealed class BundleValidator
 
         if (duplicatePayloadIds.Length > 0)
             return Result<Unit>.Failure(ErrorKind.BundleError,
-                $"BDL036: A transform id collides with a package or pre-UI prerequisite id in the " +
-                $"signed payload keyspace: {string.Join(", ", duplicatePayloadIds)}");
+                $"BDL036: Two authored payloads share one id in the signed payload keyspace, which " +
+                $"holds package ids, pre-UI prerequisite ids and MSI transform ids together: " +
+                $"{string.Join(", ", duplicatePayloadIds)}");
+
+        // BDL036, reserved half: the compiler embeds the UI executable under a reserved id in that
+        // same keyspace. This is the ONLY check that sees it, because UiAppender's own guard runs
+        // AFTER ExternalContainerPackager has split embedded from external payloads, so an authored
+        // payload assigned to a downloadable container never reaches that guard and would still
+        // join the signed set — and at runtime ExternalContainerAcquirer extracts each container
+        // payload to {cacheDir}/{PackageId}, straight on top of the extracted UI.
+        foreach (var id in authoredPayloadIds)
+        {
+            if (string.Equals(id, UiPayload.PackageId, StringComparison.OrdinalIgnoreCase))
+                return Result<Unit>.Failure(ErrorKind.BundleError,
+                    $"BDL036: Package id '{id}' is reserved for the embedded UI executable and " +
+                    "cannot be used by an authored package, pre-UI prerequisite or MSI transform.");
+        }
 
         // BDL006: Package container references must resolve to defined containers
         var containerIds = new HashSet<string>(model.Containers.Select(c => c.Id));

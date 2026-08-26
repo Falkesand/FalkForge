@@ -149,6 +149,16 @@ public sealed class DeltaBundleCompiler
 
         manifest = companionResult.Value;
 
+        // Step 4c: Embed the UI executable exactly as the full compiler does (BundleCompiler
+        // Step 3d). This MUST run before the snapshot below: `orderedPayloads` is what the delta
+        // diffing, the TOC and the signer all work from, so a UI appended after it would be
+        // missing from every one of them.
+        var uiResult = UiAppender.Append(payloads, manifest, UiPath, AllowPlaceholderStub);
+        if (uiResult.IsFailure)
+            return Result<string>.Failure(uiResult.Error);
+
+        manifest = uiResult.Value;
+
         var orderedPayloads = payloads
             .OrderBy(p => p.ContainerId ?? string.Empty)
             .ToList();
