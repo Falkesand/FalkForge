@@ -78,8 +78,10 @@ public sealed class BundleCompilerStubResolutionTests : IDisposable
     }
 
     /// <summary>
-    /// The UI is resolved from the compiler's explicit <c>UiPath</c> seam so these tests never
-    /// depend on a published UI on the build machine (<see cref="UiLocator"/>'s ambient probing).
+    /// Used by the tests that resolve the engine through <c>EngineStubResolver</c>. That is a
+    /// COMPUTED engine location, which UI resolution deliberately never chains off, so those tests
+    /// hand the UI over explicitly rather than depending on a published UI on the build machine
+    /// (<see cref="UiLocator"/>'s ambient probing).
     /// </summary>
     private string FakeUiPath => Path.Combine(_tempDir, FalkForge.Engine.Protocol.Bundle.UiPayload.PackageId);
 
@@ -149,7 +151,6 @@ public sealed class BundleCompilerStubResolutionTests : IDisposable
         var compiler = new BundleCompiler
         {
             EngineStubPath = engine,
-            UiPath = FakeUiPath,
             EngineStubResolver = () => Result<string>.Failure(
                 ErrorKind.BundleError, "resolver must not be consulted")
         };

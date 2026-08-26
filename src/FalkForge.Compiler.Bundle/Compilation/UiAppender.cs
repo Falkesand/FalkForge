@@ -28,6 +28,7 @@ internal static class UiAppender
         List<PayloadEntry> payloads,
         InstallerManifest manifest,
         string? explicitUiPath,
+        string? explicitEngineStubPath,
         bool allowPlaceholderStub)
     {
         // Reserved-id guard first: an authored payload impersonating the UI would be extracted
@@ -43,7 +44,7 @@ internal static class UiAppender
                     "and cannot be used by an authored package or pre-UI prerequisite.");
         }
 
-        var resolved = UiLocator.Resolve(explicitUiPath, allowPlaceholderStub);
+        var resolved = UiLocator.Resolve(explicitUiPath, allowPlaceholderStub, explicitEngineStubPath);
         if (resolved.IsFailure)
             return Result<InstallerManifest>.Failure(resolved.Error);
 

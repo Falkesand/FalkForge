@@ -4,13 +4,13 @@ namespace FalkForge.Engine.Protocol.Bundle;
 /// Well-known identity of the UI executable payload a runnable bundle carries.
 ///
 /// <para>The UI (<c>FalkForge.Ui.exe</c>) is the process the bootstrapper launches once the
-/// pre-UI prerequisite stage completes, so — like the elevation companion — it is meant to ride
-/// the bundle as a first-class trust-covered payload: an ordinary overlay TOC entry under this
-/// reserved <see cref="PackageId"/>, its SHA-256 declared in the manifest, and covered by the
-/// ECDSA signature envelope on a signed bundle. That wiring (append before signing, manifest hash
-/// field, gate resolver branch, rejection of an authored payload using this id) is a later
-/// landing; this constant exists ahead of it so the compiler's <c>UiPath</c> seam can resolve and
-/// validate the binary before it is ever embedded.</para>
+/// pre-UI prerequisite stage completes, so — like the elevation companion — it rides the bundle as
+/// a first-class trust-covered payload: an ordinary overlay TOC entry under this reserved
+/// <see cref="PackageId"/>, its SHA-256 declared in the manifest
+/// (<c>InstallerManifest.EngineUiSha256</c>), and covered by the ECDSA signature envelope on a
+/// signed bundle. An authored package, pre-UI prerequisite or MSI transform using this id is
+/// rejected at build time (BDL036), because a payload extracted under this name would be launched
+/// with the session pipe secret.</para>
 /// </summary>
 public static class UiPayload
 {

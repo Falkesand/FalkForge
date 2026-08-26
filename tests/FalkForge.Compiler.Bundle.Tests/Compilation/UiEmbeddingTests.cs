@@ -85,7 +85,8 @@ public sealed class UiEmbeddingTests : IDisposable
 
     /// <summary>
     /// The publish layout a real build sees: engine, elevation companion and UI in one directory.
-    /// The compiler is pointed at the engine and the UI explicitly, so no machine state leaks in.
+    /// Tests point the compiler at the engine, and the UI is resolved from beside it, so no machine
+    /// state leaks in.
     /// </summary>
     private (string Engine, string Ui) WritePublishLayout()
     {
@@ -118,7 +119,7 @@ public sealed class UiEmbeddingTests : IDisposable
     public void Compile_EngineEmbedded_CarriesUiInTocAndDeclaresHashInManifest()
     {
         var (engine, ui) = WritePublishLayout();
-        var compiler = new BundleCompiler { EngineStubPath = engine, UiPath = ui };
+        var compiler = new BundleCompiler { EngineStubPath = engine };
 
         var result = compiler.Compile(BuildModel(), Path.Combine(_tempDir, "out-default"));
 
@@ -135,7 +136,7 @@ public sealed class UiEmbeddingTests : IDisposable
     public void Compile_EngineEmbedded_UiBytesExtractByteForByte()
     {
         var (engine, ui) = WritePublishLayout();
-        var compiler = new BundleCompiler { EngineStubPath = engine, UiPath = ui };
+        var compiler = new BundleCompiler { EngineStubPath = engine };
 
         var result = compiler.Compile(BuildModel(), Path.Combine(_tempDir, "out-bytes"));
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
@@ -153,7 +154,7 @@ public sealed class UiEmbeddingTests : IDisposable
     public void Compile_WithIntegrity_SignatureEnvelopeCoversUi_AndTheGateAccepts()
     {
         var (engine, ui) = WritePublishLayout();
-        var compiler = new BundleCompiler { EngineStubPath = engine, UiPath = ui };
+        var compiler = new BundleCompiler { EngineStubPath = engine };
 
         var result = compiler.Compile(
             BuildModel(integrity: new IntegrityConfiguration()),
@@ -192,6 +193,48 @@ public sealed class UiEmbeddingTests : IDisposable
         Assert.DoesNotContain(entries, e => e.PackageId == UiPayload.PackageId);
     }
 
+    // ── the UI is found beside an explicitly configured engine ──────────────
+
+    /// <summary>
+    /// A build that points the compiler at a published engine, with the UI beside it in the same
+    /// publish directory, must resolve the UI from there too. The elevation companion already
+    /// resolved that way, so the same layout used to hand back the companion and then fail on the
+    /// UI with "No published FalkForge.Ui.exe could be located".
+    /// </summary>
+    [Fact]
+    public void Compile_ExplicitEngineStubPath_ResolvesTheUiBesideIt()
+    {
+        var (engine, ui) = WritePublishLayout();
+        var compiler = new BundleCompiler { EngineStubPath = engine };
+
+        var result = compiler.Compile(BuildModel(), Path.Combine(_tempDir, "out-beside-stub"));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var (manifest, entries) = ReadBundle(result.Value);
+        var uiEntry = Assert.Single(entries, e => e.PackageId == UiPayload.PackageId);
+        var expectedHash = Sha256Of(ui);
+        Assert.Equal(expectedHash, uiEntry.Sha256Hash, ignoreCase: true);
+        Assert.Equal(expectedHash, manifest.EngineUiSha256, ignoreCase: true);
+    }
+
+    [Fact]
+    public void DeltaCompile_ExplicitEngineStubPath_ResolvesTheUiBesideIt()
+    {
+        var (engine, ui) = WritePublishLayout();
+
+        var baseResult = new BundleCompiler { EngineStubPath = engine }
+            .Compile(BuildModel("BesideStubBase"), Path.Combine(_tempDir, "beside-stub-base"));
+        Assert.True(baseResult.IsSuccess, baseResult.IsFailure ? baseResult.Error.Message : null);
+
+        var deltaCompiler = new DeltaBundleCompiler { EngineStubPath = engine };
+        var result = deltaCompiler.Compile(
+            BuildModel("BesideStubNew"), Path.Combine(_tempDir, "beside-stub-out"), baseResult.Value);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var (manifest, _) = ReadBundle(result.Value);
+        Assert.Equal(Sha256Of(ui), manifest.EngineUiSha256, ignoreCase: true);
+    }
+
     // ── fail loud: a runnable bundle whose UI cannot be resolved ─────────────
 
     [Fact]
@@ -218,7 +261,7 @@ public sealed class UiEmbeddingTests : IDisposable
     public void Compile_AuthoredPackageWithReservedUiId_FailsLoud()
     {
         var (engine, ui) = WritePublishLayout();
-        var compiler = new BundleCompiler { EngineStubPath = engine, UiPath = ui };
+        var compiler = new BundleCompiler { EngineStubPath = engine };
 
         var result = compiler.Compile(
             BuildModel(packageId: UiPayload.PackageId),
@@ -237,7 +280,7 @@ public sealed class UiEmbeddingTests : IDisposable
         // the only check that sees both halves: without it an authored payload in a downloadable
         // container extracts to {cacheDir}/FalkForge.Ui.exe at runtime, on top of the real UI.
         var (engine, ui) = WritePublishLayout();
-        var compiler = new BundleCompiler { EngineStubPath = engine, UiPath = ui };
+        var compiler = new BundleCompiler { EngineStubPath = engine };
 
         var result = compiler.Compile(
             BuildModel(packageId: UiPayload.PackageId, containerId: "extern"),
@@ -255,11 +298,11 @@ public sealed class UiEmbeddingTests : IDisposable
     {
         var (engine, ui) = WritePublishLayout();
 
-        var baseResult = new BundleCompiler { EngineStubPath = engine, UiPath = ui }
+        var baseResult = new BundleCompiler { EngineStubPath = engine }
             .Compile(BuildModel("DeltaBase"), Path.Combine(_tempDir, "delta-base"));
         Assert.True(baseResult.IsSuccess, baseResult.IsFailure ? baseResult.Error.Message : null);
 
-        var deltaCompiler = new DeltaBundleCompiler { EngineStubPath = engine, UiPath = ui };
+        var deltaCompiler = new DeltaBundleCompiler { EngineStubPath = engine };
         var result = deltaCompiler.Compile(
             BuildModel("DeltaNew"), Path.Combine(_tempDir, "delta-out"), baseResult.Value);
 
@@ -283,11 +326,11 @@ public sealed class UiEmbeddingTests : IDisposable
         // the UI but whose signed set does not, which fails INT004 at install instead of at build.
         var (engine, ui) = WritePublishLayout();
 
-        var baseResult = new BundleCompiler { EngineStubPath = engine, UiPath = ui }
+        var baseResult = new BundleCompiler { EngineStubPath = engine }
             .Compile(BuildModel("DeltaSignedBase"), Path.Combine(_tempDir, "delta-signed-base"));
         Assert.True(baseResult.IsSuccess, baseResult.IsFailure ? baseResult.Error.Message : null);
 
-        var deltaCompiler = new DeltaBundleCompiler { EngineStubPath = engine, UiPath = ui };
+        var deltaCompiler = new DeltaBundleCompiler { EngineStubPath = engine };
         var result = deltaCompiler.Compile(
             BuildModel("DeltaSignedNew", integrity: new IntegrityConfiguration()),
             Path.Combine(_tempDir, "delta-signed-out"),

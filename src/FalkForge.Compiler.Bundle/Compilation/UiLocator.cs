@@ -19,14 +19,18 @@ namespace FalkForge.Compiler.Bundle.Compilation;
 ///   <item><description>The <c>FALKFORGE_UI</c> environment variable — a path to the UI
 ///   executable or a directory containing it. When set it is authoritative: an unresolvable
 ///   value is a configuration error, not a reason to probe elsewhere.</description></item>
-///   <item><description>Beside the RAW <c>FALKFORGE_ENGINE_STUB</c> value — never beside
-///   <see cref="EngineStubLocator.Resolve()"/>'s COMPUTED result. The env var is an explicit,
-///   user-declared location; the computed result is a resolved outcome a later change to the
-///   engine-stub resolver could relocate, which would silently break UI resolution if this
-///   chained off it instead. Unlike <c>FALKFORGE_UI</c> itself, an unresolved candidate here is
-///   not a configuration error — it is a convenience default, so resolution falls through to
-///   independent probing instead of failing loud. This is also the only path that resolves under
-///   the documented <c>FalkForgeCopyEngineToOutput=false</c> on the SDK route.</description></item>
+///   <item><description>Beside a user-declared engine location: the compiler's explicit
+///   <c>EngineStubPath</c> first, then the RAW <c>FALKFORGE_ENGINE_STUB</c> value. Both are
+///   places a person named, so both are honoured — pointing the compiler at a published engine
+///   directory used to hand back the elevation companion (which resolves from exactly the same
+///   place) and then fail on the UI. What resolution must NEVER chain off is
+///   <see cref="EngineStubLocator.Resolve()"/>'s COMPUTED result: that is a resolved outcome a
+///   later change to the engine-stub resolver could relocate, and chaining off it would silently
+///   break UI resolution. Neither candidate here is authoritative the way <c>FALKFORGE_UI</c> is:
+///   the person declared where the ENGINE lives, not where the UI lives, so an unresolved
+///   candidate falls through to independent probing instead of failing loud. The environment
+///   variable is also the only path that resolves under the documented
+///   <c>FalkForgeCopyEngineToOutput=false</c> on the SDK route.</description></item>
 ///   <item><description>Independent probing, mirroring <see cref="EngineStubLocator"/>'s own
 ///   candidate list: beside the host application (<see cref="AppContext.BaseDirectory"/>), an
 ///   <c>engine</c> subdirectory, a sibling <c>engine</c> directory, then the repository publish
@@ -46,26 +50,31 @@ internal static class UiLocator
     /// seams plus <c>FALKFORGE_UI</c>, <c>FALKFORGE_ENGINE_STUB</c>, the host application
     /// directory, and the enclosing repository's publish output, in that order.
     /// </summary>
-    public static Result<string?> Resolve(string? explicitUiPath, bool allowPlaceholderStub)
+    public static Result<string?> Resolve(
+        string? explicitUiPath, bool allowPlaceholderStub, string? explicitEngineStubPath = null)
         => Resolve(
             explicitUiPath,
             allowPlaceholderStub,
             EnvVarCatalog.GetRaw(EnvironmentVariableName),
+            explicitEngineStubPath,
             EnvVarCatalog.GetRaw(EngineStubLocator.EnvironmentVariableName),
             AppContext.BaseDirectory,
             Environment.CurrentDirectory);
 
     /// <summary>
-    /// Testable core of <see cref="Resolve(string?, bool)"/> with every ambient input injected.
-    /// <paramref name="engineStubEnvironmentValue"/> is the RAW <c>FALKFORGE_ENGINE_STUB</c> value
-    /// — never a resolved/computed engine path — so this method structurally cannot chain off
-    /// <see cref="EngineStubLocator"/>'s computed resolution (there is no resolver callback
-    /// parameter for it to invoke).
+    /// Testable core of <see cref="Resolve(string?, bool, string?)"/> with every ambient input
+    /// injected. Both engine-location parameters are values a person supplied verbatim —
+    /// <paramref name="explicitEngineStubPath"/> is the compiler's <c>EngineStubPath</c> as set,
+    /// <paramref name="engineStubEnvironmentValue"/> is the RAW <c>FALKFORGE_ENGINE_STUB</c>
+    /// string. Neither is a resolved/computed engine path, so this method structurally cannot
+    /// chain off <see cref="EngineStubLocator"/>'s computed resolution (there is no resolver
+    /// callback parameter for it to invoke).
     /// </summary>
     internal static Result<string?> Resolve(
         string? explicitUiPath,
         bool allowPlaceholderStub,
         string? uiEnvironmentValue,
+        string? explicitEngineStubPath,
         string? engineStubEnvironmentValue,
         string? baseDirectory,
         string? currentDirectory)
@@ -92,10 +101,12 @@ internal static class UiLocator
         if (!string.IsNullOrWhiteSpace(uiEnvironmentValue))
             return ResolveFromEnvironmentValue(uiEnvironmentValue);
 
-        // Beside the RAW FALKFORGE_ENGINE_STUB value. Not authoritative — an unresolved candidate
-        // here falls through to independent probing rather than failing loud, because the operator
-        // declared this variable for the ENGINE, not the UI.
-        var besideEngineStub = TryResolveBesideEngineStubEnvironmentValue(engineStubEnvironmentValue);
+        // Beside a user-declared engine location: the compiler's explicit EngineStubPath, then the
+        // RAW FALKFORGE_ENGINE_STUB value. Neither is authoritative — an unresolved candidate here
+        // falls through to independent probing rather than failing loud, because what the operator
+        // declared is where the ENGINE is, not where the UI is.
+        var besideEngineStub = TryResolveBesideDeclaredEngineLocation(explicitEngineStubPath)
+                               ?? TryResolveBesideDeclaredEngineLocation(engineStubEnvironmentValue);
         if (besideEngineStub is not null)
             return Validate(besideEngineStub);
 
@@ -150,21 +161,22 @@ internal static class UiLocator
     }
 
     /// <summary>
-    /// Looks for the UI beside the location named by the RAW <c>FALKFORGE_ENGINE_STUB</c> value.
-    /// Never fails: this is a convenience default, not an operator-declared UI location, so an
-    /// unset variable, an unresolvable value, or a directory that does not have the UI beside it
-    /// all simply return null so resolution can fall through to independent probing.
+    /// Looks for the UI beside an engine location a person declared verbatim — the compiler's
+    /// <c>EngineStubPath</c> or the RAW <c>FALKFORGE_ENGINE_STUB</c> value. Never a computed
+    /// engine path. Never fails: the declaration names where the engine is, not where the UI is,
+    /// so an unset value, an unresolvable one, or a directory without the UI beside it all return
+    /// null and resolution falls through to independent probing.
     /// </summary>
-    private static string? TryResolveBesideEngineStubEnvironmentValue(string? engineStubEnvironmentValue)
+    private static string? TryResolveBesideDeclaredEngineLocation(string? declaredEngineLocation)
     {
-        if (string.IsNullOrWhiteSpace(engineStubEnvironmentValue))
+        if (string.IsNullOrWhiteSpace(declaredEngineLocation))
             return null;
 
         string? directory;
-        if (File.Exists(engineStubEnvironmentValue))
-            directory = Path.GetDirectoryName(Path.GetFullPath(engineStubEnvironmentValue));
-        else if (Directory.Exists(engineStubEnvironmentValue))
-            directory = Path.GetFullPath(engineStubEnvironmentValue);
+        if (File.Exists(declaredEngineLocation))
+            directory = Path.GetDirectoryName(Path.GetFullPath(declaredEngineLocation));
+        else if (Directory.Exists(declaredEngineLocation))
+            directory = Path.GetFullPath(declaredEngineLocation);
         else
             return null;
 

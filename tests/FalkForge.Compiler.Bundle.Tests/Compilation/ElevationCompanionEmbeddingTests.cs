@@ -85,12 +85,19 @@ public sealed class ElevationCompanionEmbeddingTests : IDisposable
         var engine = WriteFakeExe("fake-engine.exe", 0x01);
         var companion = WriteFakeExe(EngineCompanionPayload.PackageId, 0x02);
         // A runnable bundle also embeds the UI executable, which every compile below therefore
-        // needs to resolve. It is handed to the compiler through the explicit UiPath seam so these
-        // tests never depend on a published UI on the build machine.
+        // needs to resolve. It sits beside the engine, exactly as a real publish leaves it, and the
+        // compiler is pointed at that engine, so these tests never depend on a published UI on the
+        // build machine.
         WriteFakeExe(UiPayload.PackageId, 0x03);
         return (engine, companion);
     }
 
+    /// <summary>
+    /// Handed to the one test below that resolves the engine through <c>EngineStubResolver</c>.
+    /// That is a COMPUTED engine location, which UI resolution deliberately never chains off, so
+    /// the UI has to be named explicitly there. Every other test in this file points the compiler
+    /// at the engine itself, and the UI is found beside it.
+    /// </summary>
     private string FakeUiPath => Path.Combine(_tempDir, UiPayload.PackageId);
 
     private static (InstallerManifest Manifest, TocEntry[] Entries) ReadBundle(string bundlePath)
@@ -116,7 +123,7 @@ public sealed class ElevationCompanionEmbeddingTests : IDisposable
     public void Compile_EngineEmbedded_CarriesCompanionInTocAndDeclaresHashInManifest()
     {
         var (engine, companion) = WritePublishLayout();
-        var compiler = new BundleCompiler { EngineStubPath = engine, UiPath = FakeUiPath };
+        var compiler = new BundleCompiler { EngineStubPath = engine };
 
         var result = compiler.Compile(BuildModel(), Path.Combine(_tempDir, "out-default"));
 
@@ -134,7 +141,7 @@ public sealed class ElevationCompanionEmbeddingTests : IDisposable
     public void Compile_EngineEmbedded_CompanionBytesExtractByteForByte()
     {
         var (engine, companion) = WritePublishLayout();
-        var compiler = new BundleCompiler { EngineStubPath = engine, UiPath = FakeUiPath };
+        var compiler = new BundleCompiler { EngineStubPath = engine };
 
         var result = compiler.Compile(BuildModel(), Path.Combine(_tempDir, "out-bytes"));
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
@@ -169,7 +176,7 @@ public sealed class ElevationCompanionEmbeddingTests : IDisposable
     public void Compile_WithIntegrity_SignatureEnvelopeCoversCompanion()
     {
         var (engine, companion) = WritePublishLayout();
-        var compiler = new BundleCompiler { EngineStubPath = engine, UiPath = FakeUiPath };
+        var compiler = new BundleCompiler { EngineStubPath = engine };
 
         var result = compiler.Compile(
             BuildModel(integrity: new IntegrityConfiguration()),
@@ -199,7 +206,7 @@ public sealed class ElevationCompanionEmbeddingTests : IDisposable
     public void Compile_OmitElevationCompanion_CarriesNoCompanion()
     {
         var (engine, _) = WritePublishLayout();
-        var compiler = new BundleCompiler { EngineStubPath = engine, UiPath = FakeUiPath };
+        var compiler = new BundleCompiler { EngineStubPath = engine };
 
         var result = compiler.Compile(
             BuildModel(omitCompanion: true), Path.Combine(_tempDir, "out-omit"));
@@ -233,7 +240,7 @@ public sealed class ElevationCompanionEmbeddingTests : IDisposable
         // Engine present, no companion beside it, no explicit path, no opt-out: silently
         // shipping a bundle that can never elevate would be the exact gap this feature closes.
         var engine = WriteFakeExe("fake-engine.exe", 0x01);
-        var compiler = new BundleCompiler { EngineStubPath = engine, UiPath = FakeUiPath };
+        var compiler = new BundleCompiler { EngineStubPath = engine };
         var outDir = Path.Combine(_tempDir, "out-missing");
 
         var result = compiler.Compile(BuildModel(), outDir);
@@ -252,7 +259,6 @@ public sealed class ElevationCompanionEmbeddingTests : IDisposable
         var compiler = new BundleCompiler
         {
             EngineStubPath = engine,
-            UiPath = FakeUiPath,
             ElevationCompanionPath = Path.Combine(_tempDir, "no-such-companion.exe")
         };
 
@@ -271,7 +277,6 @@ public sealed class ElevationCompanionEmbeddingTests : IDisposable
         var compiler = new BundleCompiler
         {
             EngineStubPath = engine,
-            UiPath = FakeUiPath,
             ElevationCompanionPath = explicitCompanion
         };
 
@@ -288,7 +293,7 @@ public sealed class ElevationCompanionEmbeddingTests : IDisposable
     public void Compile_UserPackageWithReservedCompanionId_FailsLoud()
     {
         var (engine, _) = WritePublishLayout();
-        var compiler = new BundleCompiler { EngineStubPath = engine, UiPath = FakeUiPath };
+        var compiler = new BundleCompiler { EngineStubPath = engine };
 
         var result = compiler.Compile(
             BuildModel(packageId: EngineCompanionPayload.PackageId),
@@ -306,11 +311,11 @@ public sealed class ElevationCompanionEmbeddingTests : IDisposable
     {
         var (engine, companion) = WritePublishLayout();
 
-        var baseResult = new BundleCompiler { EngineStubPath = engine, UiPath = FakeUiPath }
+        var baseResult = new BundleCompiler { EngineStubPath = engine }
             .Compile(BuildModel("DeltaBase"), Path.Combine(_tempDir, "delta-base"));
         Assert.True(baseResult.IsSuccess, baseResult.IsFailure ? baseResult.Error.Message : null);
 
-        var deltaCompiler = new DeltaBundleCompiler { EngineStubPath = engine, UiPath = FakeUiPath };
+        var deltaCompiler = new DeltaBundleCompiler { EngineStubPath = engine };
         var result = deltaCompiler.Compile(
             BuildModel("DeltaNew"), Path.Combine(_tempDir, "delta-out"), baseResult.Value);
 

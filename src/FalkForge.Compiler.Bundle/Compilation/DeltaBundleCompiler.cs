@@ -153,7 +153,7 @@ public sealed class DeltaBundleCompiler
         // Step 3d). This MUST run before the snapshot below: `orderedPayloads` is what the delta
         // diffing, the TOC and the signer all work from, so a UI appended after it would be
         // missing from every one of them.
-        var uiResult = UiAppender.Append(payloads, manifest, UiPath, AllowPlaceholderStub);
+        var uiResult = UiAppender.Append(payloads, manifest, UiPath, EngineStubPath, AllowPlaceholderStub);
         if (uiResult.IsFailure)
             return Result<string>.Failure(uiResult.Error);
 
