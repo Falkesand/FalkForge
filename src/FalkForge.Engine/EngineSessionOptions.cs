@@ -1,6 +1,7 @@
 namespace FalkForge.Engine;
 
 using FalkForge.Diagnostics;
+using FalkForge.Engine.Bootstrap;
 using FalkForge.Engine.Logging;
 using FalkForge.Engine.Pipeline;
 using FalkForge.Engine.Protocol.Transport;
@@ -83,6 +84,30 @@ public sealed record EngineSessionOptions
     /// to make log-path assertions deterministic.
     /// </summary>
     public ISystemClock? Clock { get; init; }
+
+    /// <summary>
+    /// Answers "is this engine process itself running elevated". Optional; defaults to the real
+    /// Windows token probe.
+    /// <para>
+    /// The engine's own manifest is <c>asInvoker</c>, so the normal double-click flow runs
+    /// unelevated and reaches per-machine work through the elevated companion. A user who picks
+    /// "Run as administrator" instead gets an elevated engine, which can install per-machine
+    /// directly. That run must keep doing so, because requiring the companion's baked publisher
+    /// key there would refuse an install that works today on every build that carries no baked
+    /// key, which is every published build.
+    /// </para>
+    /// <para>
+    /// Two mechanisms answer questions like this in the codebase and they are not the same
+    /// question. <c>WindowsEnvironment.IsElevated</c> asks about group membership through
+    /// <c>WindowsPrincipal.IsInRole</c>, and <c>BuiltInVariables.PopulateSessionInfo</c> consumes
+    /// that one for the <c>Privileged</c> variable. This seam wraps
+    /// <c>ElevationProbe.IsElevated</c>, which asks whether THIS process token is the elevated
+    /// one via <c>GetTokenInformation(TokenElevation)</c>. That is the right question here,
+    /// because what the caller needs to know is whether <c>MsiInstallProductW</c> will succeed in
+    /// this process.
+    /// </para>
+    /// </summary>
+    public IElevationProbe? ElevationProbe { get; init; }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Plan-only mode options
