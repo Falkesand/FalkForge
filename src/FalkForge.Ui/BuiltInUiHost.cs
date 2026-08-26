@@ -135,6 +135,31 @@ internal static class BuiltInUiHost
     }
 
     /// <summary>
+    /// Awaits the built-in host's launch task and hands any exception to
+    /// <paramref name="report"/> instead of letting it disappear.
+    /// <para>
+    /// <c>App.OnStartup</c> cannot await <see cref="LaunchAsync"/>, because WPF has to reach its
+    /// message loop. It used to assign the task to a discard instead, which meant a startup
+    /// exception was never observed: no message, no log, and an exit code of 0, while WPF kept
+    /// pumping a message loop with no window. That is what hid the missing ReactiveUI
+    /// initialization for months. <c>BuiltInUiLaunchFaultTests</c> guards the shape. The await here
+    /// does not use <c>ConfigureAwait(false)</c> on purpose, so <paramref name="report"/> runs back
+    /// on the WPF dispatcher and may show UI and shut the application down.
+    /// </para>
+    /// </summary>
+    internal static async Task RunAndReportFailureAsync(Task launch, Action<Exception> report)
+    {
+        try
+        {
+            await launch;
+        }
+        catch (Exception ex)
+        {
+            report(ex);
+        }
+    }
+
+    /// <summary>
     /// Produces a connected <see cref="EngineClient"/> when the engine supplied both a data pipe
     /// and a secret pipe; otherwise a manifest-backed <see cref="NullInstallerEngine"/> so the
     /// window still renders the product's branding in design/preview mode.
