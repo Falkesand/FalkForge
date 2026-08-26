@@ -6527,6 +6527,14 @@ pages.Add&lt;WelcomePage&gt;()      // Page 0 (shown first)
      .Add&lt;InstallDirPage&gt;()   // Page 2
      .Add&lt;ProgressPage&gt;()     // Page 3
      .Add&lt;CompletePage&gt;();    // Page 4 (shown last)</code></pre>
+  <p>
+    A page that collects an installation directory needs one extra step to have any effect. Setting
+    <code>Engine.InstallDirectory</code> sends the value to the engine, but the plan does not read it,
+    so the directory alone changes nothing about where packages land. Set the target MSI property
+    yourself with <code>Engine.SetProperty</code> &mdash; <code>INSTALLDIR</code> for a FalkForge-built
+    MSI. The built-in wizard keeps its own directory page out of the walk for the same reason; see the
+    <code>InstallDirectory</code> row in <a href="#custom-ui-iinstaller-engine">11.7 IInstallerEngine</a>.
+  </p>
 
   <!-- 11.5 InstallerPage -->
   <h3 id="custom-ui-installer-page">11.5 InstallerPage (Abstract Base)</h3>
@@ -6684,7 +6692,8 @@ public class WelcomePage : InstallerPage&lt;WelcomePageView&gt;
       <tr><td><code>Manifest</code></td><td><code>InstallerManifest</code></td><td>The installer manifest containing package and feature metadata.</td></tr>
       <tr><td><code>DetectedState</code></td><td><code>InstallState</code></td><td>The current detected installation state.</td></tr>
       <tr><td><code>Features</code></td><td><code>IReadOnlyList&lt;FeatureState&gt;</code></td><td>Feature states with selection status.</td></tr>
-      <tr><td><code>InstallDirectory</code></td><td><code>string</code></td><td>Gets or sets the installation directory.</td></tr>
+      <tr><td><code>InstallDirectory</code></td><td><code>string</code></td><td>Gets or sets the installation directory. Setting it sends <code>SetInstallDirectory</code> and the engine records it on the plan request. <strong>The plan does not read it yet</strong> &mdash; every package installs where its own MSI puts it &mdash; because nothing says which package in a chain a user-chosen directory applies to, or which property each one reads it from. The built-in wizard keeps its directory page out of the walk for that reason; a custom UI that offers one must set the target property itself with <code>SetProperty</code> (for a FalkForge-built MSI, <code>INSTALLDIR</code>).</td></tr>
+      <tr><td><code>SetLicenseAccepted(bool accepted)</code></td><td><code>void</code></td><td>Reports the user&rsquo;s licence decision. The engine refuses to plan a bundle whose manifest carries a licence file until it has been told the licence was accepted, so a custom UI that shows a licence must call this before requesting a plan. <code>EngineClient</code> puts the message on the wire immediately before the plan request, so ordering is not the caller&rsquo;s problem.</td></tr>
       <tr><td><code>Cancel()</code></td><td><code>void</code></td><td>Cancels the current operation.</td></tr>
       <tr><td><code>ShutdownAsync()</code></td><td><code>Task&lt;int&gt;</code></td><td>Shuts down the engine and returns the process exit code.</td></tr>
       <tr><td><code>SetProperty(string name, string value)</code></td><td><code>void</code></td><td>Sets an MSI property to pass to packages during installation. Only accepted during Initializing, Detecting, or Planning phases. Property names must match <code>^[A-Z_][A-Z0-9_.]*$</code>.</td></tr>
@@ -10160,6 +10169,19 @@ forge verify app-1.2.msi --trusted-key A1B2C3...  # signature-only, authorship-p
             <td>Not set (auto-resolved beside the embedded engine)</td>
         </tr>
         <tr>
+            <td><code>FALKFORGE_UI</code></td>
+            <td>Path to <code>FalkForge.Ui.exe</code>, or a directory containing it. Authoritative
+                when set at bundle-compile time &mdash; an unresolvable value is a configuration
+                error, never a reason to probe elsewhere. Overrides the default resolution of the UI
+                payload a runnable bundle embeds. Unset, the compiler looks beside a declared engine
+                location (the compiler&rsquo;s <code>EngineStubPath</code>, then
+                <code>FALKFORGE_ENGINE_STUB</code>), then beside the host app, then the repository
+                publish output. The UI must be a framework-dependent <em>single-file</em> publish: a
+                plain apphost with <code>FalkForge.Ui.dll</code> beside it cannot run once extracted
+                alone at install time, and the compiler rejects it.</td>
+            <td>Not set (auto-resolved beside the embedded engine)</td>
+        </tr>
+        <tr>
             <td><code>SIGNSERVER_URL</code></td>
             <td>Base URL of the Keyfactor SignServer instance for remote signing
                 (<code>SignServerConfig.FromEnvironment()</code>). Required, with
@@ -10885,6 +10907,7 @@ public sealed record WixUnmappedFeature(
         <tr><td>BDL024</td><td>Update feed URL is not a valid absolute URI</td></tr>
         <tr><td>BDL025</td><td>Update feed URL must use HTTPS</td></tr>
         <tr><td>BDL027</td><td>EnableFeatureSelection is only valid for MsiPackage type</td></tr>
+        <tr><td>BDL036</td><td>Two payloads share one id in the signed payload keyspace, which holds package ids, pre-UI prerequisite ids and MSI transform ids together, or an authored payload uses the id reserved for the embedded UI executable (<code>FalkForge.Ui.exe</code>). The runtime resolves a signed entry&rsquo;s declared hash by walking that keyspace in a fixed order, so a duplicate resolves to the wrong payload&rsquo;s hash; and a payload carried under the reserved id extracts on top of the UI the bootstrapper is about to launch with the session pipe secret. Rejected at build time so it is an authoring error rather than an integrity failure at install</td></tr>
     </tbody>
 </table>
 
@@ -10902,6 +10925,7 @@ public sealed record WixUnmappedFeature(
         <tr><td>INT009</td><td>A signature is required but the engine's effective trusted set is empty (fail closed)</td></tr>
         <tr><td>INT010</td><td>The signing quorum for this operation is not satisfied (roles/quorum policy, see &sect;23)</td></tr>
         <tr><td>INT011</td><td>A trusted key is pinned as hybrid (post-quantum companion required), but the ML-DSA companion signature is missing, from the wrong key, or invalid &mdash; treated as a strip/downgrade attack, see &sect;23</td></tr>
+        <tr><td>INT012</td><td>A manifest hash declaration and the ECDSA-signed set disagree about the elevation companion (<code>EngineCompanionSha256</code>) or the UI executable (<code>EngineUiSha256</code>): one side names a payload the other does not, or the two hashes differ. Both fields are plain manifest fields rather than signed envelope bytes, and both name a process the bootstrapper starts &mdash; the companion executes elevated, the UI receives the session pipe secret &mdash; so each is bound into the signed set in both directions. Stripping a declaration silently downgrades what a signed bundle appears to carry; editing one repoints the resolver. Both are tamper, and the install is refused before anything is extracted</td></tr>
     </tbody>
 </table>
 
@@ -14392,6 +14416,23 @@ Tooling &amp; distribution  Cli, Decompiler, Localization, Sdk, Signing.SignServ
             fail-open); a declared companion whose hash disagrees aborts with
             <code>ErrorKind.SecurityError</code> rather than falling back to an ambient
             beside-the-engine binary.</td>
+        </tr>
+        <tr>
+            <td>UI executable identity</td>
+            <td>Is the installer window about to be launched, and handed the session pipe secret,
+            the one this bundle shipped?</td>
+            <td>A runnable bundle carries <code>FalkForge.Ui.exe</code> as an ordinary trust-covered
+            payload under a reserved TOC id, its SHA-256 declared in the manifest
+            (<code>InstallerManifest.EngineUiSha256</code>) and &mdash; on a signed bundle &mdash;
+            inside the ECDSA signature envelope, on exactly the same terms as the elevation
+            companion above. It is appended before signing, so the process the bootstrapper starts
+            is covered by the same signed chain as every installable payload. That matters because
+            the bootstrapper hands the UI the session pipe name and secret, and on a
+            companion-carrying bundle the engine behind that pipe holds an elevated gateway. A
+            disagreement between the declaration and the signed set fails
+            <code>INT012</code>; an authored package, pre-UI prerequisite or MSI transform using the
+            reserved id is refused at build time with <code>BDL036</code>, because such a payload
+            would extract straight on top of the UI.</td>
         </tr>
         <tr>
             <td>Payload integrity &amp; authorship</td>
