@@ -5,6 +5,7 @@
 #   forge CLI                (framework-dependent, net10.0)         -> <Output>/forge
 #   FalkForge.Engine         (NativeAOT, win-x64)                   -> <Output>/engine
 #   FalkForge.Engine.Elevation (NativeAOT, win-x64)                 -> <Output>/engine
+#   FalkForge.Ui              (framework-dependent single-file, win-x64) -> <Output>/engine
 #
 # The engine/elevation binaries are the NativeAOT bundle runtime. The bundle compiler
 # embeds the published engine automatically: it resolves <repo>/artifacts/publish/engine
@@ -71,6 +72,11 @@ if (-not $SkipEngine) {
     dotnet publish (Join-Path $root "src/FalkForge.Engine.Elevation/FalkForge.Engine.Elevation.csproj") `
         -c Release -r win-x64 -o (Join-Path $Output "engine")
     if ($LASTEXITCODE -ne 0) { throw "Engine.Elevation publish failed" }
+
+    Write-Host "Publishing UI (framework-dependent single-file)..." -ForegroundColor Yellow
+    dotnet publish (Join-Path $root "src/FalkForge.Ui/FalkForge.Ui.csproj") `
+        -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o (Join-Path $Output "engine")
+    if ($LASTEXITCODE -ne 0) { throw "UI publish failed" }
 }
 
 Write-Host ""

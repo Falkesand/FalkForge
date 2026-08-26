@@ -142,6 +142,14 @@ jobs:
           -c Release -r win-x64 --self-contained
           -o release-artifacts/cli
 
+      # UI is framework-dependent (needs the .NET 10 Desktop Runtime on the target
+      # machine); published single-file so the loose artifact is one exe like the others.
+      - name: Publish UI (framework-dependent single-file, win-x64)
+        run: >
+          dotnet publish src/FalkForge.Ui/FalkForge.Ui.csproj
+          -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
+          -o release-artifacts/ui
+
       # --- Pack documentation site ---
       # Same HTML-only surface published to GitHub Pages (see .github/workflows/pages.yml):
       # documentation.html (+ index.html copy) and docs/tutorials/*.html. Attached to the
@@ -165,6 +173,8 @@ jobs:
           Copy-Item "release-artifacts/elevation/FalkForge.Engine.Elevation.exe" "$out/FalkForge.Engine.Elevation.exe"
           # CLI exe (assembly is FalkForge.Cli.exe; distributed as forge.exe to match the tool command name)
           Copy-Item "release-artifacts/cli/FalkForge.Cli.exe"                  "$out/forge.exe"
+          # UI exe
+          Copy-Item "release-artifacts/ui/FalkForge.Ui.exe"                    "$out/FalkForge.Ui.exe"
           # Documentation zip (see scripts/pack-docs.ps1)
           $docsZip = Get-ChildItem "release-artifacts/docs-pack" -Filter "falkforge-docs-*.zip" | Select-Object -First 1
           Copy-Item $docsZip.FullName "$out/$($docsZip.Name)"
