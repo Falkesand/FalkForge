@@ -46,9 +46,7 @@ internal sealed class TestInstallerEngine : IInstallerEngine
 
     public void SetProperty(string name, string value) { }
 
-    public bool? LicenseAccepted { get; private set; }
-
-    public void SetLicenseAccepted(bool accepted) => LicenseAccepted = accepted;
+    public void SetLicenseAccepted(bool accepted) { }
 
     public void SetSecureProperty(string name, SensitiveBytes value) { }
 
