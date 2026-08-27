@@ -498,6 +498,61 @@ public sealed class MsiExecutorElevationTests
         Assert.Contains("repair", result.Error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("administrator", result.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_Elevated_ReturnsTheMsiExitCodeTheCompanionSent()
+    {
+        // The companion answers a successful MsiInstall with the MSI's own exit code as four
+        // little-endian bytes (MsiInstallCommand.EncodeExitCode). 3010 means "installed, reboot
+        // required". Reporting 0 instead loses that: ApplyStep maps 3010 to RebootRequired and sets
+        // ctx.RebootRequired, so a flattened code means the user is never told to reboot.
+        var mockClient = new MockElevationClient
+        {
+            ResultToReturn = Result<byte[]>.Success([0xC2, 0x0B, 0x00, 0x00]) // 3010
+        };
+        var executor = new MsiExecutor(() => mockClient);
+        var action = CreateMsiAction(PlanActionType.Install, @"C:\packages\TestApp.msi");
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(3010, result.Value);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Elevated_ReturnsZeroWhenTheCompanionSentZero()
+    {
+        var mockClient = new MockElevationClient
+        {
+            ResultToReturn = Result<byte[]>.Success([0x00, 0x00, 0x00, 0x00])
+        };
+        var executor = new MsiExecutor(() => mockClient);
+        var action = CreateMsiAction(PlanActionType.Install, @"C:\packages\TestApp.msi");
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(0, result.Value);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_Elevated_ReadsAResponseWithNoExitCodeAsPlainSuccess()
+    {
+        // A response that is not four bytes carries no exit code. Reading it as 0 keeps a command
+        // that has nothing to report on the success path rather than inventing a failure the
+        // companion never signalled.
+        var mockClient = new MockElevationClient
+        {
+            ResultToReturn = Result<byte[]>.Success([])
+        };
+        var executor = new MsiExecutor(() => mockClient);
+        var action = CreateMsiAction(PlanActionType.Uninstall, @"C:\packages\TestApp.msi");
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(0, result.Value);
+    }
 }
 
 /// <summary>
