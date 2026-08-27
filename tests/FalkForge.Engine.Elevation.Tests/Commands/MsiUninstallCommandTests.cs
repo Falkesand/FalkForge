@@ -80,8 +80,10 @@ public sealed class MsiUninstallCommandTests
     [Fact]
     public void Execute_EmptyBakedSet_Rejected_NeverUninstalls()
     {
-        // An empty baked set on the require-signed path fails closed with INT009 — a required signature with
-        // no trust anchor cannot establish authorship.
+        // An empty baked set on the require-signed path fails closed — a required signature with no
+        // trust anchor cannot establish authorship. The refusal used to be the generic INT009 text; it
+        // now names the publisher-key remedy instead, but the decision underneath is the same:
+        // SecurityError, and the MSI API is never called.
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var manifestJson = SignedManifestPayload.UninstallManifestJson([AuthorizedProductCode], key);
         var payload = SignedManifestPayload.BuildUninstall(AuthorizedProductCode, manifestJson);
@@ -90,7 +92,7 @@ public sealed class MsiUninstallCommandTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
-        Assert.Contains("INT009", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("FalkForgeTrustedKey", result.Error.Message, StringComparison.Ordinal);
         Assert.Equal(0, _msi.ConfigureProductCallCount);
     }
 

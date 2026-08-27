@@ -530,6 +530,34 @@ public sealed class MsiInstallCommandTests : IDisposable
         }
     }
 
+    [Fact]
+    public void Execute_WithNoBakedPublisherKeys_SaysHowToBakeOne()
+    {
+        // Every published FalkForge build ships with an empty baked set, because none of
+        // scripts/pack.ps1, scripts/publish.ps1 or the release workflow passes
+        // -p:FalkForgeTrustedKey. The gate already refuses in that state (INT009). The refusal has
+        // to tell the publisher what to do about it, because the message is the only thing that
+        // reaches them: the engine relays it verbatim into the install log.
+        var noKeys = new MsiInstallCommand(
+            _mockMsiApi,
+            new Mocks.NoopStaging(),
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+            SignedManifestPayload.NoRoles,
+            SignedManifestPayload.NoPqCompanions);
+        var payload = BuildPayload(_tempMsiPath, string.Empty);
+
+        var result = noKeys.Execute(payload);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("FalkForgeTrustedKey", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("SigningKey", result.Error.Message, StringComparison.Ordinal);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
+        // forge inspect refuses any path that does not end in .msi (InspectSettings.cs:37-38), so a
+        // message telling the publisher to read a bundle with it would send them into a wall.
+        Assert.DoesNotContain("forge inspect", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private byte[] BuildPayload(string msiPath, string additionalArgs)
         => BuildPayload(msiPath, additionalArgs, ComputeExpectedHash(msiPath));
 

@@ -183,6 +183,23 @@ public sealed partial class MsiUninstallCommand : IElevatedCommand
             return Result<Unit>.Failure(ErrorKind.SecurityError,
                 "MSI uninstall request carries an empty manifest.");
 
+        // Same condition PayloadIntegrityGate checks for INT009 (requireSigned is hardcoded true
+        // just below, so an empty baked set is exactly that case), checked here only to say what the
+        // publisher has to do about it. The generic INT009 text names the cause and no remedy, and
+        // it says "this engine" when the process that refused is this companion. The decision is
+        // unchanged and still fails closed: same ErrorKind, same refusal, better words. The engine
+        // relays this message verbatim into the install log.
+        if (_trustedFingerprints.Count == 0)
+            return Result<Unit>.Failure(ErrorKind.SecurityError,
+                "This elevation companion carries no baked publisher keys, so it cannot establish " +
+                "who authored the bundle and refuses to uninstall anything with elevated rights. " +
+                "Per-machine uninstalls stay unavailable until a publisher bakes a key. To do that: " +
+                "sign the bundle with .Integrity(i => i.SigningKey(\"<key>.pem\")); take that key's " +
+                "fingerprint, which is the SHA-256 of its SubjectPublicKeyInfo as 64 hex " +
+                "characters; republish both FalkForge.Engine.exe and " +
+                "FalkForge.Engine.Elevation.exe with -p:FalkForgeTrustedKey=<that fingerprint>; " +
+                "and rebuild the bundle against those republished binaries.");
+
         // Always require a publisher signature for a SYSTEM uninstall, with fresh-install (non-epoch)
         // semantics. Uninstall is not an epoch operation, and the companion must never let the caller assert
         // fresh-vs-update, so it never consults the persisted epoch (isUpdatePath: false, storedEpoch: 0). An
