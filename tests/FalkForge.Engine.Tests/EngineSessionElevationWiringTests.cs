@@ -91,6 +91,15 @@ public sealed class EngineSessionElevationWiringTests : IDisposable
     /// </summary>
     private string MissingMsiPath() => Path.Combine(_tempDir, $"absent_{Guid.NewGuid():N}.msi");
 
+    /// <summary>
+    /// The exit codes <c>MsiInstallProductW</c> can return for a package path that does not exist.
+    /// 2 is ERROR_FILE_NOT_FOUND, observed on this development machine. 1619 is
+    /// ERROR_INSTALL_PACKAGE_OPEN_FAILED, the code Windows Installer documents for this case and
+    /// what a CI runner could plausibly return instead. The test only cares that Windows Installer
+    /// was reached at all, not which of the two codes it picked.
+    /// </summary>
+    private static readonly int[] MissingPackageExitCodes = [2, 1619];
+
     // Named MsiInstallAction, not InstallAction: FalkForge.Engine.Pipeline already declares an
     // InstallAction enum, and a member with the same name would make every use of the type
     // ambiguous inside this class.
@@ -189,12 +198,12 @@ public sealed class EngineSessionElevationWiringTests : IDisposable
         Assert.Equal(0, gateway.SendCount);
         Assert.Null(gateway.LastCommandName);
         // Windows Installer answered instead. The package path does not exist, so it opened
-        // nothing and installed nothing. Observed on this host: MsiInstallProductW returned 2
-        // (ERROR_FILE_NOT_FOUND), not the documented ERROR_INSTALL_PACKAGE_OPEN_FAILED (1619) the
-        // plan guessed before running this. A specific code, not just nonzero, is what tells a
-        // future reader that Windows Installer was actually reached.
+        // nothing and installed nothing. A specific code, not just nonzero, is what tells a future
+        // reader that Windows Installer was actually reached. Observed on this host:
+        // MsiInstallProductW returns 2 (ERROR_FILE_NOT_FOUND). A CI runner could plausibly see 1619
+        // (ERROR_INSTALL_PACKAGE_OPEN_FAILED) instead for the same missing path, so both codes pass.
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
-        Assert.Equal(2, result.Value);
+        Assert.Contains(result.Value, MissingPackageExitCodes);
     }
 
     [Fact]
@@ -205,8 +214,9 @@ public sealed class EngineSessionElevationWiringTests : IDisposable
         // already holds the privileges Windows wants. Routing it to the companion would refuse it
         // with INT009 on every build that has no baked publisher key, which is every shipped build.
         // Keeping it in-process is a compatibility decision, not a claim that the in-process path
-        // checks as much as the companion does. It checks less; see the plan's "What the in-process
-        // path does not check". This branch does not widen that gap, it narrows who lands in it.
+        // checks as much as the companion does: it skips manifest-envelope verification,
+        // install-time hash binding, package-id refusal, TRANSFORMS/PATCH refusal, and UNC refusal.
+        // This branch does not widen that gap, it narrows who lands in it.
         await using var session = EngineSession.BindToPipe(
             pipeName: null, WriteManifest(InstallScope.PerMachine), Options(processElevated: true));
         var (ctx, executor) = Probe(session);
@@ -226,9 +236,10 @@ public sealed class EngineSessionElevationWiringTests : IDisposable
         Assert.Equal(0, gateway.SendCount);
         Assert.Null(gateway.LastCommandName);
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
-        // Observed on this host: MsiInstallProductW returned 2 (ERROR_FILE_NOT_FOUND) for the
-        // missing package path — see the note on the same assertion above.
-        Assert.Equal(2, result.Value);
+        // Observed on this host: MsiInstallProductW returns 2 (ERROR_FILE_NOT_FOUND) for the
+        // missing package path; see the note on PerUser_InstallsInProcessAndNeverContactsTheCompanion
+        // for why a CI runner's 1619 also passes.
+        Assert.Contains(result.Value, MissingPackageExitCodes);
     }
 
     [Fact]
@@ -246,9 +257,10 @@ public sealed class EngineSessionElevationWiringTests : IDisposable
             MsiInstallAction(), CancellationToken.None, new Progress<int>(_ => { }));
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
-        // Observed on this host: MsiInstallProductW returned 2 (ERROR_FILE_NOT_FOUND) for the
-        // missing package path — see the note on PerUser_InstallsInProcessAndNeverContactsTheCompanion.
-        Assert.Equal(2, result.Value);
+        // Observed on this host: MsiInstallProductW returns 2 (ERROR_FILE_NOT_FOUND) for the missing
+        // package path; see the note on PerUser_InstallsInProcessAndNeverContactsTheCompanion for
+        // why a CI runner's 1619 also passes.
+        Assert.Contains(result.Value, MissingPackageExitCodes);
     }
 
     [Fact]
