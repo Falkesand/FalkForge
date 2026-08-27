@@ -9,10 +9,10 @@ using Xunit;
 namespace FalkForge.Engine.Protocol.Tests.Transport;
 
 /// <summary>
-/// Regression tests for the elevation IPC mutual-authentication fix. The SYSTEM-privileged
-/// elevated companion is the pipe CLIENT; before this fix it authenticated the server (engine)
-/// but the client never authenticated the server, so a same-user rogue server that squatted the
-/// pipe name could drive the companion to execute an attacker-supplied command as SYSTEM.
+/// Regression tests for the elevation IPC mutual-authentication fix. The elevated companion is
+/// the pipe CLIENT; before this fix it authenticated the server (engine) but the client never
+/// authenticated the server, so a same-user rogue server that squatted the pipe name could drive
+/// the companion to execute an attacker-supplied command with administrator rights.
 /// These tests prove the client now refuses any server that cannot prove knowledge of the
 /// shared secret, and that it does so BEFORE dispatching a single command.
 /// </summary>
