@@ -1347,8 +1347,8 @@ package.MajorUpgrade(mu =&gt; mu
   <p>
     For bundles, FalkForge's engine keeps the unprivileged UI process separated from anything that
     touches the system: the UI talks to an unprivileged <strong>Engine</strong> process over a named
-    pipe, and only when the Applying phase actually needs a privileged operation does the Engine
-    launch the <strong>Elevated</strong> companion &mdash; a second, minimal NativeAOT process that
+    pipe, and for a per-machine bundle the Engine launches the <strong>Elevated</strong> companion
+    during the Elevating phase, before Apply begins &mdash; a second, minimal NativeAOT process that
     is the only one of the three ever running with elevated rights. The Engine and the Elevated
     companion mutually authenticate (HMAC-SHA256 handshake plus parent-process verification) before
     the Elevated side will execute anything, and it accepts only a fixed, whitelisted set of
@@ -8153,7 +8153,7 @@ public sealed record EngineSessionOptions
 <table class="api-table">
     <thead><tr><th>Executor</th><th>Package Type</th><th>Tool</th><th>Description</th></tr></thead>
     <tbody>
-        <tr><td>MsiExecutor</td><td>MsiPackage</td><td>IMsiApi (P/Invoke)</td><td>Installs/uninstalls/repairs MSI packages via in-process <code>MsiInstallProduct</code>/<code>MsiConfigureProduct</code> P/Invoke. Properties and secrets flow through named pipes, never on the command line. Supports elevation via IElevationClient.</td></tr>
+        <tr><td>MsiExecutor</td><td>MsiPackage</td><td>IMsiApi (P/Invoke)</td><td>Installs/uninstalls/repairs MSI packages via in-process <code>MsiInstallProduct</code>/<code>MsiConfigureProduct</code> P/Invoke. Properties and secrets flow through named pipes, never on the command line. For a per-machine bundle installed from an unelevated engine the install is sent to the Elevated companion over the elevation pipe, and the MSI's own exit code comes back with it. A per-user bundle installs in-process, and so does a per-machine bundle when the engine itself was started elevated, which already holds the rights the install needs. Repair is not available over the elevated channel and is refused there.</td></tr>
         <tr><td>MsuExecutor</td><td>MsuPackage</td><td>wusa.exe</td><td>Installs/uninstalls Windows Update packages. Uninstall requires KbArticle. Recognizes exit codes 0, 3010 (reboot required), and 2359302 (already installed).</td></tr>
         <tr><td>MspExecutor</td><td>MspPackage</td><td>msiexec.exe</td><td>Applies/removes MSI patches. Uninstall requires TargetProductCode and PatchCode (validated as GUIDs).</td></tr>
         <tr><td>BundleExecutor</td><td>BundlePackage</td><td>(EXE path)</td><td>Executes nested bundle EXEs with /quiet /norestart flags. Supports cancellation via process tree kill.</td></tr>
@@ -14336,13 +14336,17 @@ Tooling &amp; distribution  Cli, Decompiler, Localization, Sdk, Signing.SignServ
         (<a href="#demos">Demo 56</a>).
     </li>
     <li>
-        <strong>Elevate</strong> &mdash; skipped entirely for a plan with no privileged actions. When
+        <strong>Elevate</strong> &mdash; skipped entirely for a per-user bundle, which installs
+        wholly inside the user's profile and needs no administrator rights. When
         needed, the Engine launches the Elevated companion and the two mutually authenticate before a single
         command crosses the pipe (24.4).
     </li>
     <li>
         <strong>Apply</strong> &mdash; <code>PackageExecutor</code> dispatches each planned action to the
-        matching executor (<code>MsiExecutor</code> via <code>IMsiApi</code> P/Invoke,
+        matching executor (<code>MsiExecutor</code>, which installs in-process via
+        <code>IMsiApi</code> P/Invoke for a per-user bundle or an already-elevated engine, and
+        sends the install to the Elevated companion for a per-machine bundle from an unelevated
+        engine,
         <code>MsuExecutor</code>, <code>MspExecutor</code>, <code>BundleExecutor</code> for nested bundles,
         <code>ExeExecutor</code>, <code>NetRuntimeExecutor</code>). Before every destructive step, a
         <code>JournalEntry</code> is written to the <code>RollbackJournal</code> describing how to undo it
