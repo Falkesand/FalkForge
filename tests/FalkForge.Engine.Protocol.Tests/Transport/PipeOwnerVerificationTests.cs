@@ -279,6 +279,86 @@ public class PipeOwnerVerificationTests
     }
 
     [Fact]
+    public async Task Client_treats_a_disconnected_pipe_during_owner_read_as_unavailable()
+    {
+        // Measured 2026-08-27: GetAccessControl() on a pipe that disconnected between ConnectAsync
+        // succeeding and this read throws System.InvalidOperationException("The pipe has been
+        // disconnected."), not one of the four types the old catch filter listed. That is an
+        // ordinary race, not evidence of an untrustworthy peer, so it must come back as
+        // TransportError (unavailable), not HandshakeError (refused) — and it must come back as a
+        // Result at all, not escape ConnectAsync, which PipeOwnerSidOverride throwing simulates
+        // without needing a real race.
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Pipe security descriptors are a Windows concept.");
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        var pipeName = $"test-{Guid.NewGuid()}";
+        var serverOptions = NewOptions(pipeName);
+        await using var server = new PipeServer(serverOptions, _ => Task.CompletedTask);
+        Assert.True(server.CreateListener().IsSuccess);
+
+        var securityEvents = new List<string>();
+        await using var client = new PipeClient(
+            new PipeConnectionOptions
+            {
+                PipeName = pipeName,
+                SharedSecret = serverOptions.SharedSecret,
+                ConnectionTimeout = TimeSpan.FromSeconds(5),
+                OnSecurityEvent = securityEvents.Add
+            },
+            _ => Task.CompletedTask)
+        {
+            PipeOwnerSidOverride = () => throw new InvalidOperationException(
+                "The pipe has been disconnected.")
+        };
+
+        var result = await client.ConnectAsync(cts.Token);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.TransportError, result.Error.Kind);
+        Assert.False(client.IsConnected);
+    }
+
+    [Fact]
+    public async Task Client_fails_closed_when_owner_read_throws_an_unexpected_exception()
+    {
+        // NotSupportedException is one of the two additional types GetAccessControl() can throw
+        // (invalid handle or no security on the object) that the old catch filter did not list.
+        // Unlike a disconnect, this is not an ordinary race — fail closed as a refusal
+        // (HandshakeError), matching every other "could not read the descriptor" path here.
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Pipe security descriptors are a Windows concept.");
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+        var pipeName = $"test-{Guid.NewGuid()}";
+        var serverOptions = NewOptions(pipeName);
+        await using var server = new PipeServer(serverOptions, _ => Task.CompletedTask);
+        Assert.True(server.CreateListener().IsSuccess);
+
+        var securityEvents = new List<string>();
+        await using var client = new PipeClient(
+            new PipeConnectionOptions
+            {
+                PipeName = pipeName,
+                SharedSecret = serverOptions.SharedSecret,
+                ConnectionTimeout = TimeSpan.FromSeconds(5),
+                OnSecurityEvent = securityEvents.Add
+            },
+            _ => Task.CompletedTask)
+        {
+            PipeOwnerSidOverride = () => throw new NotSupportedException("No security on the object.")
+        };
+
+        var result = await client.ConnectAsync(cts.Token);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.HandshakeError, result.Error.Kind);
+        Assert.False(client.IsConnected);
+    }
+
+    [Fact]
     public async Task Client_accepts_a_pipe_owned_by_its_own_account()
     {
         // Control for the tests above. Without it, a client that refused every pipe would look

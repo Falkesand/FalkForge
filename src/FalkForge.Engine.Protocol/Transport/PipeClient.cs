@@ -84,8 +84,23 @@ public sealed class PipeClient : PipeTransportBase
 
         // Peer-identity binding: the pipe must be owned by the account this process runs as.
         // Runs before the PID check and before the handshake, so an unrecognised peer never
-        // reaches either.
-        var ownerResult = VerifyServerOwner();
+        // reaches either. Wrapped like the connect step above: nothing may escape this method,
+        // and VerifyServerOwnerWindows already fails closed for every exception it recognises, but
+        // this is the outer net for anything it does not.
+        Result<Unit> ownerResult;
+        try
+        {
+            ownerResult = VerifyServerOwner();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+        {
+            _options.OnSecurityEvent?.Invoke(
+                $"Pipe owner verification failed: {ex.GetType().Name}: {ex.Message}");
+            await DisposePipeAsync();
+            return Result<Unit>.Failure(
+                ErrorKind.HandshakeError, $"Pipe owner verification failed: {ex.Message}");
+        }
+
         if (ownerResult.IsFailure)
         {
             await DisposePipeAsync();
@@ -165,19 +180,35 @@ public sealed class PipeClient : PipeTransportBase
     private Result<Unit> VerifyServerOwnerWindows()
     {
         SecurityIdentifier? pipeOwner;
+        SecurityIdentifier? account;
         try
         {
             pipeOwner = ReadPipeOwner();
+            account = PipeIdentity.CurrentAccountSid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            // GetAccessControl() throws this when the pipe disconnected between ConnectAsync
+            // succeeding and this read (measured 2026-08-27: "The pipe has been disconnected.").
+            // That is an ordinary race, not evidence the peer is untrustworthy, so it is
+            // unavailability (TransportError), not a refusal (HandshakeError).
+            _options.OnSecurityEvent?.Invoke(
+                $"Could not read the pipe's owner, so the server's identity is unproven: {ex.Message}");
+            return Result<Unit>.Failure(
+                ErrorKind.TransportError, "Pipe disconnected before its owner could be read");
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException
-            or System.Security.SecurityException or PrivilegeNotHeldException)
+            or System.Security.SecurityException or PrivilegeNotHeldException
+            or NotSupportedException or ArgumentException)
         {
+            // NotSupportedException (invalid handle, or no security descriptor on the object) and
+            // ArgumentException are the other two GetAccessControl() can throw, alongside the four
+            // this filter already covered. None of these is an ordinary race — fail closed.
             _options.OnSecurityEvent?.Invoke(
                 $"Could not read the pipe's owner, so the server's identity is unproven: {ex.Message}");
             return Result<Unit>.Failure(ErrorKind.HandshakeError, "Pipe owner could not be read");
         }
 
-        var account = PipeIdentity.CurrentAccountSid();
         if (PipeIdentity.IsAcceptableOwner(pipeOwner, account))
             return Unit.Value;
 
