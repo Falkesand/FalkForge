@@ -23,9 +23,6 @@ internal sealed class GatewayElevationClient : IElevationClient
 
     public GatewayElevationClient(IElevatedCommandGateway gateway) => _gateway = gateway;
 
-    /// <summary>The gateway this adapter forwards to. Used by the wiring tests.</summary>
-    internal IElevatedCommandGateway Gateway => _gateway;
-
     /// <inheritdoc/>
     public Task<Result<byte[]>> SendCommandAsync(
         string commandName,

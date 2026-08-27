@@ -106,8 +106,13 @@ public sealed record EngineSessionOptions
     /// because what the caller needs to know is whether <c>MsiInstallProductW</c> will succeed in
     /// this process.
     /// </para>
+    /// <para>
+    /// Internal: the only production reader is <see cref="EngineSession.BindToPipe"/> in this same
+    /// assembly. Nothing outside it needs to override the probe; tests reach this through
+    /// <c>InternalsVisibleTo</c>.
+    /// </para>
     /// </summary>
-    public IElevationProbe? ElevationProbe { get; init; }
+    internal IElevationProbe? ElevationProbe { get; init; }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Plan-only mode options

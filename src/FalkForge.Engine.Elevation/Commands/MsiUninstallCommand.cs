@@ -183,12 +183,16 @@ public sealed partial class MsiUninstallCommand : IElevatedCommand
             return Result<Unit>.Failure(ErrorKind.SecurityError,
                 "MSI uninstall request carries an empty manifest.");
 
-        // Same condition PayloadIntegrityGate checks for INT009 (requireSigned is hardcoded true
-        // just below, so an empty baked set is exactly that case), checked here only to say what the
-        // publisher has to do about it. The generic INT009 text names the cause and no remedy, and
-        // it says "this engine" when the process that refused is this companion. The decision is
-        // unchanged and still fails closed: same ErrorKind, same refusal, better words. The engine
-        // relays this message verbatim into the install log.
+        // An empty baked set fails closed here before PayloadIntegrityGate.Verify ever runs, on both
+        // a signed and an unsigned manifest. For a signed manifest, Verify would reach the same
+        // refusal itself (INT009: requireSigned is hardcoded true just below, so an empty baked set
+        // is exactly that case). For an unsigned manifest, Verify would refuse it too, but as INT007
+        // ("a signature is required but the manifest carries none"), reached earlier in Verify and
+        // never mentioning the empty key set at all. Checking here catches both and lets us say what
+        // the publisher has to do about it: the generic gate text names a cause and no remedy, and it
+        // says "this engine" when the process that refused is this companion. The decision is
+        // unchanged either way and still fails closed: same ErrorKind, same refusal, better words.
+        // The engine relays this message verbatim into the install log.
         if (_trustedFingerprints.Count == 0)
             return Result<Unit>.Failure(ErrorKind.SecurityError,
                 "This elevation companion carries no baked publisher keys, so it cannot establish " +
