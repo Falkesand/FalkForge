@@ -66,4 +66,33 @@ public class PipeIdentityTests
     {
         Assert.False(PipeIdentity.IsAcceptableOwner(Account, null));
     }
+
+    [Fact]
+    public void CurrentAccountSid_reads_the_token_User_SID_not_Owner()
+    {
+        // The tests above pin IsAcceptableOwner's comparison logic with hand-built SIDs; none of
+        // them touch CurrentAccountSid() itself, so nothing here failed if that method reverted
+        // from identity.User to identity.Owner. This test catches that revert, but only where the
+        // revert is observable: an ordinary unelevated developer box or CI runner has Owner ==
+        // User, so a reverted implementation would still pass the "equals User" assertion there
+        // and this test skips rather than giving a false pass. It fails loudly on a real elevated
+        // run, or on any token whose Owner already differs from User for another reason (a domain
+        // policy can set a different default owner without elevation).
+        if (!OperatingSystem.IsWindows())
+            Assert.Skip("Windows tokens only.");
+
+        using var identity = WindowsIdentity.GetCurrent();
+        var user = identity.User;
+        var owner = identity.Owner;
+        Assert.NotNull(user);
+
+        Assert.Equal(user, PipeIdentity.CurrentAccountSid());
+
+        if (Equals(owner, user))
+            Assert.Skip("This token's Owner and User SIDs are equal, so a revert to " +
+                        "identity.Owner would still pass the assertion above. Only an elevated " +
+                        "run (or a token with a different default owner) makes the split visible.");
+
+        Assert.NotEqual(owner, PipeIdentity.CurrentAccountSid());
+    }
 }
