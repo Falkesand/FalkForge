@@ -44,9 +44,9 @@ yourself about the difference: a green automated run proves less than the full g
 | Composed enterprise bundle (IIS + SQL + service) real install | **No** — `AcmeSuiteEnterpriseCompositionTests.AcmeSuite_RealInstall_CreatesIisSiteSqlDbAndService` is an **unconditional** `Assert.Skip`, not gated on any env var. It documents the gap; it can never pass in any configuration. | manual (compose from Part 2.2/2.3 checks) |
 | Elevated companion connects across a UAC split | **Yes** | `ElevatedCompanionPipeHandshakeE2ETests.Elevated_companion_connects_to_an_unelevated_engine_pipe` |
 
-The eight "Yes" rows all live in one project: `tests/FalkForge.Compiler.Msi.Tests`, under
-`Recipe/*ExecutionEmissionTests.cs` and `Recipe/DependencyVersionEnforcementTests.cs`. Every one
-of them is gated the same way (see any of those files' XML doc comments):
+The table lists ten "Yes" rows. Nine of them live in one project: `tests/FalkForge.Compiler.Msi.Tests`,
+under `Recipe/*ExecutionEmissionTests.cs` and `Recipe/DependencyVersionEnforcementTests.cs`. Every
+one of those nine is gated the same way (see any of those files' XML doc comments):
 `FALKFORGE_E2E=1` **AND** `FALKFORGE_REAL_SYSTEM_E2E=1` **AND** the test host must be
 `IsElevated()` — checked in that order, each with its own honest `Assert.Skip` message if not
 met. `FALKFORGE_REAL_SYSTEM_E2E` is deliberately separate from `FALKFORGE_E2E` because
