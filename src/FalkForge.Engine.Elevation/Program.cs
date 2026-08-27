@@ -83,8 +83,19 @@ var options = new PipeConnectionOptions
     OnSecurityEvent = msg => ElevationSecurityLog.SecurityEvent("Handshake", msg)
 };
 
-await using var host = new ElevatedHost(options, parentPid);
-var exitCode = await host.RunAsync();
+int exitCode;
+try
+{
+    await using var host = new ElevatedHost(options, parentPid);
+    exitCode = await host.RunAsync();
+}
+catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+{
+    // Top level. An exception here used to end the process with nothing written anywhere.
+    ElevationSecurityLog.Error("Startup", $"Elevated process failed: {ex.GetType().Name}: {ex.Message}");
+    await Console.Error.WriteLineAsync($"Elevated process failed: {ex.Message}");
+    exitCode = 1;
+}
 
 ElevationSecurityLog.Info("Shutdown", $"Elevated process exiting with code {exitCode}");
 ElevationSecurityLog.Shutdown();

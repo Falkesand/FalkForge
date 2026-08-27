@@ -59,6 +59,22 @@ public sealed class ElevatedHost : IAsyncDisposable
 
     public async Task<int> RunAsync(CancellationToken ct = default)
     {
+        try
+        {
+            return await RunCoreAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+        {
+            // Last resort. Without this the companion ended with no log entry at all and the
+            // engine could report nothing better than a broken pipe.
+            ElevationSecurityLog.Error("Run", $"Elevated host failed: {ex.GetType().Name}: {ex.Message}");
+            await Console.Error.WriteLineAsync($"Elevated host failed: {ex.Message}");
+            return 1;
+        }
+    }
+
+    private async Task<int> RunCoreAsync(CancellationToken ct)
+    {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
         if (!IsParentAlive())
@@ -78,6 +94,8 @@ public sealed class ElevatedHost : IAsyncDisposable
             await Console.Error.WriteLineAsync($"Failed to connect to engine: {connectResult.Error}");
             return 1;
         }
+
+        ElevationSecurityLog.Info("Connection", "Connected to engine pipe and completed the handshake");
 
         try
         {
