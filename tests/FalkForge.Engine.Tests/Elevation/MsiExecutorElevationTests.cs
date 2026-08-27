@@ -477,6 +477,27 @@ public sealed class MsiExecutorElevationTests
         // Validation must have fired before the gateway received anything
         Assert.Equal(0, mockClient.CallCount);
     }
+
+    [Fact]
+    public async Task ExecuteAsync_Elevated_RefusesRepairInsteadOfSendingAPlainInstall()
+    {
+        // ExecuteDirect repairs by passing REINSTALL=ALL REINSTALLMODE=vomus. ExecuteElevatedAsync
+        // has no Repair branch: it handles Uninstall, then sends MsiInstall for everything else. A
+        // repair that took the elevated path would therefore arrive at the companion as an ordinary
+        // install of a product that is already installed, with none of the repair flags and none of
+        // the transform or secret-property handling, and would report success without repairing
+        // anything. Refuse it where the user can see it.
+        var mockClient = new MockElevationClient();
+        var executor = new MsiExecutor(() => mockClient);
+        var action = CreateMsiAction(PlanActionType.Repair, @"C:\packages\TestApp.msi");
+
+        var result = await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(0, mockClient.CallCount);
+        Assert.Contains("repair", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("administrator", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 /// <summary>
