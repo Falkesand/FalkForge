@@ -208,9 +208,10 @@ public static class InstallerApp
 
             var secretPipeName = $"falkforge_init_{Guid.NewGuid():N}";
 
-            var initPipe = new NamedPipeServerStream(
-                secretPipeName, PipeDirection.Out, maxNumberOfServerInstances: 1,
-                PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+            var initPipeResult = CreateInitPipe(secretPipeName);
+            if (initPipeResult.IsFailure)
+                return null;
+            var initPipe = initPipeResult.Value;
 
             var enginePath = FindEnginePath();
             if (enginePath is null)
@@ -254,6 +255,33 @@ public static class InstallerApp
             // Best-effort: any failure falls back to design-time mode
             return null;
         }
+    }
+
+    /// <summary>
+    /// Creates the one-shot pipe that delivers the shared secret to the engine process. An
+    /// explicit descriptor names the account SID as owner and sole grantee, the same way
+    /// BootstrapperRunner.CreateInitPipe and NamedPipeElevationGateway.CreateWindowsInitPipe
+    /// build their init pipes. PipeOptions.CurrentUserOnly derives that descriptor from the
+    /// token's Owner SID instead, which is BUILTIN\Administrators for an elevated UI process, so
+    /// an elevated UI's secret pipe was openable by every admin-token process on the machine.
+    /// Internal so a test can assert on the descriptor without launching the engine.
+    /// </summary>
+    internal static Result<NamedPipeServerStream> CreateInitPipe(string secretPipeName)
+    {
+        var account = PipeIdentity.CurrentAccountSid();
+        if (account is null)
+        {
+            return Result<NamedPipeServerStream>.Failure(
+                ErrorKind.SecurityError,
+                "Could not determine this process's account SID, so the secret-delivery pipe " +
+                "was not created.");
+        }
+
+        return Result<NamedPipeServerStream>.Success(NamedPipeServerStreamAcl.Create(
+            secretPipeName, PipeDirection.Out, maxNumberOfServerInstances: 1,
+            PipeTransmissionMode.Byte, PipeOptions.Asynchronous,
+            inBufferSize: 0, outBufferSize: 0,
+            PipeIdentity.CreateAccountOnlySecurity(account)));
     }
 
     private static async Task DeliverSecretAsync(NamedPipeServerStream initPipe, byte[] secret)

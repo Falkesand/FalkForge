@@ -2,6 +2,7 @@ namespace FalkForge.Engine;
 
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text.Json;
 using FalkForge.Engine.Bootstrap;
@@ -279,9 +280,14 @@ internal static class BootstrapperRunner
 
         // Create init pipe for secret delivery (engine is the server, UI is the client)
         var secretPipeName = $"falkforge_init_{Guid.NewGuid():N}";
-        var initPipe = new NamedPipeServerStream(
-            secretPipeName, PipeDirection.Out, maxNumberOfServerInstances: 1,
-            PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        var initPipeResult = CreateInitPipe(secretPipeName);
+        if (initPipeResult.IsFailure)
+        {
+            await Console.Error.WriteLineAsync(initPipeResult.Error.Message);
+            return 1;
+        }
+
+        var initPipe = initPipeResult.Value;
 
         // Prove the UI's bytes AGAIN, at the moment of launch, and start the process from the path
         // Windows reports for the handle that was hashed.
@@ -450,6 +456,46 @@ internal static class BootstrapperRunner
         {
             httpClient.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Creates the one-shot pipe that delivers the shared secret to the UI process. Windows gets
+    /// an explicit descriptor naming the account SID as owner and sole grantee, the same way
+    /// NamedPipeElevationGateway.CreateWindowsInitPipe builds the companion's init pipe.
+    /// PipeOptions.CurrentUserOnly derives that descriptor from the token's Owner SID instead,
+    /// which is BUILTIN\Administrators for an elevated engine, so an elevated engine's secret
+    /// pipe was openable by every admin-token process on the machine.
+    /// Internal so a test can assert on the descriptor without running a full bootstrap.
+    /// </summary>
+    internal static Result<NamedPipeServerStream> CreateInitPipe(string secretPipeName)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return Result<NamedPipeServerStream>.Success(new NamedPipeServerStream(
+                secretPipeName, PipeDirection.Out, maxNumberOfServerInstances: 1,
+                PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly));
+        }
+
+        return CreateWindowsInitPipe(secretPipeName);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static Result<NamedPipeServerStream> CreateWindowsInitPipe(string secretPipeName)
+    {
+        var account = PipeIdentity.CurrentAccountSid();
+        if (account is null)
+        {
+            return Result<NamedPipeServerStream>.Failure(
+                ErrorKind.SecurityError,
+                "Could not determine this process's account SID, so the secret-delivery pipe " +
+                "was not created.");
+        }
+
+        return Result<NamedPipeServerStream>.Success(NamedPipeServerStreamAcl.Create(
+            secretPipeName, PipeDirection.Out, maxNumberOfServerInstances: 1,
+            PipeTransmissionMode.Byte, PipeOptions.Asynchronous,
+            inBufferSize: 0, outBufferSize: 0,
+            PipeIdentity.CreateAccountOnlySecurity(account)));
     }
 
     /// <summary>
