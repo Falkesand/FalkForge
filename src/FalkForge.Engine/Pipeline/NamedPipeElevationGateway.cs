@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Pipeline;
 
 using System.IO.Pipes;
+using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Protocol.Messages;
@@ -108,9 +109,14 @@ public sealed class NamedPipeElevationGateway : IElevatedCommandGateway
         }
 
         var secretPipeName = $"falkforge_init_{Guid.NewGuid():N}";
-        using var initPipe = new NamedPipeServerStream(
-            secretPipeName, PipeDirection.Out, maxNumberOfServerInstances: 1,
-            PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        var initPipeResult = CreateInitPipe(secretPipeName);
+        if (initPipeResult.IsFailure)
+        {
+            await pipe.DisposeAsync();
+            return Result<Unit>.Failure(initPipeResult.Error);
+        }
+
+        await using var initPipe = initPipeResult.Value;
 
         var args = $"--pipe {pipeName} --secret-pipe {secretPipeName} --parent-pid {Environment.ProcessId}";
 
@@ -226,6 +232,53 @@ public sealed class NamedPipeElevationGateway : IElevatedCommandGateway
         // Last, so the companion file stays locked against replacement for as long as this
         // gateway could still start or restart the process.
         _companionHandle?.Dispose();
+    }
+
+    /// <summary>
+    /// Creates the one-shot pipe that delivers the HMAC secret to the companion. Windows gets an
+    /// explicit descriptor naming the account SID as owner and sole grantee.
+    /// <c>PipeOptions.CurrentUserOnly</c> derives that from the token's Owner SID instead, which
+    /// is BUILTIN\Administrators for an elevated engine, so an elevated engine's secret pipe was
+    /// openable by every admin-token process on the machine.
+    /// Internal so a test can assert on the descriptor without running an install.
+    /// </summary>
+    internal static Result<NamedPipeServerStream> CreateInitPipe(string secretPipeName)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return Result<NamedPipeServerStream>.Success(new NamedPipeServerStream(
+                secretPipeName, PipeDirection.Out, maxNumberOfServerInstances: 1,
+                PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly));
+        }
+
+        return CreateWindowsInitPipe(secretPipeName);
+    }
+
+    [SupportedOSPlatform("windows")]
+    private static Result<NamedPipeServerStream> CreateWindowsInitPipe(string secretPipeName)
+    {
+        var account = PipeIdentity.CurrentAccountSid();
+        if (account is null)
+        {
+            // Fail closed, matching PipeServer.CreateListener. Falling back to CurrentUserOnly
+            // here would still produce a usable pipe, because nothing checks the init pipe's
+            // owner, but it would silently widen the DACL to BUILTIN\Administrators for an
+            // elevated engine, which is the exposure this task exists to close.
+            return Result<NamedPipeServerStream>.Failure(
+                ErrorKind.ElevationError,
+                "Could not determine this process's account SID, so the secret-delivery pipe " +
+                "was not created.");
+        }
+
+        return Result<NamedPipeServerStream>.Success(NamedPipeServerStreamAcl.Create(
+            secretPipeName,
+            PipeDirection.Out,
+            maxNumberOfServerInstances: 1,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous,
+            inBufferSize: 0,
+            outBufferSize: 0,
+            PipeIdentity.CreateAccountOnlySecurity(account)));
     }
 
     private void KillCompanion()
