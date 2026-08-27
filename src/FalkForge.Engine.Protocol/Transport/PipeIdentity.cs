@@ -22,15 +22,24 @@ using System.Security.Principal;
 /// and in an all-elevated run, and which also stops an elevated engine from creating a pipe every
 /// admin-token process on the machine can open.
 /// </para>
+/// <para>
+/// <see cref="CurrentAccountSid"/> and <see cref="CreateAccountOnlySecurity"/> are public, not
+/// internal-with-<c>InternalsVisibleTo</c>, because every pipe endpoint that carries a
+/// session secret needs them and one of those endpoints (<c>FalkForge.Ui</c>) is not a friend
+/// assembly. Granting it <c>InternalsVisibleTo</c> would also expose this assembly's other
+/// internals, including <see cref="PipeClient.PipeOwnerSidOverride"/>, a test-only seam that
+/// must not gain a third assembly able to reach it. <see cref="IsAcceptableOwner"/> stays
+/// internal: only <see cref="PipeClient"/>, in this same assembly, calls it.
+/// </para>
 /// </summary>
-internal static class PipeIdentity
+public static class PipeIdentity
 {
     /// <summary>
     /// The account SID of the running process, or <see langword="null"/> when the token does not
     /// expose one. Callers treat null as "cannot establish identity" and fail closed.
     /// </summary>
     [SupportedOSPlatform("windows")]
-    internal static SecurityIdentifier? CurrentAccountSid()
+    public static SecurityIdentifier? CurrentAccountSid()
     {
         using var identity = WindowsIdentity.GetCurrent();
         return identity.User;
@@ -42,7 +51,7 @@ internal static class PipeIdentity
     /// A DACL holding a single allow ACE denies every other principal by default.
     /// </summary>
     [SupportedOSPlatform("windows")]
-    internal static PipeSecurity CreateAccountOnlySecurity(SecurityIdentifier account)
+    public static PipeSecurity CreateAccountOnlySecurity(SecurityIdentifier account)
     {
         var security = new PipeSecurity();
         security.AddAccessRule(
