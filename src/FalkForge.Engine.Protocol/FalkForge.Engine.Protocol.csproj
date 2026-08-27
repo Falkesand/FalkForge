@@ -14,6 +14,17 @@
     <NoWarn>$(NoWarn);SYSLIB5006</NoWarn>
   </PropertyGroup>
   <ItemGroup>
+    <!-- FalkForge.Engine and FalkForge.Engine.Elevation are shipping assemblies, not test
+         projects. Both are granted internals access only because production code in each needs
+         other internal members here. Neither should ever come to depend on
+         PipeClient.PipeOwnerSidOverride (Transport/PipeClient.cs) — an internal test-only seam
+         that replaces the pipe-owner identity check ConnectAsync relies on to refuse an
+         unrecognised peer. A production caller that sets it would disable that check with no
+         compiler complaint. #if DEBUG cannot guard the property instead: CI's build-and-test gate
+         runs `dotnet test FalkForge.slnx -c Release` (.github/workflows/ci.yml), and
+         PipeOwnerVerificationTests.cs sets the property directly from ordinary [Fact] methods, so
+         a DEBUG-only property would fail that Release test build. Do not add another shipping
+         assembly to this list without the same check. -->
     <InternalsVisibleTo Include="FalkForge.Engine.Protocol.Tests" />
     <InternalsVisibleTo Include="FalkForge.Engine" />
     <InternalsVisibleTo Include="FalkForge.Engine.Tests" />
