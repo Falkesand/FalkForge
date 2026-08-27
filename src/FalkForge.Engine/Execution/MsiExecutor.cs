@@ -161,6 +161,28 @@ public sealed partial class MsiExecutor
         CancellationToken ct,
         IProgress<int> packageProgress)
     {
+        // There is no repair on this path, and there must not be a silent one.
+        //
+        // ExecuteDirect repairs by passing REINSTALL=ALL REINSTALLMODE=vomus to MsiInstallProduct.
+        // The wire format below has no repair command: it sends MsiUninstall for an uninstall and
+        // MsiInstall for everything else, and it attaches slipstream patches, transforms and secret
+        // properties only for an Install. A repair reaching here would therefore arrive at the
+        // companion as an ordinary install of a product that is already installed and would report
+        // success without repairing anything.
+        //
+        // The workaround in the message is real: an engine process that is already elevated does
+        // not use this path at all (EngineSession.BindToPipe resolves no elevation client for it),
+        // so it repairs in-process with the flags above.
+        if (action.ActionType == PlanActionType.Repair)
+        {
+            return Result<int>.Failure(
+                ErrorKind.ExecutionError,
+                "Repairing a per-machine package is not supported from an unelevated installer. " +
+                "The elevated install channel has no repair command, and sending the repair as a " +
+                "plain install would report success without repairing anything. Run this installer " +
+                "as an administrator to repair the product.");
+        }
+
         try
         {
             string commandName;
