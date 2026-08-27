@@ -38,12 +38,25 @@ public class MutualAuthHandshakeTests
         CancellationToken ct,
         Task? holdOpen = null)
     {
-        await using var server = new NamedPipeServerStream(
-            pipeName,
-            PipeDirection.InOut,
-            1,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        await using var server = OperatingSystem.IsWindows()
+            ? NamedPipeServerStreamAcl.Create(
+                pipeName,
+                PipeDirection.InOut,
+                maxNumberOfServerInstances: 1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous,
+                inBufferSize: 0,
+                outBufferSize: 0,
+                PipeIdentity.CreateAccountOnlySecurity(
+                    PipeIdentity.CurrentAccountSid()
+                    ?? throw new InvalidOperationException(
+                        "This token exposes no account SID, so the raw test server cannot be built.")))
+            : new NamedPipeServerStream(
+                pipeName,
+                PipeDirection.InOut,
+                1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
         await server.WaitForConnectionAsync(ct);
 

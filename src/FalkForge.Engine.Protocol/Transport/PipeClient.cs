@@ -7,6 +7,9 @@
 namespace FalkForge.Engine.Protocol.Transport;
 
 using System.IO.Pipes;
+using System.Runtime.Versioning;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using FalkForge.Engine.Protocol.Messages;
 
 public sealed class PipeClient : PipeTransportBase
@@ -20,29 +23,73 @@ public sealed class PipeClient : PipeTransportBase
     {
     }
 
+    /// <summary>
+    /// Test seam for the pipe-owner identity check. Null in production, where the owner is read
+    /// from the connected handle. A test sets it to present a chosen owner SID, or null from the
+    /// delegate to simulate a descriptor that cannot be read.
+    /// <para>
+    /// Typed as a string rather than a <c>SecurityIdentifier</c> on purpose: a
+    /// <c>SecurityIdentifier</c>-typed member on this cross-platform class pulls CA1416 onto the
+    /// property, while a string keeps the platform annotation confined to
+    /// <c>VerifyServerOwnerWindows</c>, which already carries it.
+    /// </para>
+    /// </summary>
+    internal Func<string?>? PipeOwnerSidOverride { get; init; }
+
     public async Task<Result<Unit>> ConnectAsync(CancellationToken ct = default)
     {
-        _pipe = new NamedPipeClientStream(
-            ".",
-            _options.PipeName,
-            PipeDirection.InOut,
-            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        // On Windows this deliberately does NOT set PipeOptions.CurrentUserOnly. That flag makes
+        // .NET compare the pipe's owner SID against WindowsIdentity.GetCurrent().Owner, and Owner
+        // becomes BUILTIN\Administrators the moment the process is elevated. The elevated
+        // companion is exactly such a process, so the comparison refused it on every run. The
+        // check is not dropped: VerifyServerOwner below runs the same comparison against the
+        // token's account SID, which elevation does not change, before a single handshake byte is
+        // read. On Unix the flag checks the socket file's owner uid, which is the right check
+        // there and has no elevation split, so keep it.
+        var pipeOptions = OperatingSystem.IsWindows()
+            ? PipeOptions.Asynchronous
+            : PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly;
 
         try
         {
+            // Constructed inside the try on purpose. NamedPipeClientStream's constructor validates
+            // its arguments and can throw, and this method must not let anything escape.
+            _pipe = new NamedPipeClientStream(
+                ".",
+                _options.PipeName,
+                PipeDirection.InOut,
+                pipeOptions);
+
             await ((NamedPipeClientStream)_pipe).ConnectAsync((int)_options.ConnectionTimeout.TotalMilliseconds, ct);
         }
         catch (TimeoutException)
         {
-            await _pipe.DisposeAsync();
-            _pipe = null;
+            await DisposePipeAsync();
             return Result<Unit>.Failure(ErrorKind.TransportError, "Connection timed out");
         }
         catch (OperationCanceledException)
         {
-            await _pipe.DisposeAsync();
-            _pipe = null;
+            await DisposePipeAsync();
             return Result<Unit>.Failure(ErrorKind.TransportError, "Connection cancelled");
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+        {
+            // Nothing may escape this method. The elevated companion calls it from a top-level
+            // statement with no handler, so an escaping exception ended the process with no log
+            // entry, and the engine saw only a broken pipe.
+            _options.OnSecurityEvent?.Invoke($"Pipe connect failed: {ex.GetType().Name}: {ex.Message}");
+            await DisposePipeAsync();
+            return Result<Unit>.Failure(ErrorKind.TransportError, $"Connection failed: {ex.Message}");
+        }
+
+        // Peer-identity binding: the pipe must be owned by the account this process runs as.
+        // Runs before the PID check and before the handshake, so an unrecognised peer never
+        // reaches either.
+        var ownerResult = VerifyServerOwner();
+        if (ownerResult.IsFailure)
+        {
+            await DisposePipeAsync();
+            return Result<Unit>.Failure(ownerResult.Error);
         }
 
         // Server-PID binding: before exchanging any credential, confirm the pipe we connected
@@ -51,17 +98,26 @@ public sealed class PipeClient : PipeTransportBase
         var pidResult = VerifyServerProcessId();
         if (pidResult.IsFailure)
         {
-            await _pipe.DisposeAsync();
-            _pipe = null;
+            await DisposePipeAsync();
             return Result<Unit>.Failure(pidResult.Error);
         }
 
         // Perform client-side handshake
-        var handshakeResult = await PerformClientHandshakeAsync(ct);
+        Result<Unit> handshakeResult;
+        try
+        {
+            handshakeResult = await PerformClientHandshakeAsync(ct);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+        {
+            _options.OnSecurityEvent?.Invoke($"Pipe handshake failed: {ex.GetType().Name}: {ex.Message}");
+            await DisposePipeAsync();
+            return Result<Unit>.Failure(ErrorKind.HandshakeError, $"Handshake failed: {ex.Message}");
+        }
+
         if (handshakeResult.IsFailure)
         {
-            await _pipe.DisposeAsync();
-            _pipe = null;
+            await DisposePipeAsync();
             return Result<Unit>.Failure(handshakeResult.Error);
         }
 
@@ -69,6 +125,84 @@ public sealed class PipeClient : PipeTransportBase
         StartReceiveLoop(ct);
 
         return Unit.Value;
+    }
+
+    private async Task DisposePipeAsync()
+    {
+        if (_pipe is null)
+            return;
+
+        try
+        {
+            await _pipe.DisposeAsync();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException and not StackOverflowException)
+        {
+            // Disposing an already-broken pipe can itself fail. Nothing useful is left to do and
+            // the caller is already being told the connection failed.
+        }
+        finally
+        {
+            _pipe = null;
+        }
+    }
+
+    /// <summary>
+    /// Refuses any pipe whose owner is not the account this process runs as. Replaces the check
+    /// <c>PipeOptions.CurrentUserOnly</c> used to run, which compared against the token's Owner
+    /// SID and therefore refused every elevated peer. Fails closed: a descriptor that cannot be
+    /// read is not evidence of a trustworthy peer.
+    /// </summary>
+    private Result<Unit> VerifyServerOwner()
+    {
+        if (!OperatingSystem.IsWindows())
+            return Unit.Value;
+
+        return VerifyServerOwnerWindows();
+    }
+
+    [SupportedOSPlatform("windows")]
+    private Result<Unit> VerifyServerOwnerWindows()
+    {
+        SecurityIdentifier? pipeOwner;
+        try
+        {
+            pipeOwner = ReadPipeOwner();
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException
+            or System.Security.SecurityException or PrivilegeNotHeldException)
+        {
+            _options.OnSecurityEvent?.Invoke(
+                $"Could not read the pipe's owner, so the server's identity is unproven: {ex.Message}");
+            return Result<Unit>.Failure(ErrorKind.HandshakeError, "Pipe owner could not be read");
+        }
+
+        var account = PipeIdentity.CurrentAccountSid();
+        if (PipeIdentity.IsAcceptableOwner(pipeOwner, account))
+            return Unit.Value;
+
+        _options.OnSecurityEvent?.Invoke(
+            $"Pipe owner binding failed: pipe owner={pipeOwner?.Value ?? "<unreadable>"} " +
+            $"does not match this process's account sid={account?.Value ?? "<unreadable>"}");
+        return Result<Unit>.Failure(ErrorKind.HandshakeError, "Pipe owner does not match this account");
+    }
+
+    /// <summary>
+    /// Reads the pipe owner off the connected handle, or returns the test seam's value when set.
+    /// Measured 2026-08-27: every ordinary unelevated Windows token this project tested against
+    /// refused to set a foreign owner on a pipe it created, so a test cannot otherwise present a
+    /// foreign owner to the client on a developer box or on CI.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private SecurityIdentifier? ReadPipeOwner()
+    {
+        if (PipeOwnerSidOverride is { } readOverride)
+        {
+            var value = readOverride();
+            return value is null ? null : new SecurityIdentifier(value);
+        }
+
+        return _pipe!.GetAccessControl().GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
     }
 
     private Result<Unit> VerifyServerProcessId()
