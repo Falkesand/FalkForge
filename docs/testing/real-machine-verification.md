@@ -42,6 +42,7 @@ yourself about the difference: a green automated run proves less than the full g
 | Per-culture install UI | **No** | manual — Part 2.6 |
 | Authenticode detach/sign/reattach ceremony | **No** (`BundleDetachSignRoundTripTests` signs with a self-signed cert entirely in-process and deliberately stops at `CERT_E_UNTRUSTEDROOT` — it never shells out to `signtool.exe`) | manual — Part 2.7 |
 | Composed enterprise bundle (IIS + SQL + service) real install | **No** — `AcmeSuiteEnterpriseCompositionTests.AcmeSuite_RealInstall_CreatesIisSiteSqlDbAndService` is an **unconditional** `Assert.Skip`, not gated on any env var. It documents the gap; it can never pass in any configuration. | manual (compose from Part 2.2/2.3 checks) |
+| Elevated companion connects across a UAC split | **Yes** | `ElevatedCompanionPipeHandshakeE2ETests.Elevated_companion_connects_to_an_unelevated_engine_pipe` |
 
 The eight "Yes" rows all live in one project: `tests/FalkForge.Compiler.Msi.Tests`, under
 `Recipe/*ExecutionEmissionTests.cs` and `Recipe/DependencyVersionEnforcementTests.cs`. Every one
@@ -52,6 +53,12 @@ met. `FALKFORGE_REAL_SYSTEM_E2E` is deliberately separate from `FALKFORGE_E2E` b
 GitHub-hosted Windows runners run with UAC disabled (so `IsElevated()` is always true there) —
 elevation alone can't tell CI apart from an operator's prepared machine, hence the second,
 CI-never-sets-this opt-in.
+
+One test gates the other way round. `ElevatedCompanionPipeHandshakeE2ETests` skips when the host
+IS elevated, because an elevated host launches the companion with the same token and there is no
+integrity split left to cross. Run it from a normal, unelevated shell on a machine whose user is a
+local administrator, and accept the UAC prompt. It can never run on the hosted CI runners, which
+have UAC disabled.
 
 ## Part 0 — VM setup
 
