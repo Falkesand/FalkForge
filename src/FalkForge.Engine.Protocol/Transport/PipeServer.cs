@@ -7,6 +7,7 @@
 namespace FalkForge.Engine.Protocol.Transport;
 
 using System.IO.Pipes;
+using System.Runtime.Versioning;
 using FalkForge.Engine.Protocol.Messages;
 
 public sealed class PipeServer : PipeTransportBase
@@ -20,25 +21,71 @@ public sealed class PipeServer : PipeTransportBase
     /// Eagerly creates and reserves the named pipe (without waiting for a connection) so the
     /// pipe name is claimed BEFORE the elevated companion is spawned. This closes the
     /// name-squat race where a same-user rogue process could pre-create a server on the known
-    /// pipe name and have the SYSTEM companion connect to it (first-server-wins). Idempotent.
+    /// pipe name and have the elevated companion connect to it (first-server-wins). Idempotent.
     /// </summary>
-    public void CreateListener()
+    public Result<Unit> CreateListener()
     {
-        _pipe ??= new NamedPipeServerStream(
+        if (_pipe is not null)
+            return Unit.Value;
+
+        // On Windows, write the descriptor rather than letting PipeOptions.CurrentUserOnly derive
+        // it from the token's Owner SID. Owner becomes BUILTIN\Administrators when the process is
+        // elevated, which both widens the DACL (every admin-token process could open an elevated
+        // engine's control pipe) and breaks the client's identity check across a UAC split. The
+        // account SID does neither. See PipeIdentity for the measured token values.
+        if (OperatingSystem.IsWindows())
+            return CreateWindowsListener();
+
+        // On Unix CurrentUserOnly sets the socket file to owner-only permissions, which is the
+        // right check there and has no elevation split to survive.
+        _pipe = new NamedPipeServerStream(
             _options.PipeName,
             PipeDirection.InOut,
             1,
             PipeTransmissionMode.Byte,
             PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+        return Unit.Value;
+    }
+
+    [SupportedOSPlatform("windows")]
+    private Result<Unit> CreateWindowsListener()
+    {
+        var account = PipeIdentity.CurrentAccountSid();
+        if (account is null)
+        {
+            // Fail closed rather than falling back to CurrentUserOnly. That fallback would write
+            // an Owner-derived descriptor, which the client's account-SID check rejects whenever
+            // the two SIDs differ, so it would build a pipe nothing could talk to and the failure
+            // would surface later as an unexplained refusal.
+            _options.OnSecurityEvent?.Invoke(
+                "Cannot create the pipe: this process's token exposes no account SID, " +
+                "so the pipe's owner cannot be set to an identity a peer can verify.");
+            return Result<Unit>.Failure(
+                ErrorKind.TransportError,
+                "Could not determine this process's account SID, so the pipe was not created.");
+        }
+
+        _pipe = NamedPipeServerStreamAcl.Create(
+            _options.PipeName,
+            PipeDirection.InOut,
+            maxNumberOfServerInstances: 1,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous,
+            inBufferSize: 0,
+            outBufferSize: 0,
+            PipeIdentity.CreateAccountOnlySecurity(account));
+        return Unit.Value;
     }
 
     public async Task<Result<Unit>> StartAsync(CancellationToken ct = default)
     {
         // Reuse the listener if it was already reserved via CreateListener (create-before-spawn);
         // otherwise create it now (UI↔Engine channel and tests that start after connect).
-        CreateListener();
+        var listenerResult = CreateListener();
+        if (listenerResult.IsFailure)
+            return Result<Unit>.Failure(listenerResult.Error);
 
-        // CreateListener guarantees _pipe is assigned.
+        // CreateListener guarantees _pipe is assigned on the success path returned above.
         try
         {
             await ((NamedPipeServerStream)_pipe!).WaitForConnectionAsync(ct);

@@ -99,8 +99,13 @@ public sealed class NamedPipeElevationGateway : IElevatedCommandGateway
 
         // Create-before-spawn: reserve the main pipe name NOW, before the companion is launched,
         // so a same-user rogue process cannot pre-create a server on the (previously logged) pipe
-        // name and win the first-server-wins race for the SYSTEM companion's connection.
-        pipe.CreateListener();
+        // name and win the first-server-wins race for the elevated companion's connection.
+        var listenerResult = pipe.CreateListener();
+        if (listenerResult.IsFailure)
+        {
+            await pipe.DisposeAsync();
+            return Result<Unit>.Failure(listenerResult.Error);
+        }
 
         var secretPipeName = $"falkforge_init_{Guid.NewGuid():N}";
         using var initPipe = new NamedPipeServerStream(
