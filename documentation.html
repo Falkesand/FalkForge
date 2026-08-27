@@ -8852,8 +8852,35 @@ public static class MessageCodecRegistry
 }</code></pre>
 
 <div class="warning">
-    Both <code>PipeServer</code> and <code>PipeClient</code> use <code>PipeOptions.CurrentUserOnly</code>
-    to restrict pipe access to the current user, preventing cross-user attacks.
+    <code>PipeServer</code> creates the pipe with an explicit security descriptor whose owner and
+    only allow ACE are the account SID of the process, and <code>PipeClient</code> refuses any pipe
+    whose owner is a different SID, before it reads a single handshake byte. Together these keep the
+    pipe reachable only by the account the installer runs as.
+    <br><br>
+    Neither end uses <code>PipeOptions.CurrentUserOnly</code> on Windows. That option derives the
+    comparison from the token's <em>Owner</em> SID, which Windows changes to
+    <code>BUILTIN\Administrators</code> when a process is elevated. The elevated companion is such
+    a process, so the check refused it on every per-machine install, and an elevated engine created
+    a pipe that every admin-token process on the machine could open. The account SID does not change
+    when a token is elevated, so it is what both ends compare.
+    <br><br>
+    This is a trade, not a pure gain, in one configuration. When the engine itself runs elevated,
+    the old descriptor named <code>BUILTIN\Administrators</code>, which a medium-integrity process
+    running as the same user holds deny-only and so could not use at all. The new descriptor names
+    the account SID, which that process holds for real. Windows labels objects
+    <code>NO_WRITE_UP</code> by default, which blocks writing up and not reading up, and the
+    secret-delivery pipe is opened read-only, so a medium-integrity process running as the same
+    user can open an elevated engine's secret pipe and read the shared secret, or take its single
+    instance and block the elevation. It cannot use that secret against the control pipe, which is
+    bidirectional and therefore requires write access that <code>NO_WRITE_UP</code> denies. The same
+    exposure already exists whenever the engine runs unelevated, which is the ordinary case. Raising
+    the pipes' mandatory integrity label is the fix for it and is not implemented.
+    <br><br>
+    Per-machine elevation works when the interactive user is a local administrator, so Windows shows
+    a consent prompt and the companion runs as that same account. If the user is not a local
+    administrator, Windows prompts for another administrator's credentials, the companion runs as a
+    different account, and the pipe's descriptor denies it. That case did not work before this
+    change either.
 </div>
 
 <!-- Manifest Types -->
