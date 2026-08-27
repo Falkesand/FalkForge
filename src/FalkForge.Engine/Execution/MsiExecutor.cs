@@ -290,8 +290,7 @@ public sealed partial class MsiExecutor
                     return Result<int>.Failure(ErrorKind.ExecutionError, result.Error.Message);
                 }
 
-                // Elevated command succeeded — exit code 0
-                return 0;
+                return DecodeExitCode(result.Value);
             }
             finally
             {
@@ -307,6 +306,26 @@ public sealed partial class MsiExecutor
                 ErrorKind.ExecutionError, $"Elevated MSI execution failed: {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// Reads the MSI exit code out of a successful elevated response.
+    /// </summary>
+    /// <remarks>
+    /// MsiInstallCommand and MsiUninstallCommand answer a success with the MSI's own exit code as
+    /// four little-endian bytes. They answer success only for 0 and 3010 and turn every other code
+    /// into a failure, so this decode never has to widen an error into a code. A response that is
+    /// not four bytes carries no exit code and reads as plain success: that keeps a command with
+    /// nothing to report on the success path.
+    /// <para>
+    /// This used to return a hardcoded 0. A per-machine install that returned 3010 therefore
+    /// reported 0, ApplyStep never set <c>ctx.RebootRequired</c>, and the user was never told to
+    /// reboot. The in-process path always returned the real code.
+    /// </para>
+    /// </remarks>
+    private static int DecodeExitCode(byte[] response) =>
+        response.Length == sizeof(uint)
+            ? (int)System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(response)
+            : 0;
 
     private Result<int> ExecuteDirect(PlanAction action, string additionalArgs, IProgress<int> packageProgress)
     {
