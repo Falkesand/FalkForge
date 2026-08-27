@@ -10,7 +10,16 @@ using Xunit;
 /// process's top-level statement, so any exception from the connect path ended the process with
 /// no log entry at all. Measured: the companion's security log stopped after its two startup
 /// lines and the engine saw only a broken pipe. These tests pin that a failure to connect leaves
-/// a non-zero exit code and a recorded reason rather than an unhandled exception.
+/// a non-zero exit code rather than an unhandled exception.
+/// <para>
+/// They do not assert on the recorded reason itself (<c>ElevationSecurityLog</c> or stderr).
+/// <c>ElevationSecurityLog</c> is process-global static state gated behind
+/// <c>Initialize()</c>/<c>Shutdown()</c>, and capturing stderr means redirecting
+/// <c>Console.Error</c>, itself a process-global static the way
+/// <c>FalkForge.Integration.Tests</c> only does safely because that whole assembly disables test
+/// parallelization for it (see <c>IntegrationAssemblyParallelization.cs</c>). This assembly does
+/// not, so either mechanism risks interference with other tests running concurrently.
+/// </para>
 /// </summary>
 public class ElevatedHostFailureReportingTests
 {
