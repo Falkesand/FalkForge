@@ -235,7 +235,13 @@ public sealed partial class EngineSession
             // refusal. Both paths get only the property key pattern and the prohibited value
             // characters (ExecuteAsync validates before this branch). That gap is the current
             // behaviour of every install on every path; this line narrows who lands in it rather
-            // than widening it. See the plan section "What the in-process path does not check".
+            // than widening it.
+            //
+            // InstallScope.PerMachine is the enum default, and BundleBuilder defaults to it too
+            // (BundleBuilder.cs), independently of whether the chained MSIs actually need admin
+            // rights. So a bundle left at that default, chaining an MSI that does not need admin
+            // rights, installs successfully today and, on a companion with no baked publisher key,
+            // is refused once elevation routes it there instead.
             //
             // The companion still starts for a per-machine bundle either way. Per-machine dependency
             // registration and the verified-apply trust-store advance both read
