@@ -8161,6 +8161,17 @@ public sealed record EngineSessionOptions
 </table>
 
 <div class="note">
+    <strong>Per-machine installs need a companion built with a trusted key.</strong> The Elevated
+    companion refuses the install described above unless it was published with at least one baked
+    publisher key (see <a href="#signing-trust">Who the Installer Trusts</a>). Neither
+    <code>scripts/</code> nor <code>.github/</code> in this repository passes
+    <code>-p:FalkForgeTrustedKey</code> to any publish step, so a companion built from this
+    repository's own scripts or CI carries an empty baked key set and answers every unelevated
+    per-machine install with a refusal. A publisher who wants that install to succeed must bake a
+    key into their own build.
+</div>
+
+<div class="note">
     <strong>Distributed install (payload path resolution).</strong> Each executor reads
     <code>PlanAction.EffectiveSourcePath</code> (<code>ResolvedSourcePath ?? Package.SourcePath</code>,
     <code>src/FalkForge.Engine/Planning/PlanAction.cs</code>) rather than the build-time
