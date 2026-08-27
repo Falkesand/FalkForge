@@ -8,9 +8,9 @@ using Xunit;
 /// The engine's MSI executor talks to <see cref="IElevationClient"/>; the pipeline holds an
 /// <see cref="IElevatedCommandGateway"/>. The two declare the same four values in a different
 /// order: the client takes (name, payload, cancellationToken, progress) and the gateway takes
-/// (name, payload, progress, ct). Swapping them compiles fine when both are passed positionally
-/// through a lambda, and the mistake only shows up as a cancellation token that never cancels and
-/// a progress bar that never moves, so these tests pin the mapping.
+/// (name, payload, progress, ct). These tests pin that <see cref="GatewayElevationClient"/> forwards
+/// the caller's cancellation token and progress sink through to the gateway unchanged, rather than
+/// dropping one of them or substituting a default.
 /// </summary>
 public sealed class GatewayElevationClientTests
 {
