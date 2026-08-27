@@ -33,6 +33,13 @@ public sealed class PipeClient : PipeTransportBase
     /// property, while a string keeps the platform annotation confined to
     /// <c>VerifyServerOwnerWindows</c>, which already carries it.
     /// </para>
+    /// <para>
+    /// Reachable from <c>FalkForge.Engine</c> and <c>FalkForge.Engine.Elevation</c> via this
+    /// assembly's <c>InternalsVisibleTo</c> (see the comment on that item group in
+    /// <c>FalkForge.Engine.Protocol.csproj</c>): a production caller in either could set this and
+    /// disable the pipe-owner check with no compiler complaint. Never wire it from anywhere but a
+    /// test project.
+    /// </para>
     /// </summary>
     internal Func<string?>? PipeOwnerSidOverride { get; init; }
 
