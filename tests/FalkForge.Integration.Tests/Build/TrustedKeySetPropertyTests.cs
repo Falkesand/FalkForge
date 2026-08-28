@@ -137,6 +137,56 @@ public sealed class TrustedKeySetPropertyTests
         Assert.Contains("FALKPQ005", output, StringComparison.Ordinal);
     }
 
+    // D62: FALKPQ005 originally checked only FalkForgeTrustedKey. A stray FalkForgeTrustedKeySet in
+    // a shell profile or a CI job's environment block reshaped the roled set the same way, with no
+    // guard at all. These four tests mirror the four TrustedKey_* environment tests above, for the
+    // set property, and share its FalkForgeTrustedKeyAllowEnvironment opt-out.
+    [Fact]
+    public void TrustedKeySet_EqualToEnvironmentValue_FailsWithFalkpq005()
+    {
+        var environment = new Dictionary<string, string> { ["FalkForgeTrustedKeySet"] = $"{ReleaseFp}=release" };
+        var exitCode = RunBuild(property: null, out var output, environmentOverrides: environment);
+
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains("FALKPQ005", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TrustedKeySet_DifferentFromEnvironmentValue_Passes()
+    {
+        var environment = new Dictionary<string, string> { ["FalkForgeTrustedKeySet"] = $"{ReleaseFp}=release" };
+        var generated = BuildAndReadGeneratedSource(
+            $"-p:FalkForgeTrustedKeySet={RecoveryFp}=recovery", environment);
+
+        Assert.Contains(RecoveryFp, generated, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TrustedKeySet_EnvironmentValueWithExplicitOptOut_Passes()
+    {
+        var environment = new Dictionary<string, string> { ["FalkForgeTrustedKeySet"] = $"{ReleaseFp}=release" };
+        var generated = BuildAndReadGeneratedSource(
+            $"-p:FalkForgeTrustedKeySet={ReleaseFp}=release",
+            "-p:FalkForgeTrustedKeyAllowEnvironment=true",
+            environment);
+
+        Assert.Contains(ReleaseFp, generated, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TrustedKeySet_OptOutAlsoFromEnvironment_StillFailsWithFalkpq005()
+    {
+        var environment = new Dictionary<string, string>
+        {
+            ["FalkForgeTrustedKeySet"] = $"{ReleaseFp}=release",
+            ["FalkForgeTrustedKeyAllowEnvironment"] = "true"
+        };
+        var exitCode = RunBuild(property: null, out var output, environmentOverrides: environment);
+
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains("FALKPQ005", output, StringComparison.Ordinal);
+    }
+
     // Builds the engine project with the supplied property and returns the generated TrustedKeys.g.cs.
     // A managed-only build is enough: the generator runs BeforeTargets="CoreCompile", so no NativeAOT
     // publish (and no C++ toolchain) is needed to observe what it wrote.
@@ -202,6 +252,7 @@ public sealed class TrustedKeySetPropertyTests
         // process-global. Both names are cleared first so a variable already present on the host
         // machine cannot leak into a test that did not ask for it.
         psi.Environment.Remove("FalkForgeTrustedKey");
+        psi.Environment.Remove("FalkForgeTrustedKeySet");
         psi.Environment.Remove("FalkForgeTrustedKeyAllowEnvironment");
         if (environmentOverrides is not null)
         {
