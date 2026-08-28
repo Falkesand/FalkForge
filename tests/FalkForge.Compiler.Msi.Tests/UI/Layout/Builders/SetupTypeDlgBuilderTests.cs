@@ -112,17 +112,21 @@ public sealed class SetupTypeDlgBuilderTests
         Assert.Equal("NewDialog", back.Event);
         Assert.Equal("LicenseAgreementDlg", back.Argument);
 
+        // Typical and Complete end the dialog chain directly (EndDialog/Return) so
+        // InstallUISequence can run ProgressDlg/ExecuteAction, rather than navigating into
+        // ProgressDlg with NewDialog, which would nest it inside the still-running SetupTypeDlg
+        // action and the install would never start. See ledger D64.
         var typical = content.Events.Single(e => e.Control == "TypicalButton");
-        Assert.Equal("NewDialog", typical.Event);
-        Assert.Equal("ProgressDlg", typical.Argument);
+        Assert.Equal("EndDialog", typical.Event);
+        Assert.Equal("Return", typical.Argument);
 
         var custom = content.Events.Single(e => e.Control == "CustomButton");
         Assert.Equal("NewDialog", custom.Event);
         Assert.Equal("CustomizeDlg", custom.Argument);
 
         var complete = content.Events.Single(e => e.Control == "CompleteButton");
-        Assert.Equal("NewDialog", complete.Event);
-        Assert.Equal("ProgressDlg", complete.Argument);
+        Assert.Equal("EndDialog", complete.Event);
+        Assert.Equal("Return", complete.Argument);
 
         var cancel = content.Events.Single(e => e.Control == "Cancel");
         Assert.Equal("SpawnDialog", cancel.Event);
