@@ -1,0 +1,4 @@
+<Project>
+  <!-- Empty on purpose, same reason as the sibling Directory.Build.props: stop MSBuild's upward
+       walk so a consumer's own repository root cannot reach into the engine's compile. -->
+</Project>

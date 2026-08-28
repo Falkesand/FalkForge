@@ -1,0 +1,6 @@
+<Project>
+  <!-- Empty on purpose. Its only job is to stop the upward MSBuild walk so a consumer's own
+       repository-root Directory.Build.props (TreatWarningsAsErrors, custom analyzers, whatever
+       else) cannot reach into the engine's trust-critical build. Measured: without a stopper file
+       here, an ordinary consumer repository silently reshapes the packaged engine's compile. -->
+</Project>

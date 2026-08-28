@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <FalkForgeEngineSourceDir Condition="'$(FalkForgeEngineSourceDir)' == ''">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\tools\src'))</FalkForgeEngineSourceDir>
+  </PropertyGroup>
+</Project>

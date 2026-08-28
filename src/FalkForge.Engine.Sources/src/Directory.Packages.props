@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <!-- This package does not use central package management: each PackageReference in the
+         packaged csproj files carries its own Version attribute, set to this package's own
+         version at pack time. Stops a consumer's own central package versions file from silently
+         reshaping the engine's pins. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>
