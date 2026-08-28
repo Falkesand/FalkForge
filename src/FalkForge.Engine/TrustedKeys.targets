@@ -30,6 +30,29 @@
        consistency-only (safe default — see TrustPolicy). It never fails open
        on the update path (Stage 2 require-signed rejects untrusted updates).
 
+       A publisher who needs several roled keys at once (the lifecycle tier bakes a Release key
+       alongside a Recovery key) cannot reach that from the single-value property above: the .NET
+       CLI rejects an unescaped `-p:FalkForgeTrustedKey=A;B` outright (MSB1006), an escaped `%3B`
+       arrives as one literal item and does not split, and a comma is consumed as the CLI's own
+       property separator. Only `|` survives a `-p:` value unescaped, measured 2026-08-28, so a
+       second property carries a roled set that way:
+
+         -p:FalkForgeTrustedKeySet="A1B2...=release|C3D4...=recovery"
+
+       Each entry is `<fingerprint>=<role>`; the role is optional and defaults to release. Parsed
+       by the same task as the item and single-value forms, so the length check, the role map, the
+       duplicate check and the PQ rules all apply identically.
+
+       Input hygiene, not a security control (FALKPQ005): MSBuild initializes a property from the
+       process environment when nothing else sets it, so a stray FalkForgeTrustedKey left in a
+       shell profile or a CI job's environment block would otherwise reshape the anchor with no
+       `-p:` in sight. The build fails when the effective FalkForgeTrustedKey value equals the raw
+       environment variable of the same name, unless FalkForgeTrustedKeyAllowEnvironment=true is
+       passed explicitly on the command line (the opt-out itself must not be environment-sourced,
+       or a stray environment could set both variables and silence the guard). This defends against
+       an accident or a misconfigured shell, never against an attacker who can already run code on
+       the build machine. Build-machine compromise is out of scope, ruled 2026-08-28.
+
        Reuses the RoslynCodeTaskFactory generated-source idiom from
        FalkForge.Sdk/Sdk/Sdk.targets.
        ============================================================ -->
@@ -44,6 +67,9 @@
              AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
       <Fingerprints ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="false" />
+      <FingerprintSet ParameterType="System.String" Required="false" />
+      <TrustedKeyPropertyValue ParameterType="System.String" Required="false" />
+      <AllowEnvironmentPropertyValue ParameterType="System.String" Required="false" />
       <OutputFile ParameterType="System.String" Required="true" />
     </ParameterGroup>
     <Task>
@@ -78,9 +104,86 @@ Func<string, string> normalizeFp = raw =>
     return norm.ToString();
 };
 
+// FALKPQ005: input hygiene, not a security control (build-machine compromise is out of scope,
+// ruled 2026-08-28). MSBuild initializes $(FalkForgeTrustedKey) from the process environment when
+// nothing else sets it, so a stray value left in a shell profile or a CI job's environment block
+// would otherwise reshape the anchor with no `-p:` in sight. Compare the effective property value
+// against the raw environment variable of the same name: they are equal exactly when nothing else
+// set the property, because a caller-supplied `-p:` with coincidentally the same text is
+// indistinguishable from, and just as intentional as, any other explicit value.
+var envTrustedKey = System.Environment.GetEnvironmentVariable("FalkForgeTrustedKey") ?? string.Empty;
+if (envTrustedKey.Length != 0 &&
+    string.Equals(TrustedKeyPropertyValue ?? string.Empty, envTrustedKey, System.StringComparison.Ordinal))
+{
+    // The opt-out must not itself be environment-sourced, or a stray environment could set both
+    // variables and silence the guard it exists to enforce.
+    var envAllowFlag = System.Environment.GetEnvironmentVariable("FalkForgeTrustedKeyAllowEnvironment") ?? string.Empty;
+    var allowValue = AllowEnvironmentPropertyValue ?? string.Empty;
+    var allowIsEnvironmentSourced = envAllowFlag.Length != 0 &&
+        string.Equals(allowValue, envAllowFlag, System.StringComparison.Ordinal);
+    var allowedExplicitly = !allowIsEnvironmentSourced &&
+        string.Equals(allowValue.Trim(), "true", System.StringComparison.OrdinalIgnoreCase);
+
+    if (!allowedExplicitly)
+    {
+        Log.LogError(
+            "FALKPQ005: FalkForgeTrustedKey's effective value equals the process environment " +
+            "variable of the same name, so nothing on the command line set it. The value came " +
+            "from a stray environment variable (a shell profile, a CI job's environment block, or " +
+            "similar). Baking it would pin the engine to whatever happened to be in the " +
+            "environment rather than what this build explicitly asked for. This is input hygiene " +
+            "against an accident, not a defence against a compromised build machine. Pass the " +
+            "value explicitly with -p:FalkForgeTrustedKey=..., or set " +
+            "-p:FalkForgeTrustedKeyAllowEnvironment=true on the command line (not the environment) " +
+            "to accept it deliberately.");
+    }
+}
+
 // Collect normalized fingerprint, resolved role expression, and (optionally) the normalized
 // PQ companion fingerprint from PqFingerprint= metadata (PQ-hybrid Stage 1), preserving correspondence.
 var entries = new System.Collections.Generic.List<System.Tuple<string, string, string>>();
+
+// The set property: one string carrying several `<fingerprint>=<role>` entries separated by
+// '|' or ';'. It exists because the single-value FalkForgeTrustedKey property cannot deliver a
+// second key from a command line at all. The .NET CLI rejects an unescaped ';' outright, an
+// escaped one stays a single literal value, and a ',' is consumed as a property separator. A
+// two-key roled bake would otherwise need an edit to a project file the publisher does not own.
+// Parsed into the same `entries` list the item form feeds, so the length check, the role map,
+// the duplicate check and the PQ rules all apply identically.
+if (!string.IsNullOrWhiteSpace(FingerprintSet))
+{
+    foreach (var raw in FingerprintSet.Split(new[] { '|', ';' }, StringSplitOptions.RemoveEmptyEntries))
+    {
+        var element = raw.Trim();
+        if (element.Length == 0)
+            continue;
+
+        var eq = element.IndexOf('=');
+        var fpRaw = eq < 0 ? element : element.Substring(0, eq);
+        var roleRaw = eq < 0 ? string.Empty : element.Substring(eq + 1);
+
+        var fp = normalizeFp(fpRaw);
+        if (fp.Length != 64)
+        {
+            Log.LogError(
+                "FALKPQ004: FalkForgeTrustedKeySet entry '{0}' is a malformed classical fingerprint: " +
+                "it normalizes to {1} hex characters, expected exactly 64 (the SHA-256 of the " +
+                "signing key's SubjectPublicKeyInfo). Baking it would pin the engine to a " +
+                "fingerprint no real key can match, so every bundle from this signer would fail " +
+                "verification at the customer's install, not on the build box.",
+                element, fp.Length);
+            continue;
+        }
+
+        string mappedRole;
+        var roleKey = roleRaw.Trim();
+        if (roleKey.Length == 0 || !knownRoles.TryGetValue(roleKey, out mappedRole))
+            mappedRole = "FalkForge.Engine.Protocol.Integrity.TrustRole.Release";
+
+        entries.Add(System.Tuple.Create(fp, mappedRole, string.Empty));
+    }
+}
+
 if (Fingerprints != null)
 {
     foreach (var item in Fingerprints)
@@ -268,6 +371,9 @@ File.WriteAllText(OutputFile, sb.ToString(), new UTF8Encoding(false));
 
     <_WriteFalkTrustedKeysSource
         Fingerprints="@(FalkForgeTrustedKey)"
+        FingerprintSet="$(FalkForgeTrustedKeySet)"
+        TrustedKeyPropertyValue="$(FalkForgeTrustedKey)"
+        AllowEnvironmentPropertyValue="$(FalkForgeTrustedKeyAllowEnvironment)"
         OutputFile="$(_FalkTrustedKeysFile)" />
 
     <ItemGroup>
