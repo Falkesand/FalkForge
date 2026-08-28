@@ -44,12 +44,13 @@
        duplicate check and the PQ rules all apply identically.
 
        Input hygiene, not a security control (FALKPQ005): MSBuild initializes a property from the
-       process environment when nothing else sets it, so a stray FalkForgeTrustedKey left in a
-       shell profile or a CI job's environment block would otherwise reshape the anchor with no
-       `-p:` in sight. The build fails when the effective FalkForgeTrustedKey value equals the raw
-       environment variable of the same name, unless FalkForgeTrustedKeyAllowEnvironment=true is
-       passed explicitly on the command line (the opt-out itself must not be environment-sourced,
-       or a stray environment could set both variables and silence the guard). This defends against
+       process environment when nothing else sets it, so a stray FalkForgeTrustedKey or
+       FalkForgeTrustedKeySet left in a shell profile or a CI job's environment block would
+       otherwise reshape the anchor with no `-p:` in sight. The build fails when the effective
+       value of either property equals the raw environment variable of the same name, unless
+       FalkForgeTrustedKeyAllowEnvironment=true is passed explicitly on the command line (the
+       opt-out itself must not be environment-sourced, or a stray environment could set both
+       variables and silence the guard, and it covers both properties). This defends against
        an accident or a misconfigured shell, never against an attacker who can already run code on
        the build machine. Build-machine compromise is out of scope, ruled 2026-08-28.
 
@@ -69,6 +70,7 @@
       <Fingerprints ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="false" />
       <FingerprintSet ParameterType="System.String" Required="false" />
       <TrustedKeyPropertyValue ParameterType="System.String" Required="false" />
+      <TrustedKeySetPropertyValue ParameterType="System.String" Required="false" />
       <AllowEnvironmentPropertyValue ParameterType="System.String" Required="false" />
       <OutputFile ParameterType="System.String" Required="true" />
     </ParameterGroup>
@@ -105,38 +107,56 @@ Func<string, string> normalizeFp = raw =>
 };
 
 // FALKPQ005: input hygiene, not a security control (build-machine compromise is out of scope,
-// ruled 2026-08-28). MSBuild initializes $(FalkForgeTrustedKey) from the process environment when
-// nothing else sets it, so a stray value left in a shell profile or a CI job's environment block
-// would otherwise reshape the anchor with no `-p:` in sight. Compare the effective property value
+// ruled 2026-08-28). MSBuild initializes a property from the process environment when nothing else
+// sets it, so a stray value left in a shell profile or a CI job's environment block would
+// otherwise reshape the anchor with no `-p:` in sight. Compare each effective property value
 // against the raw environment variable of the same name: they are equal exactly when nothing else
 // set the property, because a caller-supplied `-p:` with coincidentally the same text is
-// indistinguishable from, and just as intentional as, any other explicit value.
+// indistinguishable from, and just as intentional as, any other explicit value. Both the
+// single-value FalkForgeTrustedKey and the multi-key FalkForgeTrustedKeySet are checked, sharing
+// one opt-out.
+//
+// The opt-out must not itself be environment-sourced, or a stray environment could set both
+// variables and silence the guard it exists to enforce.
+var envAllowFlag = System.Environment.GetEnvironmentVariable("FalkForgeTrustedKeyAllowEnvironment") ?? string.Empty;
+var allowValue = AllowEnvironmentPropertyValue ?? string.Empty;
+var allowIsEnvironmentSourced = envAllowFlag.Length != 0 &&
+    string.Equals(allowValue, envAllowFlag, System.StringComparison.Ordinal);
+var allowedExplicitly = !allowIsEnvironmentSourced &&
+    string.Equals(allowValue.Trim(), "true", System.StringComparison.OrdinalIgnoreCase);
+
 var envTrustedKey = System.Environment.GetEnvironmentVariable("FalkForgeTrustedKey") ?? string.Empty;
 if (envTrustedKey.Length != 0 &&
-    string.Equals(TrustedKeyPropertyValue ?? string.Empty, envTrustedKey, System.StringComparison.Ordinal))
+    string.Equals(TrustedKeyPropertyValue ?? string.Empty, envTrustedKey, System.StringComparison.Ordinal) &&
+    !allowedExplicitly)
 {
-    // The opt-out must not itself be environment-sourced, or a stray environment could set both
-    // variables and silence the guard it exists to enforce.
-    var envAllowFlag = System.Environment.GetEnvironmentVariable("FalkForgeTrustedKeyAllowEnvironment") ?? string.Empty;
-    var allowValue = AllowEnvironmentPropertyValue ?? string.Empty;
-    var allowIsEnvironmentSourced = envAllowFlag.Length != 0 &&
-        string.Equals(allowValue, envAllowFlag, System.StringComparison.Ordinal);
-    var allowedExplicitly = !allowIsEnvironmentSourced &&
-        string.Equals(allowValue.Trim(), "true", System.StringComparison.OrdinalIgnoreCase);
+    Log.LogError(
+        "FALKPQ005: FalkForgeTrustedKey's effective value equals the process environment " +
+        "variable of the same name, so nothing on the command line set it. The value came " +
+        "from a stray environment variable (a shell profile, a CI job's environment block, or " +
+        "similar). Baking it would pin the engine to whatever happened to be in the " +
+        "environment rather than what this build explicitly asked for. This is input hygiene " +
+        "against an accident, not a defence against a compromised build machine. Pass the " +
+        "value explicitly with -p:FalkForgeTrustedKey=..., or set " +
+        "-p:FalkForgeTrustedKeyAllowEnvironment=true on the command line (not the environment) " +
+        "to accept it deliberately.");
+}
 
-    if (!allowedExplicitly)
-    {
-        Log.LogError(
-            "FALKPQ005: FalkForgeTrustedKey's effective value equals the process environment " +
-            "variable of the same name, so nothing on the command line set it. The value came " +
-            "from a stray environment variable (a shell profile, a CI job's environment block, or " +
-            "similar). Baking it would pin the engine to whatever happened to be in the " +
-            "environment rather than what this build explicitly asked for. This is input hygiene " +
-            "against an accident, not a defence against a compromised build machine. Pass the " +
-            "value explicitly with -p:FalkForgeTrustedKey=..., or set " +
-            "-p:FalkForgeTrustedKeyAllowEnvironment=true on the command line (not the environment) " +
-            "to accept it deliberately.");
-    }
+var envTrustedKeySet = System.Environment.GetEnvironmentVariable("FalkForgeTrustedKeySet") ?? string.Empty;
+if (envTrustedKeySet.Length != 0 &&
+    string.Equals(TrustedKeySetPropertyValue ?? string.Empty, envTrustedKeySet, System.StringComparison.Ordinal) &&
+    !allowedExplicitly)
+{
+    Log.LogError(
+        "FALKPQ005: FalkForgeTrustedKeySet's effective value equals the process environment " +
+        "variable of the same name, so nothing on the command line set it. The value came " +
+        "from a stray environment variable (a shell profile, a CI job's environment block, or " +
+        "similar). Baking it would reshape the roled key set to whatever happened to be in the " +
+        "environment rather than what this build explicitly asked for. This is input hygiene " +
+        "against an accident, not a defence against a compromised build machine. Pass the " +
+        "value explicitly with -p:FalkForgeTrustedKeySet=..., or set " +
+        "-p:FalkForgeTrustedKeyAllowEnvironment=true on the command line (not the environment) " +
+        "to accept it deliberately.");
 }
 
 // Collect normalized fingerprint, resolved role expression, and (optionally) the normalized
@@ -373,6 +393,7 @@ File.WriteAllText(OutputFile, sb.ToString(), new UTF8Encoding(false));
         Fingerprints="@(FalkForgeTrustedKey)"
         FingerprintSet="$(FalkForgeTrustedKeySet)"
         TrustedKeyPropertyValue="$(FalkForgeTrustedKey)"
+        TrustedKeySetPropertyValue="$(FalkForgeTrustedKeySet)"
         AllowEnvironmentPropertyValue="$(FalkForgeTrustedKeyAllowEnvironment)"
         OutputFile="$(_FalkTrustedKeysFile)" />
 
