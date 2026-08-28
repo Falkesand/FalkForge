@@ -21,7 +21,9 @@ internal static class CustomizeDlgBuilder
     public static DialogContent Build() => Build(new DialogFlowContext());
 
     /// <summary>Builds the declarative content for the Customize dialog with explicit flow targets.</summary>
-    /// <param name="flow">Navigation targets for Back/Next/Cancel events. Next routes to ProgressDlg per legacy.</param>
+    /// <param name="flow">Navigation targets for Back/Next/Cancel events. Next targets ProgressDlg per
+    /// legacy, which <see cref="DialogFooter.NextEvent"/> turns into an EndDialog/Return handoff to
+    /// InstallUISequence rather than a NewDialog navigation. See ledger D64.</param>
     public static DialogContent Build(DialogFlowContext flow)
     {
         System.ArgumentNullException.ThrowIfNull(flow);

@@ -84,13 +84,42 @@ internal static class DialogFooter
     /// <summary>
     /// The standard Next wiring: NewDialog to <see cref="DialogFlowContext.NextDialog"/>, falling
     /// back to <paramref name="defaultTarget"/> when the flow leaves it unset (Customize defaults
-    /// to "ProgressDlg"; everything else defaults to empty).
+    /// to "ProgressDlg"; everything else defaults to empty). When the resolved target is
+    /// <c>ProgressDlg</c>, this returns <see cref="InstallEvent"/> instead of a NewDialog event;
+    /// see that method's remarks for why. See ledger D64.
     /// </summary>
-    public static DialogControlEvent NextEvent(DialogFlowContext flow, string defaultTarget = "") => new()
+    public static DialogControlEvent NextEvent(DialogFlowContext flow, string defaultTarget = "")
     {
-        Control = "Next",
-        Event = "NewDialog",
-        Argument = flow.NextDialog ?? defaultTarget,
+        var target = flow.NextDialog ?? defaultTarget;
+        return target == "ProgressDlg"
+            ? InstallEvent("Next")
+            : new DialogControlEvent
+            {
+                Control = "Next",
+                Event = "NewDialog",
+                Argument = target,
+            };
+    }
+
+    /// <summary>
+    /// The wiring for a control that hands the wizard off to <c>InstallUISequence</c> so
+    /// <c>ProgressDlg</c> (sequence 1200, modeless) and <c>ExecuteAction</c> (sequence 1300, the
+    /// action that actually performs the install) can run.
+    /// </summary>
+    /// <remarks>
+    /// <c>ProgressDlg</c> is not another wizard page to reach with <c>NewDialog</c>. Doing that
+    /// opens it as a second modal dialog nested inside the current dialog action, which never
+    /// ends, so the sequence never advances past the current dialog's own sequence number and
+    /// <c>ExecuteAction</c> never runs, so the install never starts. Ending the dialog with
+    /// <c>EndDialog</c>/<c>Return</c> instead returns control to <c>InstallUISequence</c>, which
+    /// then runs 1200 and 1300 on its own. See ledger D64, and
+    /// <c>InstallDirDlgBuilder</c>'s Next event, which already did this correctly.
+    /// </remarks>
+    public static DialogControlEvent InstallEvent(string control) => new()
+    {
+        Control = control,
+        Event = "EndDialog",
+        Argument = "Return",
     };
 
     /// <summary>

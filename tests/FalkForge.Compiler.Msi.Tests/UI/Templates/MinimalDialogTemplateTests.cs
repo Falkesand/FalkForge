@@ -52,15 +52,19 @@ public sealed class MinimalDialogTemplateTests
     }
 
     [Fact]
-    public void Welcome_dialog_advances_to_progress()
+    public void Welcome_dialog_ends_the_ui_sequence_to_start_the_install()
     {
+        // Welcome is the last interactive dialog in the Minimal set, so its Next must hand off
+        // to InstallUISequence with EndDialog/Return rather than navigate into ProgressDlg with
+        // NewDialog (ledger D64) — NewDialog would nest Progress inside the still-running
+        // WelcomeDlg action and the install would never start.
         var dialogs = Compose();
         var welcome = dialogs.Single(d => d.Name == "WelcomeDlg");
 
-        var advance = welcome.Events.Single(e =>
-            e.ControlName == "Next" && e.Event.ToString() == "NewDialog");
+        var advance = welcome.Events.Single(e => e.ControlName == "Next");
 
-        Assert.Equal("ProgressDlg", advance.Argument);
+        Assert.Equal("EndDialog", advance.Event.ToString());
+        Assert.Equal("Return", advance.Argument);
     }
 
     [Fact]
