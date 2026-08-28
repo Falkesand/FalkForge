@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- The properties in this block are supplied by the repository's own root
+         Directory.Build.props when this file is compiled as part of FalkForge.slnx. The tools/src
+         tree this file ships in stops that upward walk deliberately (a consumer's own repository
+         root must never reshape the engine's trust-critical build), so the shipped copy carries
+         them explicitly instead. This is one of the three differences from the repository original;
+         see FalkForge.Engine.Sources.csproj for the other two. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+
+    <OutputType>Exe</OutputType>
+    <RootNamespace>FalkForge.Engine</RootNamespace>
+    <Description>NativeAOT bundle engine for FalkForge</Description>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IlcOptimizationPreference>Size</IlcOptimizationPreference>
+    <!-- Required for P/Invoke interop with native Windows APIs (MSI, Restart Manager) -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- comctl32 v6 app manifest — required for TaskDialogIndirect (pre-UI progress dialog) -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The repository original references these as sibling ProjectReference items. A consumer of
+         this package has no sibling project to point at, and the engine's whole dependency closure
+         already ships on NuGet as libraries, so these are PackageReference at this very package's
+         own version instead. -->
+    <PackageReference Include="FalkForge.Engine.Protocol" Version="$(FalkForgePackageVersion)" />
+    <PackageReference Include="FalkForge.Platform.Windows" Version="$(FalkForgePackageVersion)" />
+    <PackageReference Include="FalkForge.Compiler.Msi" Version="$(FalkForgePackageVersion)" />
+  </ItemGroup>
+
+  <!-- Build-time injection of the trusted publisher-key set into a generated BakedTrustedKeys constant. -->
+  <Import Project="TrustedKeys.targets" />
+  <!-- Explains a Visual Studio toolchain bug that otherwise looks like a missing NativeAOT linker. -->
+  <Import Project="NativeAotPublishDiagnostics.targets" />
+</Project>

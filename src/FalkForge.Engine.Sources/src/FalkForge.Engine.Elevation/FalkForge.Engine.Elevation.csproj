@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- See the matching comment in ..\FalkForge.Engine\FalkForge.Engine.csproj: these properties
+         are supplied by the repository root's Directory.Build.props there and must be explicit
+         here because the packaged tree stops that upward walk on purpose. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+
+    <OutputType>Exe</OutputType>
+    <RootNamespace>FalkForge.Engine.Elevation</RootNamespace>
+    <Description>Elevated companion process for FalkForge engine</Description>
+    <!-- Required by the LibraryImport source generator (Interop/NativeFileMethods.cs). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IlcOptimizationPreference>Size</IlcOptimizationPreference>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FalkForge.Engine.Protocol" Version="$(FalkForgePackageVersion)" />
+    <PackageReference Include="FalkForge.Platform.Windows" Version="$(FalkForgePackageVersion)" />
+  </ItemGroup>
+  <Import Project="..\FalkForge.Engine\TrustedKeys.targets" />
+  <!-- Explains a Visual Studio toolchain bug that otherwise looks like a missing NativeAOT linker. -->
+  <Import Project="..\FalkForge.Engine\NativeAotPublishDiagnostics.targets" />
+</Project>

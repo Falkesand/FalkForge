@@ -10,6 +10,7 @@
     <Project Path="src/FalkForge.Engine.Elevation/FalkForge.Engine.Elevation.csproj" />
     <Project Path="src/FalkForge.Engine.Protocol/FalkForge.Engine.Protocol.csproj" />
     <Project Path="src/FalkForge.Engine.Runtime/FalkForge.Engine.Runtime.csproj" />
+    <Project Path="src/FalkForge.Engine.Sources/FalkForge.Engine.Sources.csproj" />
     <Project Path="src/FalkForge.Extensibility/FalkForge.Extensibility.csproj" />
     <Project Path="src/FalkForge.Extensions.Dependency/FalkForge.Extensions.Dependency.csproj" />
     <Project Path="src/FalkForge.Extensions.DotNet/FalkForge.Extensions.DotNet.csproj" />

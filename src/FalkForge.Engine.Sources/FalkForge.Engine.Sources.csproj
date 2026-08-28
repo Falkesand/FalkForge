@@ -1,0 +1,102 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Packaging-only project: no consumable assembly. It carries the SOURCE of the two
+         executables that must be rebuilt per publisher, because the trusted-key fingerprint is
+         baked in at compile time and a prebuilt binary therefore cannot carry a publisher's pin.
+         Everything else the engine needs is already on NuGet as a library, so this package is
+         under a megabyte. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable Condition="'$(FalkForgePackEngine)' != 'false'">true</IsPackable>
+    <PackageId>FalkForge.Engine.Sources</PackageId>
+    <Description>FalkForge bundle engine and elevation companion, as source. The bundle compiler rebuilds both with the publisher's key fingerprint baked in, which is what lets a per-machine install verify who authored the bundle. Restored automatically by the FalkForge SDK and meta-package.</Description>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The .cs files are packed straight from the originals. They are never copied into this
+         directory, so the shipped source and the built source cannot drift. -->
+    <None Include="..\FalkForge.Engine\**\*.cs"
+          Exclude="..\FalkForge.Engine\obj\**;..\FalkForge.Engine\bin\**"
+          Pack="true" PackagePath="tools/src/FalkForge.Engine" Visible="false" />
+    <None Include="..\FalkForge.Engine\app.manifest;..\FalkForge.Engine\TrustedKeys.targets;..\FalkForge.Engine\NativeAotPublishDiagnostics.targets"
+          Pack="true" PackagePath="tools/src/FalkForge.Engine" Visible="false" />
+    <None Include="..\FalkForge.Engine.Elevation\**\*.cs"
+          Exclude="..\FalkForge.Engine.Elevation\obj\**;..\FalkForge.Engine.Elevation\bin\**"
+          Pack="true" PackagePath="tools/src/FalkForge.Engine.Elevation" Visible="false" />
+    <None Include="..\FalkForge.Engine.Elevation\app.manifest"
+          Pack="true" PackagePath="tools/src/FalkForge.Engine.Elevation" Visible="false" />
+
+    <!-- The stopper files are authored here, not copied. The two rewritten csproj files are also
+         authored here as templates carrying the literal placeholder $(FalkForgePackageVersion) in
+         their PackageReference Version attributes — see the substitution target below for why they
+         are packed from a generated copy rather than directly. -->
+    <None Include="src\Directory.Build.props;src\Directory.Build.targets;src\Directory.Packages.props;src\NuGet.config"
+          Pack="true" PackagePath="tools/src" />
+
+    <None Include="build\FalkForge.Engine.Sources.props" Pack="true" PackagePath="build" />
+    <None Include="build\FalkForge.Engine.Sources.props" Pack="true" PackagePath="buildTransitive" />
+  </ItemGroup>
+
+  <!-- The two rewritten csproj templates carry the literal text "$(FalkForgePackageVersion)" in
+       their PackageReference Version attributes. That is not an MSBuild property reference to be
+       evaluated at a CONSUMER's build time — the packaged tree's own Directory.Build.props stopper
+       means no such property would exist there. It is a placeholder token, substituted for real
+       here, at THIS project's pack time, with THIS project's own resolved $(PackageVersion) — the
+       exact sibling package version that ships alongside it. The substituted copy is packed;
+       the checked-in template never is. -->
+  <UsingTask TaskName="_FalkForgeSubstitutePackageVersion"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <SourcePath ParameterType="System.String" Required="true" />
+      <DestinationPath ParameterType="System.String" Required="true" />
+      <PackageVersionValue ParameterType="System.String" Required="true" />
+      <PlaceholderToken ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Code Type="Fragment" Language="cs">
+<![CDATA[
+var text = File.ReadAllText(SourcePath);
+var substituted = text.Replace(PlaceholderToken, PackageVersionValue);
+var dir = Path.GetDirectoryName(DestinationPath);
+if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+{
+    Directory.CreateDirectory(dir);
+}
+File.WriteAllText(DestinationPath, substituted);
+]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <!-- _GetPackageFiles is the NuGet SDK target that gathers @(None) items with Pack=true into the
+       nuspec; running before it lets these dynamically-added items be seen the same way as the
+       static ones above. -->
+  <Target Name="_FalkForgeGenerateVersionedProjectFiles" BeforeTargets="_GetPackageFiles">
+    <PropertyGroup>
+      <_FalkForgeEngineCsprojOut>$(IntermediateOutputPath)PackagedSrc\FalkForge.Engine\FalkForge.Engine.csproj</_FalkForgeEngineCsprojOut>
+      <_FalkForgeElevationCsprojOut>$(IntermediateOutputPath)PackagedSrc\FalkForge.Engine.Elevation\FalkForge.Engine.Elevation.csproj</_FalkForgeElevationCsprojOut>
+    </PropertyGroup>
+
+    <_FalkForgeSubstitutePackageVersion
+        SourcePath="src\FalkForge.Engine\FalkForge.Engine.csproj"
+        DestinationPath="$(_FalkForgeEngineCsprojOut)"
+        PackageVersionValue="$(PackageVersion)"
+        PlaceholderToken="%24(FalkForgePackageVersion)" />
+    <_FalkForgeSubstitutePackageVersion
+        SourcePath="src\FalkForge.Engine.Elevation\FalkForge.Engine.Elevation.csproj"
+        DestinationPath="$(_FalkForgeElevationCsprojOut)"
+        PackageVersionValue="$(PackageVersion)"
+        PlaceholderToken="%24(FalkForgePackageVersion)" />
+
+    <ItemGroup>
+      <None Include="$(_FalkForgeEngineCsprojOut)" Pack="true" PackagePath="tools/src/FalkForge.Engine" />
+      <None Include="$(_FalkForgeElevationCsprojOut)" Pack="true" PackagePath="tools/src/FalkForge.Engine.Elevation" />
+      <FileWrites Include="$(_FalkForgeEngineCsprojOut);$(_FalkForgeElevationCsprojOut)" />
+    </ItemGroup>
+  </Target>
+</Project>
