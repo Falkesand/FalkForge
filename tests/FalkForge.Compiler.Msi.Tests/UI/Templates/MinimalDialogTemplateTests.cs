@@ -56,8 +56,8 @@ public sealed class MinimalDialogTemplateTests
     {
         // Welcome is the last interactive dialog in the Minimal set, so its Next must hand off
         // to InstallUISequence with EndDialog/Return rather than navigate into ProgressDlg with
-        // NewDialog (ledger D64) — NewDialog would nest Progress inside the still-running
-        // WelcomeDlg action and the install would never start.
+        // NewDialog. NewDialog would nest Progress inside the still-running WelcomeDlg
+        // action and the install would never start.
         var dialogs = Compose();
         var welcome = dialogs.Single(d => d.Name == "WelcomeDlg");
 

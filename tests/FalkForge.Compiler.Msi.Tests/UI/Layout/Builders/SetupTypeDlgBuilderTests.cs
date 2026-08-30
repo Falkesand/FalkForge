@@ -115,7 +115,7 @@ public sealed class SetupTypeDlgBuilderTests
         // Typical and Complete end the dialog chain directly (EndDialog/Return) so
         // InstallUISequence can run ProgressDlg/ExecuteAction, rather than navigating into
         // ProgressDlg with NewDialog, which would nest it inside the still-running SetupTypeDlg
-        // action and the install would never start. See ledger D64.
+        // action and the install would never start.
         var typical = content.Events.Single(e => e.Control == "TypicalButton");
         Assert.Equal("EndDialog", typical.Event);
         Assert.Equal("Return", typical.Argument);

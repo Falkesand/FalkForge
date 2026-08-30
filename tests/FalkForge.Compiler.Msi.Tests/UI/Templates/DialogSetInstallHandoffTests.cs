@@ -9,7 +9,7 @@ using Xunit;
 namespace FalkForge.Compiler.Msi.Tests.UI.Templates;
 
 /// <summary>
-/// Pins the InstallUISequence handoff contract across every stock dialog set (ledger D64): the
+/// Pins the InstallUISequence handoff contract across every stock dialog set: the
 /// dialog immediately preceding ProgressDlg must end its own modal chain with
 /// <c>EndDialog</c>/<c>Return</c>, handing control back to InstallUISequence so ProgressDlg
 /// (1200, modeless) and ExecuteAction (1300) can run. A control that instead opens ProgressDlg
@@ -19,8 +19,8 @@ namespace FalkForge.Compiler.Msi.Tests.UI.Templates;
 /// <remarks>
 /// Only <c>InstallDirDlgBuilder</c> got this right from the start. Minimal, FeatureTree, Mondo
 /// and Advanced all inherited the NewDialog-to-Progress bug. The InstallDir template was fixed
-/// once before (see memory <c>project_msi_dialog_template_gap</c>) while the other four templates
-/// were left behind, so this test covers every stock template rather than one.
+/// once before while the other four templates were left behind, so this test covers every
+/// stock template rather than one.
 /// </remarks>
 public sealed class DialogSetInstallHandoffTests
 {
