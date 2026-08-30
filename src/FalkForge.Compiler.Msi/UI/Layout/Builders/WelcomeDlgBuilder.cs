@@ -26,8 +26,10 @@ internal static class WelcomeDlgBuilder
     {
         System.ArgumentNullException.ThrowIfNull(flow);
 
+        var nextEvent = DialogFooter.NextEvent(flow);
+
         var events = ImmutableArray.Create(
-            DialogFooter.NextEvent(flow),
+            nextEvent,
             DialogFooter.CancelEvent(flow));
 
         return new DialogContent
@@ -74,7 +76,7 @@ internal static class WelcomeDlgBuilder
                     RegionName = "ButtonRow",
                     Controls = ImmutableArray.Create(
                         DialogFooter.CancelButton(),
-                        DialogFooter.NextButton()),
+                        DialogFooter.NextButton(nextEvent)),
                 }),
         };
     }

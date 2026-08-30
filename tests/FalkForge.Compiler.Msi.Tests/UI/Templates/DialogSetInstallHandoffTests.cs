@@ -92,4 +92,73 @@ public sealed class DialogSetInstallHandoffTests
 
         Assert.NotEmpty(handoffEvents);
     }
+
+    [Theory]
+    [MemberData(nameof(AllTemplateNames))]
+    public void Progress_dialog_is_not_modal(string templateName)
+    {
+        // ProgressDlg has no control that fires EndDialog, because the user is not meant to
+        // dismiss it. Authored modal, Windows Installer runs it as a blocking message loop that
+        // waits for an EndDialog which can never arrive, so InstallUISequence never advances to
+        // ExecuteAction at 1300 and the install never starts. Authored modeless, it paints and
+        // returns immediately and the sequence carries on.
+        var progress = ComposeByName(templateName).Single(d => d.Name == "ProgressDlg");
+
+        Assert.False(progress.Attributes.HasFlag(MsiDialogAttributes.Modal));
+        Assert.True(progress.Attributes.HasFlag(MsiDialogAttributes.Visible));
+    }
+
+    [Theory]
+    [MemberData(nameof(AllTemplateNames))]
+    public void Every_dialog_except_progress_stays_modal(string templateName)
+    {
+        // Guards the fix above from being applied too widely. The wizard pages must stay modal;
+        // a modeless one would let the sequence run past it without waiting for the user.
+        var others = ComposeByName(templateName)
+            .Where(d => d.Name != "ProgressDlg")
+            .ToArray();
+
+        Assert.NotEmpty(others);
+        Assert.All(others, d => Assert.True(
+            d.Attributes.HasFlag(MsiDialogAttributes.Modal),
+            $"{d.Name} is not modal"));
+    }
+
+    [Theory]
+    [MemberData(nameof(AllTemplateNames))]
+    public void The_button_that_starts_the_install_is_labelled_Install(string templateName)
+    {
+        // "Next" tells the user another page follows and the decision is still reversible. On the
+        // dialog that hands off to InstallUISequence it is not: the click starts writing files.
+        // The label is derived from the event the button fires, so the two cannot disagree.
+        var dialogs = ComposeByName(templateName);
+        var installButtons = 0;
+
+        foreach (var dialog in dialogs)
+        {
+            var next = dialog.Events.SingleOrDefault(e => e.ControlName == "Next");
+            if (next is null)
+            {
+                continue;
+            }
+
+            var startsInstall = next.Event.ToString() == "EndDialog" && next.Argument == "Return";
+            var expected = startsInstall ? "!(loc.Button.Install)" : "!(loc.Button.Next)";
+            var button = dialog.Controls.Single(c => c.Name == "Next");
+
+            Assert.Equal(expected, button.Text);
+            if (startsInstall)
+            {
+                installButtons++;
+            }
+        }
+
+        // Not a vacuous pass: every stock set has at least one dialog that starts the install.
+        // Not "exactly one": Mondo and Advanced compose both CustomizeDlg and InstallDirDlg, and
+        // both wire their Next to the handoff, so they report two. That second dialog is composed
+        // but never navigated to, which is a separate open defect about reachability. Asserting
+        // exactly one here would bake that defect's absence into this test and fail for a reason
+        // that has nothing to do with button labels.
+        Assert.True(installButtons >= 1, $"{templateName} has no dialog that starts the install");
+    }
 }

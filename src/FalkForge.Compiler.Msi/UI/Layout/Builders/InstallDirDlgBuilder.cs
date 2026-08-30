@@ -32,6 +32,8 @@ internal static class InstallDirDlgBuilder
         //   Back: NewDialog flow.BackDialog
         //   Next: EndDialog Return
         //   Cancel: SpawnDialog flow.CancelDialog
+        var nextEvent = DialogFooter.InstallEvent("Next");
+
         var events = ImmutableArray.Create(
             new DialogControlEvent
             {
@@ -55,12 +57,7 @@ internal static class InstallDirDlgBuilder
                 Order = 3,
             },
             DialogFooter.BackEvent(flow),
-            new DialogControlEvent
-            {
-                Control = "Next",
-                Event = "EndDialog",
-                Argument = "Return",
-            },
+            nextEvent,
             DialogFooter.CancelEvent(flow));
 
         return new DialogContent
@@ -138,7 +135,7 @@ internal static class InstallDirDlgBuilder
                     RegionName = "ButtonRow",
                     Controls = ImmutableArray.Create(
                         DialogFooter.CancelButton(),
-                        DialogFooter.NextButton(),
+                        DialogFooter.NextButton(nextEvent),
                         DialogFooter.BackButton()),
                 }),
         };

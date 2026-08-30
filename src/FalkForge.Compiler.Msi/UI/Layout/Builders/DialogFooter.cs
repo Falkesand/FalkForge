@@ -54,13 +54,35 @@ internal static class DialogFooter
         TextOrLocKey = "!(loc.Button.Cancel)",
     };
 
-    /// <summary>The standard Next push button.</summary>
-    public static PlacedControl NextButton() => new()
+    /// <summary>
+    /// The standard Next push button, labelled from the event it will fire: "Install" when that
+    /// event hands off to InstallUISequence, "Next" when it navigates to another wizard page.
+    /// </summary>
+    /// <remarks>
+    /// The label is derived from the event rather than chosen alongside it so the two cannot
+    /// drift apart. "Next" on a button that starts the install tells the user another page
+    /// follows and the decision is still reversible; the click actually begins writing files.
+    /// </remarks>
+    /// <param name="nextEvent">The control event this button fires, from
+    /// <see cref="NextEvent"/>, <see cref="InstallEvent"/>, or authored inline.</param>
+    public static PlacedControl NextButton(DialogControlEvent nextEvent) => new()
     {
         Name = "Next",
         Type = "PushButton",
-        TextOrLocKey = "!(loc.Button.Next)",
+        TextOrLocKey = StartsInstall(nextEvent) ? "!(loc.Button.Install)" : "!(loc.Button.Next)",
     };
+
+    /// <summary>
+    /// True when <paramref name="controlEvent"/> ends the wizard's modal dialog chain and returns
+    /// control to InstallUISequence, which is what causes ExecuteAction to run. Clicking a control
+    /// wired this way starts the install.
+    /// </summary>
+    public static bool StartsInstall(DialogControlEvent controlEvent)
+    {
+        System.ArgumentNullException.ThrowIfNull(controlEvent);
+
+        return controlEvent.Event == "EndDialog" && controlEvent.Argument == "Return";
+    }
 
     /// <summary>The standard Back push button.</summary>
     public static PlacedControl BackButton() => new()
