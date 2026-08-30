@@ -86,7 +86,7 @@ internal static class DialogFooter
     /// back to <paramref name="defaultTarget"/> when the flow leaves it unset (Customize defaults
     /// to "ProgressDlg"; everything else defaults to empty). When the resolved target is
     /// <c>ProgressDlg</c>, this returns <see cref="InstallEvent"/> instead of a NewDialog event;
-    /// see that method's remarks for why. See ledger D64.
+    /// see that method's remarks for why.
     /// </summary>
     public static DialogControlEvent NextEvent(DialogFlowContext flow, string defaultTarget = "")
     {
@@ -112,8 +112,8 @@ internal static class DialogFooter
     /// ends, so the sequence never advances past the current dialog's own sequence number and
     /// <c>ExecuteAction</c> never runs, so the install never starts. Ending the dialog with
     /// <c>EndDialog</c>/<c>Return</c> instead returns control to <c>InstallUISequence</c>, which
-    /// then runs 1200 and 1300 on its own. See ledger D64, and
-    /// <c>InstallDirDlgBuilder</c>'s Next event, which already did this correctly.
+    /// then runs 1200 and 1300 on its own. <c>InstallDirDlgBuilder</c>'s Next event already
+    /// did this correctly; every other stock dialog set did not.
     /// </remarks>
     public static DialogControlEvent InstallEvent(string control) => new()
     {
