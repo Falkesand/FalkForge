@@ -16,6 +16,14 @@ internal static class ProgressDlgBuilder
     /// <summary>The MSI dialog identifier emitted by this builder.</summary>
     public const string DialogName = "ProgressDlg";
 
+    // The composer's standard default is Visible|Modal|Minimize|TrackDiskSpace (0x27). This
+    // dialog clears Modal (0x2), giving 0x25. Windows Installer runs a modal dialog in
+    // InstallUISequence as a blocking message loop that ends only when a control fires
+    // EndDialog. This dialog has no such control, because the user is not meant to dismiss it,
+    // so authored modal the sequence parks here and never reaches ExecuteAction at 1300 and the
+    // install never starts. Modeless, it paints and returns and the sequence carries on.
+    private const int AttributesWithoutModal = 0x25;
+
     /// <summary>Builds the declarative content for the Progress dialog with default flow context.</summary>
     public static DialogContent Build() => Build(new DialogFlowContext());
 
@@ -46,6 +54,7 @@ internal static class ProgressDlgBuilder
         {
             Name = DialogName,
             Kind = "Progress",
+            AttributesOverride = AttributesWithoutModal,
             FirstControl = "Cancel",
             DefaultControl = "Cancel",
             CancelControl = "Cancel",

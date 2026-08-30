@@ -27,9 +27,11 @@ internal static class LicenseDlgBuilder
     {
         System.ArgumentNullException.ThrowIfNull(flow);
 
+        var nextEvent = DialogFooter.NextEvent(flow) with { Condition = "LicenseAccepted = \"1\"" };
+
         var events = ImmutableArray.Create(
             DialogFooter.BackEvent(flow),
-            DialogFooter.NextEvent(flow) with { Condition = "LicenseAccepted = \"1\"" },
+            nextEvent,
             DialogFooter.CancelEvent(flow));
 
         var conditions = ImmutableArray.Create(
@@ -103,7 +105,7 @@ internal static class LicenseDlgBuilder
                     RegionName = "ButtonRow",
                     Controls = ImmutableArray.Create(
                         DialogFooter.CancelButton(),
-                        DialogFooter.NextButton(),
+                        DialogFooter.NextButton(nextEvent),
                         DialogFooter.BackButton()),
                 }),
         };
