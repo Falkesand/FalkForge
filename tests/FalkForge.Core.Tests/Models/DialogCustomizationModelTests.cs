@@ -69,14 +69,14 @@ public sealed class DialogCustomizationModelTests
     public void Inserted_steps_round_trip()
     {
         var steps = ImmutableArray.Create(
-            new InsertedDialogStep("StepA", StockDialog.License),
-            new InsertedDialogStep("StepB", StockDialog.Welcome));
+            new InsertedDialogStep("StepA", DialogStepAnchor.License),
+            new InsertedDialogStep("StepB", DialogStepAnchor.Welcome));
 
         var model = new DialogCustomizationModel { InsertedSteps = steps };
 
         Assert.Equal(2, model.InsertedSteps.Length);
         Assert.Equal("StepA", model.InsertedSteps[0].StepName);
-        Assert.Equal(StockDialog.License, model.InsertedSteps[0].After);
+        Assert.Equal(DialogStepAnchor.License, model.InsertedSteps[0].After);
         Assert.Equal("StepB", model.InsertedSteps[1].StepName);
     }
 }

@@ -94,7 +94,7 @@ public sealed class MsiAuthoringDialogStepRegistrationTests : IDisposable
             p.Version = new Version(1, 0, 0);
             p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "DlgStepTest"));
             p.UseDialogSet(MsiDialogSet.Minimal, cfg =>
-                cfg.InsertStep("CompanyLicenseDlg", StockDialog.Welcome));
+                cfg.InsertStep("CompanyLicenseDlg", DialogStepAnchor.Welcome));
         });
 
         // Act
@@ -124,7 +124,7 @@ public sealed class MsiAuthoringDialogStepRegistrationTests : IDisposable
             p.Version = new Version(1, 0, 0);
             p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "DlgStepTest2"));
             p.UseDialogSet(MsiDialogSet.Minimal, cfg =>
-                cfg.InsertStep("UnknownStep", StockDialog.Welcome));
+                cfg.InsertStep("UnknownStep", DialogStepAnchor.Welcome));
         });
 
         // Act — no extensions registered

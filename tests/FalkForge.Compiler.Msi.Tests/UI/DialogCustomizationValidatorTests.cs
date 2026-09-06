@@ -33,7 +33,7 @@ public sealed class DialogCustomizationValidatorTests
         var customization = new DialogCustomizationModel
         {
             InsertedSteps = ImmutableArray.Create(
-                new InsertedDialogStep("MyStep", StockDialog.License)),
+                new InsertedDialogStep("MyStep", DialogStepAnchor.License)),
         };
 
         var registry = new DialogStepRegistry();
@@ -51,7 +51,7 @@ public sealed class DialogCustomizationValidatorTests
         var customization = new DialogCustomizationModel
         {
             InsertedSteps = ImmutableArray.Create(
-                new InsertedDialogStep("UnknownStep", StockDialog.License)),
+                new InsertedDialogStep("UnknownStep", DialogStepAnchor.License)),
         };
 
         var registry = new DialogStepRegistry();
@@ -70,8 +70,8 @@ public sealed class DialogCustomizationValidatorTests
         var customization = new DialogCustomizationModel
         {
             InsertedSteps = ImmutableArray.Create(
-                new InsertedDialogStep("StepA", StockDialog.License),
-                new InsertedDialogStep("StepB", StockDialog.Welcome)),
+                new InsertedDialogStep("StepA", DialogStepAnchor.License),
+                new InsertedDialogStep("StepB", DialogStepAnchor.Welcome)),
         };
 
         var registry = new DialogStepRegistry();
@@ -89,8 +89,8 @@ public sealed class DialogCustomizationValidatorTests
         var customization = new DialogCustomizationModel
         {
             InsertedSteps = ImmutableArray.Create(
-                new InsertedDialogStep("Known", StockDialog.License),
-                new InsertedDialogStep("Unknown", StockDialog.Welcome)),
+                new InsertedDialogStep("Known", DialogStepAnchor.License),
+                new InsertedDialogStep("Unknown", DialogStepAnchor.Welcome)),
         };
 
         var registry = new DialogStepRegistry();

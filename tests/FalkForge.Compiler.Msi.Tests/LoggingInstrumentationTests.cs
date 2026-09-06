@@ -232,7 +232,7 @@ public sealed class LoggingInstrumentationTests : IDisposable
             p.Version = new Version(1, 0, 0);
             p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "DlgFailApp"));
             p.UseDialogSet(FalkForge.Models.MsiDialogSet.Minimal, cfg =>
-                cfg.InsertStep("UnknownStep", FalkForge.Models.StockDialog.Welcome));
+                cfg.InsertStep("UnknownStep", DialogStepAnchor.Welcome));
         });
 
         var logger = new ListLogger();

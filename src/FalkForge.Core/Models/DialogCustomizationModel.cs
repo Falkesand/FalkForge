@@ -89,7 +89,7 @@ public sealed record DialogCustomizationModel
 /// The stock dialog after which this step is inserted. Use <see cref="StockDialog.Extension"/>
 /// to append at the end of the sequence.
 /// </param>
-public readonly record struct InsertedDialogStep(string StepName, StockDialog After);
+public readonly record struct InsertedDialogStep(string StepName, DialogStepAnchor After);
 
 /// <summary>Buttons whose labels can be overridden via <see cref="DialogCustomizationModel.ButtonLabelOverrides"/>.</summary>
 public enum DialogButton
@@ -103,6 +103,44 @@ public enum DialogButton
     Print,
     Remove,
     Repair,
+}
+
+/// <summary>
+/// Dialogs an extension-contributed step can be inserted after, via
+/// <see cref="FalkForge.Models.DialogCustomization.InsertStep(string, DialogStepAnchor)"/>.
+/// </summary>
+/// <remarks>
+/// Deliberately not <see cref="StockDialog"/>, which names dialogs that can be SUPPRESSED and does
+/// not describe the dialogs a step can follow. Four of its members map to no emitted dialog at all,
+/// its <c>Progress</c> member is a modeless dialog with no Next control to splice, its <c>Exit</c>
+/// member runs after the install, and the two most plausible anchors, the SetupType and InstallScope
+/// dialogs, have no member. Inserting after any of those was measured to be a silent no-op.
+/// </remarks>
+public enum DialogStepAnchor
+{
+    /// <summary>After the Welcome dialog. Present in every stock dialog set.</summary>
+    Welcome,
+
+    /// <summary>After the licence agreement dialog. Absent from the Minimal set.</summary>
+    License,
+
+    /// <summary>After the setup-type dialog. Present in the Mondo and Advanced sets.</summary>
+    SetupType,
+
+    /// <summary>After the install-scope dialog. Present in the Advanced set.</summary>
+    InstallScope,
+
+    /// <summary>After the install-directory dialog. Present in the InstallDir, Mondo and Advanced sets.</summary>
+    InstallDir,
+
+    /// <summary>After the feature-selection dialog. Absent from the Minimal and InstallDir sets.</summary>
+    Features,
+
+    /// <summary>
+    /// As the last interactive page before the install starts, whichever dialog that is for the
+    /// active set. The set-independent anchor, and the only one that works for every stock set.
+    /// </summary>
+    BeforeInstall,
 }
 
 /// <summary>Stock dialogs that can be suppressed via <see cref="DialogCustomizationModel.SuppressedDialogs"/>.</summary>

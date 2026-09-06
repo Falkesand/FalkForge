@@ -79,7 +79,7 @@ public sealed class MsiAuthoringExtensionDialogEmissionTests : IDisposable
             p.Version = new Version(1, 0, 0);
             p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "FalkForge" / "ExtDlgApp"));
             p.UseDialogSet(MsiDialogSet.Minimal, cfg =>
-                cfg.InsertStep("CompanyLicenseDlg", StockDialog.Welcome));
+                cfg.InsertStep("CompanyLicenseDlg", DialogStepAnchor.Welcome));
         });
 
         Result<string> result = MsiAuthoring.Compile(package, outputDir, [new CompanyLicenseExtension()]);
