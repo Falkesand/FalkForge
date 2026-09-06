@@ -272,8 +272,10 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
     /// install but can never start it.
     /// </para>
     /// <para>
-    /// Roots are only the dialogs the sequence schedules. A dialog nothing navigates to emits an
-    /// orphan row, which is legal MSI and hangs nothing, so it is deliberately out of scope.
+    /// Roots are the dialogs a stock set schedules, plus custom dialogs carrying a
+    /// <c>SequenceNumber</c>, plus names added through <c>UISequence</c>. A dialog nothing
+    /// navigates to and nothing schedules emits an orphan row, which is legal MSI and hangs
+    /// nothing, so it is deliberately out of scope.
     /// </para>
     /// </remarks>
     private static Result<Unit> CheckInstallFlow(List<MsiDialogModel> dialogs, PackageModel package)
@@ -291,6 +293,19 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
             if (custom.SequenceNumber is not null)
             {
                 roots.Add(custom.Id);
+            }
+        }
+
+        // Sequence(...) is not the only way into InstallUISequence. UISequence adds an action by
+        // name and the sequence producer writes any name through verbatim, so a dialog scheduled
+        // that way can park the sequence exactly as one scheduled by Sequence(...) can. Names that
+        // are not dialogs never match a composed dialog and are ignored.
+        for (int u = 0; u < package.UISequenceActions.Count; u++)
+        {
+            SequenceActionModel action = package.UISequenceActions[u];
+            if (action.Table == SequenceTable.InstallUISequence)
+            {
+                roots.Add(action.ActionName);
             }
         }
 
@@ -336,7 +351,13 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
             for (int e = 0; e < dialog.Events.Count; e++)
             {
                 MsiControlEventModel controlEvent = dialog.Events[e];
-                if (IsVerb(controlEvent, "EndDialog"))
+                // The argument matters as much as the verb. EndDialog Exit terminates the UI
+                // without running the install, so a wizard whose only exit is Exit can be closed
+                // but can never install. Only Return hands control back to InstallUISequence so it
+                // can reach ExecuteAction, which is why DialogFooter.StartsInstall requires that
+                // same argument.
+                if (IsVerb(controlEvent, "EndDialog")
+                    && string.Equals(controlEvent.Argument.Trim(), "Return", StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }

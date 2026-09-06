@@ -8,8 +8,10 @@ using Xunit;
 namespace FalkForge.Compiler.Msi.Tests.Recipe.Producers;
 
 /// <summary>
-/// Pins the install-flow contract across the composed dialog set: stock template dialogs,
-/// author-defined custom dialogs and extension-contributed steps together.
+/// Pins the install-flow contract across the composed dialog set: stock template dialogs and
+/// author-defined custom dialogs. Extension-contributed steps are composed into the same list but
+/// are not covered here, because nothing navigates to them and they are never scheduled, so the
+/// check never reaches one.
 /// </summary>
 /// <remarks>
 /// Windows Installer runs a modal dialog in InstallUISequence as a blocking message loop that
@@ -210,5 +212,61 @@ public sealed class DialogSetProducerInstallFlowTests
         Result<ImmutableArray<RecipeTable>> result = Produce(package);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+    }
+
+    [Fact]
+    public void A_root_whose_only_EndDialog_is_Exit_is_rejected()
+    {
+        // EndDialog Exit terminates the UI without running the install. A wizard whose only exit
+        // is Exit can be closed but can never install anything, so it is the same user-visible
+        // failure as a dialog that never ends. Only Return hands control back to InstallUISequence
+        // so it can reach ExecuteAction, which is why DialogFooter.StartsInstall already requires
+        // that exact argument.
+        PackageModel package = Package(
+            MsiDialogSet.None,
+            new CustomDialogModel
+            {
+                Id = "StepOne",
+                SequenceNumber = 1100,
+                Controls = [Button("Close", Event("EndDialog", "Exit"))],
+            });
+
+        Result<ImmutableArray<RecipeTable>> result = Produce(package);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("StepOne", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_modal_dialog_scheduled_through_UISequence_is_checked()
+    {
+        // Sequence(...) is not the only way a dialog reaches InstallUISequence. UISequence adds an
+        // action by name, and the producer writes any name into the table verbatim, so a dialog
+        // scheduled that way is just as capable of parking the sequence.
+        PackageModel package = new()
+        {
+            Name = "App",
+            Manufacturer = "M",
+            Version = new Version(1, 0, 0),
+            DialogSet = MsiDialogSet.None,
+            CustomDialogs =
+            [
+                new CustomDialogModel { Id = "HangDlg", Controls = [Button("Nothing")] },
+            ],
+            UISequenceActions =
+            [
+                new SequenceActionModel
+                {
+                    ActionName = "HangDlg",
+                    Table = SequenceTable.InstallUISequence,
+                    Position = new ActionPosition.AtNumber(1150),
+                },
+            ],
+        };
+
+        Result<ImmutableArray<RecipeTable>> result = Produce(package);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("HangDlg", result.Error.Message, StringComparison.Ordinal);
     }
 }
