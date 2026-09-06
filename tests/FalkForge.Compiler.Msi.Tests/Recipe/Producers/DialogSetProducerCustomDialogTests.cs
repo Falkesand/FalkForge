@@ -1,3 +1,4 @@
+using FalkForge.Compiler.Msi.UI.Layout.Builders;
 using System;
 using System.Collections.Immutable;
 using System.Linq;
@@ -156,14 +157,29 @@ public sealed class DialogSetProducerCustomDialogTests
             {
                 Name = "Body", Type = MsiControlType.Text, X = 10, Y = 10, Width = 100, Height = 20, Text = "x",
             });
+
+            // Publishes the forward edge it was handed, so this stub is a valid step. Without it
+            // the duplicate-anchor test below would fail on the missing edge instead, and would
+            // not be testing what it says it tests.
+            DialogControlEvent next = DialogFooter.NextEvent(context.Flow);
+            model.Events.Add(new MsiControlEventModel
+            {
+                DialogName = Name,
+                ControlName = "Body",
+                Event = MsiControlEvent.Parse(next.Event),
+                Argument = next.Argument,
+            });
             return model;
         }
     }
 
     [Fact]
-    public void Inserted_extension_step_referenced_twice_emits_a_single_dialog_row()
+    public void Inserted_extension_step_referenced_twice_is_rejected()
     {
-        // Same step inserted at two anchors must not duplicate the Dialog PK.
+        // This used to assert that the same step at two anchors emitted one Dialog row, which kept
+        // the primary key valid by silently dropping the second insertion point. Now that a step
+        // occupies a real position in the wizard chain, two positions for one dialog is a
+        // contradiction rather than something to quietly resolve, so it fails the build instead.
         var customization = new DialogCustomizationModel
         {
             InsertedSteps = ImmutableArray.Create(
@@ -173,7 +189,7 @@ public sealed class DialogSetProducerCustomDialogTests
         var package = new PackageModel
         {
             Name = "App", Manufacturer = "M", Version = new Version(1, 0, 0),
-            DialogSet = MsiDialogSet.None,
+            DialogSet = MsiDialogSet.FeatureTree,
             DialogCustomization = customization,
         };
 
@@ -183,10 +199,9 @@ public sealed class DialogSetProducerCustomDialogTests
 
         Result<ImmutableArray<RecipeTable>> result =
             new DialogSetProducer([new StubStepBuilder()]).Produce(ctx);
-        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
 
-        RecipeTable dialog = Table(result.Value, "Dialog");
-        Assert.Equal(1, dialog.Rows.Count(r => Str(r.Cells[0]) == "ExtStep"));
+        Assert.True(result.IsFailure);
+        Assert.Contains("DLG027", result.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

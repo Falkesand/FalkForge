@@ -9,9 +9,9 @@ namespace FalkForge.Compiler.Msi.Tests.Recipe.Producers;
 
 /// <summary>
 /// Pins the install-flow contract across the composed dialog set: stock template dialogs and
-/// author-defined custom dialogs. Extension-contributed steps are composed into the same list but
-/// are not covered here, because nothing navigates to them and they are never scheduled, so the
-/// check never reaches one.
+/// author-defined custom dialogs. Extension-contributed steps are spliced into the chain and so are
+/// reachable, but they are covered by DialogSetProducerStepSpliceTests rather than here, along with
+/// the step-specific diagnostics that catch a step which publishes no forward navigation.
 /// </summary>
 /// <remarks>
 /// Windows Installer runs a modal dialog in InstallUISequence as a blocking message loop that

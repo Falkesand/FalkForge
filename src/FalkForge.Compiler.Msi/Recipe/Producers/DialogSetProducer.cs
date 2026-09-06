@@ -204,7 +204,15 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
             dialogs.Add(CustomDialogTranslator.Translate(package.CustomDialogs[cd]));
         }
 
-        AppendInsertedExtensionStepDialogs(package, dialogs, flow);
+        Result<Unit> stepResult = AppendInsertedExtensionStepDialogs(
+            package,
+            dialogs,
+            flow,
+            dialogSet != MsiDialogSet.None ? GetTemplate(dialogSet).StockChain : []);
+        if (stepResult.IsFailure)
+        {
+            return Result<ImmutableArray<RecipeTable>>.Failure(stepResult.Error);
+        }
 
         // Author each composed dialog's Control_Next tab cycle here — the single point where
         // stock templates, Restart Manager's MsiRMFilesInUse, author-defined custom dialogs, and

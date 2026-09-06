@@ -201,4 +201,96 @@ public sealed class DialogSetProducerStepSpliceTests
 
         Assert.Equal("ProbeStep", Str(back.Cells[3]));
     }
+
+    /// <summary>
+    /// A step builder that hardcodes its own flow instead of consulting the one it is handed. This
+    /// is the shape the architecture doc taught before this change, and it cannot know its forward
+    /// target, so it publishes a NewDialog with an empty argument.
+    /// </summary>
+    private sealed class FlowIgnoringStepBuilder : IMsiDialogStepBuilder
+    {
+        public string Name => "ProbeStep";
+
+        public MsiDialogModel Build(DialogBuildContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+
+            var model = new MsiDialogModel { Name = Name, FirstControl = "Body" };
+            model.Controls.Add(new MsiControlModel
+            {
+                Name = "Body", Type = MsiControlType.Text,
+                X = 20, Y = 20, Width = 330, Height = 40, Text = "Nothing here advances.",
+            });
+            return model;
+        }
+    }
+
+    private static Result<ImmutableArray<RecipeTable>> ProduceRaw(
+        MsiDialogSet set, IMsiDialogStepBuilder builder, params (string Step, DialogStepAnchor Anchor)[] steps)
+    {
+        var customization = new DialogCustomization();
+        foreach ((string step, DialogStepAnchor anchor) in steps)
+        {
+            customization = customization.InsertStep(step, anchor);
+        }
+
+        PackageModel package = new()
+        {
+            Name = "App",
+            Manufacturer = "M",
+            Version = new Version(1, 0, 0),
+            DialogSet = set,
+            DialogCustomization = customization.ToModel(),
+        };
+
+        var ctx = new RecipeBuildContext(
+            new ResolvedPackage { Package = package, Components = [], Files = [] },
+            new DictionaryStreamRegistry());
+
+        return new DialogSetProducer([builder]).Produce(ctx);
+    }
+
+    [Fact]
+    public void A_step_that_ignores_the_flow_it_was_handed_fails_the_build()
+    {
+        // The splice is correct by construction for the stock dialogs and correct by COOPERATION
+        // for the step, because a builder can simply not consult the flow. Nothing in the type
+        // system enforces it, so the compiler checks rather than trusting. Without this the splice
+        // ships a compiling installer with a page the user cannot advance past.
+        Result<ImmutableArray<RecipeTable>> result = ProduceRaw(
+            MsiDialogSet.Minimal, new FlowIgnoringStepBuilder(), ("ProbeStep", DialogStepAnchor.Welcome));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("DLG025", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("ProbeStep", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void An_anchor_that_the_active_set_does_not_contain_fails_the_build()
+    {
+        // The Minimal set has no licence dialog, so this anchor names a page that is not there.
+        // It was a silent no-op before: the step was emitted and nothing navigated to it.
+        Result<ImmutableArray<RecipeTable>> result = ProduceRaw(
+            MsiDialogSet.Minimal, new ProbeStepBuilder(), ("ProbeStep", DialogStepAnchor.License));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("DLG026", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("License", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_same_step_inserted_at_two_anchors_fails_the_build()
+    {
+        // One dialog cannot occupy two positions in one chain. This used to emit a single dialog
+        // row and silently drop the second insertion point.
+        Result<ImmutableArray<RecipeTable>> result = ProduceRaw(
+            MsiDialogSet.FeatureTree,
+            new ProbeStepBuilder(),
+            ("ProbeStep", DialogStepAnchor.Welcome),
+            ("ProbeStep", DialogStepAnchor.Features));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("DLG027", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("ProbeStep", result.Error.Message, StringComparison.Ordinal);
+    }
 }

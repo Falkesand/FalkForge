@@ -1,3 +1,4 @@
+using FalkForge.Compiler.Msi.UI.Layout.Builders;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -976,10 +977,13 @@ public sealed class DialogSetProducerTests
         {
             InsertedSteps = ImmutableArray.Create(new InsertedDialogStep("AutoWireStep", DialogStepAnchor.Welcome)),
         };
+
+        // A real dialog set, not None. A step anchored in an empty set is now rejected, and it
+        // proved nothing anyway: there was no chain for the step to be spliced into.
         var package = new PackageModel
         {
             Name = "App", Manufacturer = "M", Version = new Version(1, 0, 0),
-            DialogSet = MsiDialogSet.None,
+            DialogSet = MsiDialogSet.FeatureTree,
             DialogCustomization = customization,
         };
 
@@ -1018,6 +1022,18 @@ public sealed class DialogSetProducerTests
             model.Controls.Add(new MsiControlModel
             {
                 Name = "Other", Type = MsiControlType.PushButton, X = 10, Y = 40, Width = 100, Height = 20, Text = "y",
+            });
+
+            // A spliced step must publish the forward edge it was handed, or the wizard stops on
+            // it. This builder exists to exercise tab-cycle wiring, but it still has to be a page
+            // the user can leave.
+            DialogControlEvent next = DialogFooter.NextEvent(context.Flow);
+            model.Events.Add(new MsiControlEventModel
+            {
+                DialogName = Name,
+                ControlName = "Body",
+                Event = MsiControlEvent.Parse(next.Event),
+                Argument = next.Argument,
             });
             return model;
         }
