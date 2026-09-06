@@ -38,6 +38,10 @@ public static partial class CustomDialogRules
     private static ModelPath DialogPath(int i) =>
         ModelPath.Root.Field("CustomDialogs").Index(i);
 
+    // Dialog table Attributes bit 0x2. The CustomDialogModel default of 39 sets it, so a dialog
+    // is modal unless the author clears it.
+    private const int ModalAttributeBit = 0x2;
+
     /// <summary>DLG010 — Dialog Id is required.</summary>
     public static readonly ValidationRule Dlg010_IdRequired = new(
         new RuleId("DLG010"),
@@ -372,6 +376,44 @@ public static partial class CustomDialogRules
             return v.ToImmutable();
         });
 
+    /// <summary>DLG023 — a modal dialog placed in InstallUISequence must publish some control event.</summary>
+    public static readonly ValidationRule Dlg023_SequencedModalDialogCanEnd = new(
+        new RuleId("DLG023"),
+        Severity.Error,
+        ModelSection.CustomDialog,
+        "Sequenced modal custom dialog can never end",
+        "A modal custom dialog placed in InstallUISequence must publish at least one control event, otherwise the installer waits on it and the sequence never resumes.",
+        static ctx =>
+        {
+            var v = ImmutableArray.CreateBuilder<Violation>();
+            for (var i = 0; i < ctx.Package.CustomDialogs.Count; i++)
+            {
+                var d = ctx.Package.CustomDialogs[i];
+
+                // Only dialogs the sequence schedules can park it, and only while modal. This is
+                // deliberately the narrowest case that no other dialog can rescue: with zero
+                // control events the dialog cannot publish EndDialog under any circumstances, so
+                // no reasoning about the rest of the composed set is needed. Dialogs that do
+                // publish events are covered by the compiler-side flow check, which can see the
+                // stock dialogs this rule cannot.
+                if (d.SequenceNumber is null || (d.Attributes & ModalAttributeBit) == 0)
+                    continue;
+
+                var publishesSomething = false;
+                for (var j = 0; j < d.Controls.Count && !publishesSomething; j++)
+                    publishesSomething = d.Controls[j].Events.Count > 0;
+
+                if (!publishesSomething)
+                    v.Add(new Violation(new RuleId("DLG023"), Severity.Error,
+                        DialogPath(i),
+                        $"Custom dialog '{d.Id}' is placed in InstallUISequence at {d.SequenceNumber} and is modal, "
+                        + "but no control on it publishes any event, so it can never end and the installer waits on it. "
+                        + "Publish EndDialog with argument Return on the control that continues the install, "
+                        + "or clear the Modal bit (0x2) from Attributes if the dialog is meant to be modeless."));
+            }
+            return v.ToImmutable();
+        });
+
     private static void CheckRef(
         ImmutableArray<Violation>.Builder v, HashSet<string> names,
         string dialogId, string? reference, string field, ModelPath path)
@@ -397,5 +439,6 @@ public static partial class CustomDialogRules
         Dlg020_EventVerbRequired,
         Dlg021_EventArgumentRequired,
         Dlg022_ConditionExpressionRequired,
+        Dlg023_SequencedModalDialogCanEnd,
     ];
 }

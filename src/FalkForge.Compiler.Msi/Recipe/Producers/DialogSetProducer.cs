@@ -215,6 +215,14 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
                 ImmutableArray<RecipeTable>.Empty);
         }
 
+        // Every modal dialog the sequence schedules must be able to reach an EndDialog, or the
+        // installer waits on it and the sequence never resumes. See CheckInstallFlow's remarks.
+        Result<Unit> flowResult = CheckInstallFlow(dialogs, package);
+        if (flowResult.IsFailure)
+        {
+            return Result<ImmutableArray<RecipeTable>>.Failure(flowResult.Error);
+        }
+
         // Resolve !(loc.X) references in control text, dialog titles, and UIText entries,
         // mirroring DialogEmitter.BuildStringResolver (extended beyond Control.Text in beta.4).
         Result<ImmutableArray<(string Key, string Text)>> resolveResult =
@@ -234,6 +242,117 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
 
         return Result<ImmutableArray<RecipeTable>>.Success(
             BuildDialogTables(dialogs, resolveResult.Value));
+    }
+
+
+    // Dialogs InstallUISequence schedules for a stock set, mirroring
+    // InstallUISequenceTableProducer.GetDialogFlowRows. Progress is modeless and Exit ends the
+    // sequence itself, so in practice Welcome is the root that matters, but listing all three
+    // keeps this honest if the flow rows change.
+    private static readonly string[] StockScheduledDialogs =
+        [DialogNames.Welcome, DialogNames.Progress, DialogNames.Exit];
+
+    /// <summary>
+    /// Fails the build when a modal dialog that <c>InstallUISequence</c> schedules cannot reach an
+    /// <c>EndDialog</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Windows Installer runs a modal dialog in <c>InstallUISequence</c> as a blocking message
+    /// loop that ends only when a control publishes <c>EndDialog</c>. <c>NewDialog</c> ends the
+    /// current dialog and opens the target inside that same wait, so a chain of NewDialog hops is
+    /// still one wait; it ends only when some dialog in the chain publishes <c>EndDialog</c>. If
+    /// none does, the sequence parks and <c>ExecuteAction</c> never runs, so nothing installs.
+    /// </para>
+    /// <para>
+    /// The walk follows <c>NewDialog</c> edges ONLY. <c>SpawnDialog</c> opens a child on top and
+    /// hands control back to the parent when the child closes, so an <c>EndDialog</c> inside a
+    /// spawned child ends the child rather than resuming the sequence. Following SpawnDialog would
+    /// accept a dialog whose only EndDialog sits in a cancel confirmation, which can abort the
+    /// install but can never start it.
+    /// </para>
+    /// <para>
+    /// Roots are only the dialogs the sequence schedules. A dialog nothing navigates to emits an
+    /// orphan row, which is legal MSI and hangs nothing, so it is deliberately out of scope.
+    /// </para>
+    /// </remarks>
+    private static Result<Unit> CheckInstallFlow(List<MsiDialogModel> dialogs, PackageModel package)
+    {
+        var byName = new Dictionary<string, MsiDialogModel>(StringComparer.Ordinal);
+        for (int i = 0; i < dialogs.Count; i++)
+        {
+            byName[dialogs[i].Name] = dialogs[i];
+        }
+
+        var roots = new HashSet<string>(StockScheduledDialogs, StringComparer.Ordinal);
+        for (int c = 0; c < package.CustomDialogs.Count; c++)
+        {
+            CustomDialogModel custom = package.CustomDialogs[c];
+            if (custom.SequenceNumber is not null)
+            {
+                roots.Add(custom.Id);
+            }
+        }
+
+        for (int i = 0; i < dialogs.Count; i++)
+        {
+            MsiDialogModel root = dialogs[i];
+            if (!root.Attributes.HasFlag(MsiDialogAttributes.Modal) || !roots.Contains(root.Name))
+            {
+                continue;
+            }
+
+            if (!CanReachEndDialog(root, byName))
+            {
+                return Result<Unit>.Failure(
+                    ErrorKind.Validation,
+                    $"DLG024: dialog '{root.Name}' is scheduled in InstallUISequence and is modal, but no dialog "
+                    + "reachable from it by NewDialog publishes EndDialog, so the installer waits on it and the "
+                    + "sequence never resumes. Publish EndDialog with argument Return on the control that continues "
+                    + "the install, or clear the Modal attribute bit (0x2) if the dialog is meant to be modeless. "
+                    + "An EndDialog inside a dialog opened with SpawnDialog does not count, because control returns "
+                    + "to the spawning dialog rather than to the sequence.");
+            }
+        }
+
+        return Result<Unit>.Success(Unit.Value);
+    }
+
+    private static bool CanReachEndDialog(MsiDialogModel root, Dictionary<string, MsiDialogModel> byName)
+    {
+        // Author text reaches here verbatim: MsiControlEvent.Parse accepts any non-empty string
+        // and normalises nothing, so trim and ignore case. Over-accepting the verb is the safe
+        // direction for a check that fails the build.
+        static bool IsVerb(MsiControlEventModel e, string verb) =>
+            string.Equals(e.Event.Value.Trim(), verb, StringComparison.OrdinalIgnoreCase);
+
+        var seen = new HashSet<string>(StringComparer.Ordinal) { root.Name };
+        var pending = new Stack<MsiDialogModel>();
+        pending.Push(root);
+
+        while (pending.Count > 0)
+        {
+            MsiDialogModel dialog = pending.Pop();
+            for (int e = 0; e < dialog.Events.Count; e++)
+            {
+                MsiControlEventModel controlEvent = dialog.Events[e];
+                if (IsVerb(controlEvent, "EndDialog"))
+                {
+                    return true;
+                }
+
+                // Unknown targets are skipped rather than followed. A dangling navigation target
+                // is its own defect and is not what this check reports.
+                if (IsVerb(controlEvent, "NewDialog")
+                    && byName.TryGetValue(controlEvent.Argument, out MsiDialogModel? next)
+                    && seen.Add(next.Name))
+                {
+                    pending.Push(next);
+                }
+            }
+        }
+
+        return false;
     }
 
     // ── Template selection (mirrors legacy DialogEmitter.GetTemplate) ────────────────
