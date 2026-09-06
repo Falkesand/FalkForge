@@ -137,6 +137,25 @@ internal static class DialogFooter
     /// then runs 1200 and 1300 on its own. <c>InstallDirDlgBuilder</c>'s Next event already
     /// did this correctly; every other stock dialog set did not.
     /// </remarks>
+    /// <summary>
+    /// The wiring for a control that starts the install: the <see cref="InstallEvent"/> handoff
+    /// when nothing sits in front of the install, or a NewDialog to <paramref name="installTarget"/>
+    /// when an extension step has been anchored there.
+    /// </summary>
+    /// <param name="control">The control publishing the event.</param>
+    /// <param name="installTarget">
+    /// The dialog that should now precede the install, or null for the ordinary handoff.
+    /// </param>
+    public static DialogControlEvent AdvanceEvent(string control, string? installTarget) =>
+        string.IsNullOrEmpty(installTarget)
+            ? InstallEvent(control)
+            : new DialogControlEvent
+            {
+                Control = control,
+                Event = "NewDialog",
+                Argument = installTarget,
+            };
+
     public static DialogControlEvent InstallEvent(string control) => new()
     {
         Control = control,
