@@ -262,7 +262,7 @@ raw file path. DLG003 fails the build if a key does not resolve to a registered 
 | `WindowTitle(title)` | Overrides `MsiDialogModel.Title` on every composed dialog |
 | `OverrideButtonLabel(button, label)` | Rewrites matching `PushButton.Text` via `DialogButtonNames.Map` |
 | `SuppressDialog(dialog)` | **Not implemented** (task #24 / task #44) — gated with `[Obsolete(error: true)]` so it does not compile; had no effect even before the gate, since nothing downstream consumed `SuppressedDialogs`. DLG002 also fails the build if `SuppressedDialogs` is populated directly via an object initializer, bypassing the obsoleted method entirely. |
-| `InsertStep(stepName, after)` | Splices an extension-contributed dialog step into the flow (DLG001 validates the name). When the named step resolves to an `IMsiDialogStepBuilder`, `DialogSetProducer` calls its `Build` and emits the dialog into the MSI UI tables. |
+| `InsertStep(stepName, after)` | Splices an extension-contributed dialog step into the wizard chain at `after`, a `DialogStepAnchor`. DLG001 validates the name; DLG026 rejects an anchor the active set does not contain; DLG027 rejects the same step at two anchors. The step is wired into the chain before any dialog is composed, so the surrounding pages' Back and Next targets and their button labels all follow from the spliced chain. The step's own builder must publish the forward navigation it is handed through `DialogBuildContext.Flow`, and DLG025 fails the build if it does not. |
 
 ---
 
@@ -341,7 +341,10 @@ internal sealed class LicenseKeyDlgBuilder : IMsiDialogStepBuilder
 
     public MsiDialogModel Build(DialogBuildContext context)
     {
-        var flow = new DialogFlowContext { CancelDialog = "CancelDlg" };
+        // Read the flow from the context. A step cannot know its own forward target: that
+        // depends on the active dialog set and on where the author anchored it. A builder that
+        // hardcodes one publishes navigation to nothing, and the compiler rejects it (DLG025).
+        DialogControlEvent next = DialogFooter.NextEvent(context.Flow);
         return DialogComposer.Compose(
             new DialogContent
             {
@@ -370,7 +373,7 @@ return Installer.Build(args, package =>
     package.Manufacturer = "Acme Corp";
     package.Version = new Version(1, 0, 0);
     package.UseDialogSet(MsiDialogSet.FeatureTree, dialogs => dialogs
-        .InsertStep("LicenseKeyDlg", after: StockDialog.License));
+        .InsertStep("LicenseKeyDlg", after: DialogStepAnchor.License));
 }, new MsiCompiler().Use(new LicensingExtension()));
 ```
 

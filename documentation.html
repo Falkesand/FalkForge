@@ -9395,6 +9395,9 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
         <tr><td>DLG022</td><td>Error</td><td>A control condition has an empty condition expression.</td></tr>
         <tr><td>DLG023</td><td>Error</td><td>A dialog placed in <code>InstallUISequence</code> with <code>Sequence(...)</code> is modal and no control on it publishes any event, so it can never end. Windows Installer waits on a modal dialog until a control publishes <code>EndDialog</code>; with no events at all it waits forever and nothing installs. Publish <code>EndDialog</code> with argument <code>Return</code> on the control that continues the install, or clear the Modal bit (<code>0x2</code>) from <code>Attributes</code> if the dialog is meant to be modeless.</td></tr>
         <tr><td>DLG024</td><td>Error</td><td>A modal dialog scheduled in <code>InstallUISequence</code> cannot reach an <code>EndDialog</code> by following <code>NewDialog</code> navigation from it. Raised by the compiler over the composed set of stock and custom dialogs together, so it catches a custom dialog that navigates into a stock dialog which never ends, such as <code>ProgressDlg</code>. An <code>EndDialog</code> inside a dialog opened with <code>SpawnDialog</code> does not satisfy this, because control returns to the spawning dialog rather than to the sequence.</td></tr>
+        <tr><td>DLG025</td><td>Error</td><td>An extension dialog step named by <code>InsertStep</code> does not publish the forward navigation it was handed. A step is spliced into the wizard chain, so its position, and therefore its Next target, is decided by the active dialog set and by where the author anchored it. The builder must read <code>DialogBuildContext.Flow</code> rather than authoring its own; a hardcoded flow publishes navigation to nothing and the wizard stops on that page.</td></tr>
+        <tr><td>DLG026</td><td>Error</td><td><code>InsertStep</code> anchors a step after a dialog the active <code>MsiDialogSet</code> does not contain, so the step could never be reached. Anchor it after a dialog the set has, or use <code>DialogStepAnchor.BeforeInstall</code>, which every set supports.</td></tr>
+        <tr><td>DLG027</td><td>Error</td><td>The same step is inserted at more than one anchor. A step occupies one position in the wizard chain, so it can follow only one dialog. Register a second step builder if two pages are needed.</td></tr>
     </tbody>
 </table>
 
@@ -9432,7 +9435,7 @@ public interface IDialogStepBuilder
 <p>Composition surface in the fluent API:</p>
 
 <pre><code class="language-csharp">package.UseDialogSet(MsiDialogSet.InstallDir, dialogs =&gt; dialogs
-    .InsertStep("MyPostLicenseStep", after: StockDialog.License));</code></pre>
+    .InsertStep("MyPostLicenseStep", after: DialogStepAnchor.License));</code></pre>
 
 <p>
     When the inserted step resolves to an <code>IMsiDialogStepBuilder</code>, the compiler calls its
