@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Collections.Immutable;
 
 using FalkForge.Compiler.Msi.UI.Templates;
@@ -56,9 +57,17 @@ internal sealed class DialogFlowSplice
 
         var chain = stockChain.ToBuilder();
 
-        // Call order, not anchor order. DialogCustomization freezes a List<> and nothing sorts it,
-        // so two steps after one anchor appear in the order the author wrote them.
-        foreach (InsertedDialogStep step in customization.InsertedSteps)
+        // Named anchors first, then BeforeInstall. Resolving BeforeInstall against the chain as it
+        // stands at the time would let a later named insertion land behind it, so the step that
+        // asked to be last ends up second to last and the install handoff goes to the step that
+        // did not ask for it. Within each group the order is call order: DialogCustomization
+        // freezes a List<> and nothing sorts it, so two steps at one anchor keep the order the
+        // author wrote them in.
+        IEnumerable<InsertedDialogStep> ordered = customization.InsertedSteps
+            .Where(s => s.After != DialogStepAnchor.BeforeInstall)
+            .Concat(customization.InsertedSteps.Where(s => s.After == DialogStepAnchor.BeforeInstall));
+
+        foreach (InsertedDialogStep step in ordered)
         {
             int at = AnchorIndex(chain, step.After);
             if (at < 0)

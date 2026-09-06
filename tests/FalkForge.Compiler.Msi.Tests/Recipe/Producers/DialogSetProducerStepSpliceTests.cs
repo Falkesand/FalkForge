@@ -319,4 +319,125 @@ public sealed class DialogSetProducerStepSpliceTests
         Assert.Contains("DLG027", result.Error.Message, StringComparison.Ordinal);
         Assert.Contains("ProbeStep", result.Error.Message, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Publishes the right verb and argument, but on a control the dialog never defines, or behind
+    /// a condition that is never true, or on a control the user cannot see or click. Each looks
+    /// correct in the event table and none of them gives the user a way forward.
+    /// </summary>
+    private sealed class UnreachableEdgeStepBuilder(string flavour) : IMsiDialogStepBuilder
+    {
+        public string Name => "ProbeStep";
+
+        public MsiDialogModel Build(DialogBuildContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+
+            DialogControlEvent next = DialogFooter.NextEvent(context.Flow);
+            var model = new MsiDialogModel { Name = Name, FirstControl = "Go" };
+
+            MsiControlAttributes attributes = flavour switch
+            {
+                "hidden" => MsiControlAttributes.Enabled,
+                "disabled" => MsiControlAttributes.Visible,
+                _ => MsiControlAttributes.Visible | MsiControlAttributes.Enabled,
+            };
+
+            model.Controls.Add(new MsiControlModel
+            {
+                Name = "Go", Type = MsiControlType.PushButton,
+                X = 280, Y = 240, Width = 66, Height = 17, Text = "Go", Attributes = attributes,
+            });
+
+            model.Events.Add(new MsiControlEventModel
+            {
+                DialogName = Name,
+                ControlName = flavour == "ghost" ? "NoSuchControl" : "Go",
+                Event = MsiControlEvent.Parse(next.Event),
+                Argument = next.Argument,
+                Condition = flavour == "condition" ? "0" : null,
+            });
+
+            return model;
+        }
+    }
+
+    [Theory]
+    [InlineData("ghost")]
+    [InlineData("condition")]
+    [InlineData("hidden")]
+    [InlineData("disabled")]
+    public void A_forward_edge_the_user_cannot_reach_does_not_satisfy_the_check(string flavour)
+    {
+        // Matching only on the verb and argument makes the check look like protection it is not.
+        // Each of these publishes exactly the right event and still leaves the user stuck: on a
+        // control that does not exist, behind a condition that never fires, or on a button they
+        // cannot see or click.
+        Result<ImmutableArray<RecipeTable>> result = ProduceRaw(
+            MsiDialogSet.Minimal, new UnreachableEdgeStepBuilder(flavour), ("ProbeStep", DialogStepAnchor.Welcome));
+
+        Assert.True(result.IsFailure, $"'{flavour}' was accepted");
+        Assert.Contains("DLG025", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_step_anchored_before_the_install_stays_last_when_another_step_is_added_after_it()
+    {
+        // BeforeInstall resolved against the chain as it stood would let a later named insertion
+        // land behind it, so the step that asked to be last became second to last and the install
+        // handoff went to the step that did not ask for it.
+        var customization = new DialogCustomization()
+            .InsertStep("LastStep", DialogStepAnchor.BeforeInstall)
+            .InsertStep("MiddleStep", DialogStepAnchor.Welcome)
+            .ToModel();
+
+        PackageModel package = new()
+        {
+            Name = "App", Manufacturer = "M", Version = new Version(1, 0, 0),
+            DialogSet = MsiDialogSet.FeatureTree,
+            DialogCustomization = customization,
+        };
+
+        var ctx = new RecipeBuildContext(
+            new ResolvedPackage { Package = package, Components = [], Files = [] },
+            new DictionaryStreamRegistry());
+
+        Result<ImmutableArray<RecipeTable>> result = new DialogSetProducer(
+            [new NamedProbeStepBuilder("LastStep"), new NamedProbeStepBuilder("MiddleStep")]).Produce(ctx);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+
+        RecipeTable events = result.Value.First(t => t.Name.Value == "ControlEvent");
+        RecipeRow last = events.Rows.Single(r => Str(r.Cells[0]) == "LastStep" && Str(r.Cells[1]) == "Go");
+        RecipeRow middle = events.Rows.Single(r => Str(r.Cells[0]) == "MiddleStep" && Str(r.Cells[1]) == "Go");
+
+        Assert.Equal(("EndDialog", "Return"), (Str(last.Cells[2]), Str(last.Cells[3])));
+        Assert.Equal(("NewDialog", "LicenseAgreementDlg"), (Str(middle.Cells[2]), Str(middle.Cells[3])));
+    }
+
+    private sealed class NamedProbeStepBuilder(string name) : IMsiDialogStepBuilder
+    {
+        public string Name => name;
+
+        public MsiDialogModel Build(DialogBuildContext context)
+        {
+            ArgumentNullException.ThrowIfNull(context);
+
+            DialogControlEvent next = DialogFooter.NextEvent(context.Flow);
+            var model = new MsiDialogModel { Name = name, FirstControl = "Go" };
+            model.Controls.Add(new MsiControlModel
+            {
+                Name = "Go", Type = MsiControlType.PushButton,
+                X = 280, Y = 240, Width = 66, Height = 17, Text = "Go",
+            });
+            model.Events.Add(new MsiControlEventModel
+            {
+                DialogName = name,
+                ControlName = "Go",
+                Event = MsiControlEvent.Parse(next.Event),
+                Argument = next.Argument,
+            });
+            return model;
+        }
+    }
 }

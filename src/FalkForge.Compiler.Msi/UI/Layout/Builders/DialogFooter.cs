@@ -124,20 +124,6 @@ internal static class DialogFooter
     }
 
     /// <summary>
-    /// The wiring for a control that hands the wizard off to <c>InstallUISequence</c> so
-    /// <c>ProgressDlg</c> (sequence 1200, modeless) and <c>ExecuteAction</c> (sequence 1300, the
-    /// action that actually performs the install) can run.
-    /// </summary>
-    /// <remarks>
-    /// <c>ProgressDlg</c> is not another wizard page to reach with <c>NewDialog</c>. Doing that
-    /// opens it as a second modal dialog nested inside the current dialog action, which never
-    /// ends, so the sequence never advances past the current dialog's own sequence number and
-    /// <c>ExecuteAction</c> never runs, so the install never starts. Ending the dialog with
-    /// <c>EndDialog</c>/<c>Return</c> instead returns control to <c>InstallUISequence</c>, which
-    /// then runs 1200 and 1300 on its own. <c>InstallDirDlgBuilder</c>'s Next event already
-    /// did this correctly; every other stock dialog set did not.
-    /// </remarks>
-    /// <summary>
     /// The wiring for a control that starts the install: the <see cref="InstallEvent"/> handoff
     /// when nothing sits in front of the install, or a NewDialog to <paramref name="installTarget"/>
     /// when an extension step has been anchored there.
@@ -156,6 +142,20 @@ internal static class DialogFooter
                 Argument = installTarget,
             };
 
+    /// <summary>
+    /// The wiring for a control that hands the wizard off to <c>InstallUISequence</c> so
+    /// <c>ProgressDlg</c> (sequence 1200, modeless) and <c>ExecuteAction</c> (sequence 1300, the
+    /// action that actually performs the install) can run.
+    /// </summary>
+    /// <remarks>
+    /// <c>ProgressDlg</c> is not another wizard page to reach with <c>NewDialog</c>. Doing that
+    /// opens it as a second modal dialog nested inside the current dialog action, which never
+    /// ends, so the sequence never advances past the current dialog's own sequence number and
+    /// <c>ExecuteAction</c> never runs, so the install never starts. Ending the dialog with
+    /// <c>EndDialog</c>/<c>Return</c> instead returns control to <c>InstallUISequence</c>, which
+    /// then runs 1200 and 1300 on its own.
+    /// </remarks>
+    /// <param name="control">The control publishing the event.</param>
     public static DialogControlEvent InstallEvent(string control) => new()
     {
         Control = control,

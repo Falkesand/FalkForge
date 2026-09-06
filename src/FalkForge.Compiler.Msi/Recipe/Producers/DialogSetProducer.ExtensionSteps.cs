@@ -15,6 +15,13 @@ internal sealed partial class DialogSetProducer
     /// MSI-capable builder. Each distinct step is emitted once; duplicate insert points (the same
     /// step inserted after two stock dialogs) do not duplicate the dialog rows.
     /// </summary>
+    // An MSI control-event Condition of null, empty or "1" always fires. Anything else is an
+    // expression this compiler does not evaluate, so it cannot be counted on to give the user a
+    // way forward. Being strict here costs an author one explicit unconditional event; being lax
+    // costs their user an installer they cannot advance.
+    private static bool IsAlwaysTrue(string? condition) =>
+        string.IsNullOrWhiteSpace(condition) || condition.Trim() == "1";
+
     private Result<Unit> AppendInsertedExtensionStepDialogs(
         PackageModel package,
         List<MsiDialogModel> dialogs,
@@ -82,9 +89,20 @@ internal sealed partial class DialogSetProducer
             // handed. Nothing in the type system enforces it, so check rather than trust: without
             // this the build succeeds and the user reaches a page with no working button.
             DialogControlEvent expected = DialogFooter.NextEvent(stepFlow);
+
+            // Matching the verb and argument alone would make this look like protection it is not.
+            // The edge also has to be one the user can actually take: published by a control the
+            // dialog defines, on a control they can see and click, and not behind a condition that
+            // never fires. Each of those was measured being accepted by a verb-only match while the
+            // user was left stuck on the page.
             bool publishesForwardEdge = model.Events.Exists(e =>
                 string.Equals(e.Event.Value.Trim(), expected.Event, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(e.Argument.Trim(), expected.Argument, StringComparison.Ordinal));
+                && string.Equals(e.Argument.Trim(), expected.Argument, StringComparison.Ordinal)
+                && IsAlwaysTrue(e.Condition)
+                && model.Controls.Exists(c =>
+                    string.Equals(c.Name, e.ControlName, StringComparison.Ordinal)
+                    && c.Attributes.HasFlag(MsiControlAttributes.Visible)
+                    && c.Attributes.HasFlag(MsiControlAttributes.Enabled)));
 
             if (!publishesForwardEdge)
             {

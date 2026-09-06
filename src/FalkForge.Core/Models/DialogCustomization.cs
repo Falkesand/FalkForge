@@ -32,7 +32,7 @@ public sealed class DialogCustomization
     /// name; 4/3 is only an approximation of the ratio between Installer Units and pixels at
     /// typical rendering, not an exact defined conversion. If an interior dialog step already
     /// declares its own Bitmap control (an extension-contributed custom dialog inserted via
-    /// <see cref="InsertStep(string, StockDialog)"/> can do this), that existing control's
+    /// <see cref="InsertStep(string, DialogStepAnchor)"/> can do this), that existing control's
     /// <c>Text</c> is swapped to this key instead — no control is synthesized, and the banner takes
     /// that control's own dimensions rather than 493x58. The key must name a stream registered via
     /// <see cref="FalkForge.Builders.PackageBuilder.Binary(string, string)"/> — DLG003
@@ -124,8 +124,10 @@ public sealed class DialogCustomization
     /// Stable identifier matching the registered step builder's <c>Name</c> property.
     /// </param>
     /// <param name="after">
-    /// The stock dialog after which this step appears. Use <see cref="StockDialog.Extension"/>
-    /// to append at the end of the sequence.
+    /// The dialog after which this step appears. Use
+    /// <see cref="DialogStepAnchor.BeforeInstall"/> to place it as the last page before the
+    /// install, whichever dialog that is for the active set. DLG026 rejects an anchor the active
+    /// set does not put on its wizard chain.
     /// </param>
     public DialogCustomization InsertStep(string stepName, DialogStepAnchor after)
     {
