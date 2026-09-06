@@ -1,3 +1,4 @@
+using FalkForge.Compiler.Msi.UI.Layout.Builders;
 using System.Collections.Immutable;
 using System.Runtime.Versioning;
 using FalkForge.Compiler.Msi.Recipe;
@@ -52,7 +53,25 @@ public sealed class MsiAuthoringDialogStepRegistrationTests : IDisposable
         {
             ArgumentNullException.ThrowIfNull(context);
             BuildCallCount++;
-            return new MsiDialogModel { Name = Name, FirstControl = "Next" };
+            var model = new MsiDialogModel { Name = Name, FirstControl = "Next" };
+
+            // A step is now spliced into the wizard chain, so it must publish the forward edge it
+            // was handed. Before that it was emitted as a dialog nothing navigated to, and a
+            // builder with no events described a page the user could not advance past.
+            DialogControlEvent next = DialogFooter.NextEvent(context.Flow);
+            model.Controls.Add(new MsiControlModel
+            {
+                Name = "Next", Type = MsiControlType.PushButton,
+                X = 280, Y = 240, Width = 66, Height = 17, Text = "Next",
+            });
+            model.Events.Add(new MsiControlEventModel
+            {
+                DialogName = Name,
+                ControlName = "Next",
+                Event = MsiControlEvent.Parse(next.Event),
+                Argument = next.Argument,
+            });
+            return model;
         }
     }
 

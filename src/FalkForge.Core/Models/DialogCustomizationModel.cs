@@ -110,11 +110,20 @@ public enum DialogButton
 /// <see cref="FalkForge.Models.DialogCustomization.InsertStep(string, DialogStepAnchor)"/>.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Deliberately not <see cref="StockDialog"/>, which names dialogs that can be SUPPRESSED and does
 /// not describe the dialogs a step can follow. Four of its members map to no emitted dialog at all,
 /// its <c>Progress</c> member is a modeless dialog with no Next control to splice, its <c>Exit</c>
-/// member runs after the install, and the two most plausible anchors, the SetupType and InstallScope
-/// dialogs, have no member. Inserting after any of those was measured to be a silent no-op.
+/// member runs after the install, and the InstallScope dialog has no member. Inserting after any of
+/// those was measured to be a silent no-op.
+/// </para>
+/// <para>
+/// The setup-type dialog is deliberately absent here too. It has no Next control and three outgoing
+/// edges, because Typical and Complete start the install while Custom goes to feature selection, so
+/// a step inserted after it has no single continuation to inherit. Use <see cref="BeforeInstall"/>
+/// to put a step in front of the install on those sets, which is well defined however the user
+/// branched.
+/// </para>
 /// </remarks>
 public enum DialogStepAnchor
 {
@@ -123,9 +132,6 @@ public enum DialogStepAnchor
 
     /// <summary>After the licence agreement dialog. Absent from the Minimal set.</summary>
     License,
-
-    /// <summary>After the setup-type dialog. Present in the Mondo and Advanced sets.</summary>
-    SetupType,
 
     /// <summary>After the install-scope dialog. Present in the Advanced set.</summary>
     InstallScope,

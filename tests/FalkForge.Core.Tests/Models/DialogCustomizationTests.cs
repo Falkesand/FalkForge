@@ -180,12 +180,14 @@ public sealed class DialogCustomizationTests
         // StockDialog was built to name dialogs that could be suppressed, not dialogs a step can
         // follow. Four of its members map to no dialog at all, ProgressDlg is modeless with no
         // Next control, ExitDlg comes after the install, and the two most plausible anchors,
-        // SetupTypeDlg and InstallScopeDlg, have no member. This enum lists exactly the dialogs a
-        // step can be spliced in after, plus BeforeInstall for the set-independent case.
+        // InstallScopeDlg, has no member. This enum lists exactly the dialogs a step can be
+        // spliced in after, plus BeforeInstall for the set-independent case. The setup-type dialog
+        // is absent on purpose: it has no Next control and three outgoing edges, so a step after it
+        // has no single continuation to inherit.
         var members = Enum.GetNames<DialogStepAnchor>();
 
         Assert.Equal(
-            ["Welcome", "License", "SetupType", "InstallScope", "InstallDir", "Features", "BeforeInstall"],
+            ["Welcome", "License", "InstallScope", "InstallDir", "Features", "BeforeInstall"],
             members);
     }
 

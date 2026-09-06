@@ -173,6 +173,14 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
         // extension-contributed dialog steps referenced by DialogCustomization.InsertStep. The
         // fixed TextStyle/UIText rows below are emitted whenever the composed set is non-empty.
         var dialogs = new List<MsiDialogModel>();
+
+        // The same splice the templates compute for themselves, so the inserted steps and the
+        // stock dialogs agree on one chain. DialogFlowSplice.Resolve is pure, so computing it in
+        // both places cannot disagree; keeping a second hand-written copy of the chain could.
+        DialogFlowSplice flow = dialogSet != MsiDialogSet.None
+            ? DialogFlowSplice.Resolve(GetTemplate(dialogSet).StockChain, package.DialogCustomization)
+            : DialogFlowSplice.Resolve([], package.DialogCustomization);
+
         if (dialogSet != MsiDialogSet.None)
         {
             IDialogTemplate template = GetTemplate(dialogSet);
@@ -196,7 +204,7 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
             dialogs.Add(CustomDialogTranslator.Translate(package.CustomDialogs[cd]));
         }
 
-        AppendInsertedExtensionStepDialogs(package, dialogs);
+        AppendInsertedExtensionStepDialogs(package, dialogs, flow);
 
         // Author each composed dialog's Control_Next tab cycle here — the single point where
         // stock templates, Restart Manager's MsiRMFilesInUse, author-defined custom dialogs, and

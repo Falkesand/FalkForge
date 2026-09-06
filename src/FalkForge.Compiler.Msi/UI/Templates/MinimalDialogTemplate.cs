@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using FalkForge.Compiler.Msi.UI.Layout;
 using FalkForge.Compiler.Msi.UI.Layout.Builders;
 using FalkForge.Models;
@@ -16,6 +17,9 @@ namespace FalkForge.Compiler.Msi.UI.Templates;
 /// </remarks>
 internal sealed class MinimalDialogTemplate : IDialogTemplate
 {
+    /// <inheritdoc />
+    public ImmutableArray<string> StockChain => [DialogNames.Welcome];
+
     public IReadOnlyList<MsiDialogModel> GetDialogs(PackageModel package)
     {
         ArgumentNullException.ThrowIfNull(package);
@@ -23,10 +27,14 @@ internal sealed class MinimalDialogTemplate : IDialogTemplate
         var customization = package.DialogCustomization;
         var layout = Layouts.Standard370x270;
 
+        // Extension steps are spliced into the chain BEFORE anything is composed, so the
+        // button labels follow from the resulting flow instead of being patched afterwards.
+        var flow = DialogFlowSplice.Resolve(StockChain, customization);
+
         return
         [
             DialogComposer.Compose(
-                WelcomeDlgBuilder.Build(new DialogFlowContext { NextDialog = DialogNames.Progress }),
+                WelcomeDlgBuilder.Build(flow.FlowFor(DialogNames.Welcome)),
                 layout,
                 customization),
             DialogComposer.Compose(
