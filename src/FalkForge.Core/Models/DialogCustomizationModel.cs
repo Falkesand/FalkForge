@@ -86,8 +86,9 @@ public sealed record DialogCustomizationModel
 /// Validated at compile time by DLG001.
 /// </param>
 /// <param name="After">
-/// The stock dialog after which this step is inserted. Use <see cref="StockDialog.Extension"/>
-/// to append at the end of the sequence.
+/// The dialog after which this step is inserted. Use
+/// <see cref="DialogStepAnchor.BeforeInstall"/> to place it as the last page before the install,
+/// whichever dialog that is for the active set.
 /// </param>
 public readonly record struct InsertedDialogStep(string StepName, DialogStepAnchor After);
 
@@ -136,10 +137,22 @@ public enum DialogStepAnchor
     /// <summary>After the install-scope dialog. Present in the Advanced set.</summary>
     InstallScope,
 
-    /// <summary>After the install-directory dialog. Present in the InstallDir, Mondo and Advanced sets.</summary>
+    /// <summary>
+    /// After the install-directory dialog. The InstallDir set only. The Mondo and Advanced sets
+    /// compose that dialog but never navigate to it, so it is not on their wizard chain and a step
+    /// cannot follow it there.
+    /// </summary>
     InstallDir,
 
-    /// <summary>After the feature-selection dialog. Absent from the Minimal and InstallDir sets.</summary>
+    /// <summary>
+    /// After the feature-selection dialog. Absent from the Minimal and InstallDir sets.
+    /// </summary>
+    /// <remarks>
+    /// On the Mondo and Advanced sets feature selection is the last page before the install, so a
+    /// step anchored here also receives the setup-type dialog's Typical and Complete buttons. A
+    /// user who chose Typical, and so never saw feature selection, still sees this step. Skipping
+    /// it for them would mean skipping it on the path most users take.
+    /// </remarks>
     Features,
 
     /// <summary>

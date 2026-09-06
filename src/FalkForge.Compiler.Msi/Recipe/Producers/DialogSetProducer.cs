@@ -204,6 +204,25 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
             dialogs.Add(CustomDialogTranslator.Translate(package.CustomDialogs[cd]));
         }
 
+        // The splice derives every Back and Next from StockChain, so a chain entry naming a dialog
+        // the template does not actually compose produces navigation to nothing. A phantom name at
+        // the END of a chain is invisible to every other check, because the dialogs before it still
+        // reach an EndDialog, so it is caught here rather than downstream.
+        if (dialogSet != MsiDialogSet.None)
+        {
+            foreach (string page in GetTemplate(dialogSet).StockChain)
+            {
+                if (!dialogs.Exists(d => string.Equals(d.Name, page, StringComparison.Ordinal)))
+                {
+                    return Result<ImmutableArray<RecipeTable>>.Failure(
+                        ErrorKind.Validation,
+                        $"DLG028: the {dialogSet} dialog set lists '{page}' on its wizard chain but does "
+                        + "not compose a dialog with that name, so navigation would point at nothing. "
+                        + "IDialogTemplate.StockChain and the dialogs the template returns must agree.");
+                }
+            }
+        }
+
         Result<Unit> stepResult = AppendInsertedExtensionStepDialogs(
             package,
             dialogs,
