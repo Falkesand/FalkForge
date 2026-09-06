@@ -68,7 +68,10 @@ public sealed class MsiAuthoringLocalizationTests : IDisposable
                 .Title("Welcome")
                 .Sequence(1200)
                 .FirstControl("Greeting")
-                .Text("Greeting", 20, 20, 330, 40, "!(loc.Greeting)"));
+                .Text("Greeting", 20, 20, 330, 40, "!(loc.Greeting)")
+                // The dialog is sequenced into InstallUISequence and modal, so some control must
+                // publish EndDialog or the installer waits on it forever and nothing installs.
+                .PushButton("Install", 280, 240, 66, 17, "Install", b => b.EndDialog("Return")));
             p.SetLocalizationData(cultures);
         });
     }
@@ -148,7 +151,10 @@ public sealed class MsiAuthoringLocalizationTests : IDisposable
                 .Title("!(loc.DialogTitle)")
                 .Sequence(1200)
                 .FirstControl("Static")
-                .Text("Static", 20, 20, 330, 40, "Just text"));
+                .Text("Static", 20, 20, 330, 40, "Just text")
+                // The dialog is sequenced into InstallUISequence and modal, so some control must
+                // publish EndDialog or the installer waits on it forever and nothing installs.
+                .PushButton("Install", 280, 240, 66, 17, "Install", b => b.EndDialog("Return")));
             p.SetLocalizationData(
             [
                 new LocalizationData
@@ -217,7 +223,10 @@ public sealed class MsiAuthoringLocalizationTests : IDisposable
                 .Title("Plain")
                 .Sequence(1200)
                 .FirstControl("Static")
-                .Text("Static", 20, 20, 330, 40, "Just text"));
+                .Text("Static", 20, 20, 330, 40, "Just text")
+                // The dialog is sequenced into InstallUISequence and modal, so some control must
+                // publish EndDialog or the installer waits on it forever and nothing installs.
+                .PushButton("Install", 280, 240, 66, 17, "Install", b => b.EndDialog("Return")));
             p.SetLocalizationData(
             [
                 new LocalizationData
@@ -282,7 +291,10 @@ public sealed class MsiAuthoringLocalizationTests : IDisposable
                 .Title("!(loc.DialogTitle)")
                 .Sequence(1200)
                 .FirstControl("Other")
-                .Text("Other", 20, 20, 330, 40, "!(loc.Other)"));
+                .Text("Other", 20, 20, 330, 40, "!(loc.Other)")
+                // The dialog is sequenced into InstallUISequence and modal, so some control must
+                // publish EndDialog or the installer waits on it forever and nothing installs.
+                .PushButton("Install", 280, 240, 66, 17, "Install", b => b.EndDialog("Return")));
             p.SetLocalizationData(
             [
                 new LocalizationData
@@ -358,7 +370,10 @@ public sealed class MsiAuthoringLocalizationTests : IDisposable
                 .Sequence(1200)
                 .FirstControl("Welcome")
                 .Text("Welcome", 20, 20, 330, 40, "!(loc.Welcome.Title)")
-                .Text("Other", 20, 70, 330, 40, "!(loc.Other)"));
+                .Text("Other", 20, 70, 330, 40, "!(loc.Other)")
+                // The dialog is sequenced into InstallUISequence and modal, so some control must
+                // publish EndDialog or the installer waits on it forever and nothing installs.
+                .PushButton("Install", 280, 240, 66, 17, "Install", b => b.EndDialog("Return")));
             p.SetLocalizationData(
             [
                 new LocalizationData
@@ -429,7 +444,10 @@ public sealed class MsiAuthoringLocalizationTests : IDisposable
                 .Title("Welcome")
                 .Sequence(1200)
                 .FirstControl("Greeting")
-                .Text("Greeting", 20, 20, 330, 40, "!(loc.Nowhere)"));
+                .Text("Greeting", 20, 20, 330, 40, "!(loc.Nowhere)")
+                // The dialog is sequenced into InstallUISequence and modal, so some control must
+                // publish EndDialog or the installer waits on it forever and nothing installs.
+                .PushButton("Install", 280, 240, 66, 17, "Install", b => b.EndDialog("Return")));
             p.SetLocalizationData(
             [
                 new LocalizationData

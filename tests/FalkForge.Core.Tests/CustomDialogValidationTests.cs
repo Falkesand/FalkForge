@@ -163,4 +163,84 @@ public sealed class CustomDialogValidationTests
 
         Assert.DoesNotContain(report.Errors, e => e.RuleId.Value.StartsWith("DLG01", StringComparison.Ordinal));
     }
+
+    // ── DLG023: a sequenced modal dialog with no control events ──────────────────────
+
+    [Fact]
+    public void Sequenced_modal_dialog_with_no_events_fails_loud_with_DLG023()
+    {
+        // Windows Installer runs a modal dialog in InstallUISequence as a blocking message loop
+        // that ends only when a control publishes EndDialog. A dialog with no control events at
+        // all can never publish one, so the sequence parks on it and the install never proceeds.
+        // This is the authored-path form of the defect measured against the stock progress dialog.
+        var dialog = new CustomDialogModel
+        {
+            Id = "GreetingDlg",
+            SequenceNumber = 1100,
+            Controls = [Button("Ok")],
+        };
+
+        var report = ModelValidator.Inspect(PackageWith(dialog));
+
+        Assert.Contains(report.Errors, e => e.RuleId.Value == "DLG023");
+    }
+
+    [Fact]
+    public void Sequenced_modal_dialog_that_publishes_an_event_does_not_fire_DLG023()
+    {
+        // The rule is deliberately the narrowest unsilenceable case: zero control events. Any
+        // event at all takes the dialog out of scope, because whether the resulting chain ends
+        // depends on dialogs this rule cannot see. The compiler-side flow check covers that.
+        var dialog = new CustomDialogModel
+        {
+            Id = "GreetingDlg",
+            SequenceNumber = 1100,
+            Controls =
+            [
+                new CustomDialogControlModel
+                {
+                    Name = "Ok", Type = CustomControlType.PushButton,
+                    X = 10, Y = 10, Width = 50, Height = 17, Text = "Ok",
+                    Events = [new CustomDialogControlEventModel { Event = "EndDialog", Argument = "Return" }],
+                },
+            ],
+        };
+
+        var report = ModelValidator.Inspect(PackageWith(dialog));
+
+        Assert.DoesNotContain(report.Errors, e => e.RuleId.Value == "DLG023");
+    }
+
+    [Fact]
+    public void Unsequenced_modal_dialog_with_no_events_does_not_fire_DLG023()
+    {
+        // A KNOWN AND ACCEPTED LIMIT, not an oversight. A dialog with no sequence number is not
+        // scheduled into InstallUISequence, so this rule cannot tell one that nothing navigates
+        // to, which is harmless, from one reached by NewDialog from a stock dialog, which hangs.
+        // The compiler-side flow check sees the composed set and covers the second case.
+        var dialog = new CustomDialogModel { Id = "GreetingDlg", Controls = [Button("Ok")] };
+
+        var report = ModelValidator.Inspect(PackageWith(dialog));
+
+        Assert.DoesNotContain(report.Errors, e => e.RuleId.Value == "DLG023");
+    }
+
+    [Fact]
+    public void Sequenced_modeless_dialog_with_no_events_does_not_fire_DLG023()
+    {
+        // Clearing the Modal bit (0x2) from the default 39 leaves 37. A modeless dialog returns
+        // control to the installer as soon as it paints, so it needs no EndDialog to let the
+        // sequence continue.
+        var dialog = new CustomDialogModel
+        {
+            Id = "GreetingDlg",
+            SequenceNumber = 1100,
+            Attributes = 37,
+            Controls = [Button("Ok")],
+        };
+
+        var report = ModelValidator.Inspect(PackageWith(dialog));
+
+        Assert.DoesNotContain(report.Errors, e => e.RuleId.Value == "DLG023");
+    }
 }
