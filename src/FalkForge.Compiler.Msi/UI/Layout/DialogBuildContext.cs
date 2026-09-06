@@ -26,21 +26,40 @@ internal sealed class DialogBuildContext
     /// </summary>
     public DialogStepRegistry StepRegistry { get; }
 
-    private DialogBuildContext(DialogCustomizationModel customization, DialogStepRegistry stepRegistry)
+    /// <summary>
+    /// Where this step sits in the wizard chain once it has been spliced in: the dialog its Back
+    /// returns to, and the dialog its Next advances to. A step cannot work this out for itself,
+    /// because the chain depends on the active dialog set and on where the author anchored it.
+    /// </summary>
+    /// <remarks>
+    /// A builder that ignores this and hardcodes its own <see cref="DialogFlowContext"/> emits a
+    /// NewDialog with an empty argument and produces a page the user cannot advance past. The
+    /// compiler checks for that rather than trusting the builder.
+    /// </remarks>
+    public DialogFlowContext Flow { get; }
+
+    private DialogBuildContext(
+        DialogCustomizationModel customization,
+        DialogStepRegistry stepRegistry,
+        DialogFlowContext flow)
     {
         Customization = customization;
         StepRegistry = stepRegistry;
+        Flow = flow;
     }
 
     /// <summary>
     /// Creates a <see cref="DialogBuildContext"/> from a package model and a frozen
     /// step registry. Used by templates and by <see cref="MsiAuthoring"/> at compile time.
     /// </summary>
-    public static DialogBuildContext Create(DialogCustomizationModel customization, DialogStepRegistry stepRegistry)
+    public static DialogBuildContext Create(
+        DialogCustomizationModel customization,
+        DialogStepRegistry stepRegistry,
+        DialogFlowContext? flow = null)
     {
         ArgumentNullException.ThrowIfNull(customization);
         ArgumentNullException.ThrowIfNull(stepRegistry);
-        return new DialogBuildContext(customization, stepRegistry);
+        return new DialogBuildContext(customization, stepRegistry, flow ?? new DialogFlowContext());
     }
 
     /// <summary>
@@ -50,6 +69,6 @@ internal sealed class DialogBuildContext
     public static DialogBuildContext ForTest(DialogCustomizationModel customization)
     {
         ArgumentNullException.ThrowIfNull(customization);
-        return new DialogBuildContext(customization, new DialogStepRegistry());
+        return new DialogBuildContext(customization, new DialogStepRegistry(), new DialogFlowContext());
     }
 }

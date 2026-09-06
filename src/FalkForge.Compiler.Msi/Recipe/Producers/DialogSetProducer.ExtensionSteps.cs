@@ -13,7 +13,10 @@ internal sealed partial class DialogSetProducer
     /// MSI-capable builder. Each distinct step is emitted once; duplicate insert points (the same
     /// step inserted after two stock dialogs) do not duplicate the dialog rows.
     /// </summary>
-    private void AppendInsertedExtensionStepDialogs(PackageModel package, List<MsiDialogModel> dialogs)
+    private void AppendInsertedExtensionStepDialogs(
+        PackageModel package,
+        List<MsiDialogModel> dialogs,
+        DialogFlowSplice flow)
     {
         if (_extensionStepBuilders.Count == 0
             || package.DialogCustomization is not { } customization
@@ -34,8 +37,6 @@ internal sealed partial class DialogSetProducer
         }
         registry.Freeze();
 
-        DialogBuildContext context = DialogBuildContext.Create(customization, registry);
-
         var emitted = new HashSet<string>(StringComparer.Ordinal);
         foreach (InsertedDialogStep step in customization.InsertedSteps)
         {
@@ -43,6 +44,10 @@ internal sealed partial class DialogSetProducer
                 && builder is not null
                 && emitted.Add(step.StepName))
             {
+                // Each step gets the flow its own position in the spliced chain implies, so its
+                // Next and Back point at real neighbours rather than at nothing.
+                DialogBuildContext context = DialogBuildContext.Create(
+                    customization, registry, flow.FlowFor(step.StepName));
                 dialogs.Add(builder.Build(context));
             }
         }

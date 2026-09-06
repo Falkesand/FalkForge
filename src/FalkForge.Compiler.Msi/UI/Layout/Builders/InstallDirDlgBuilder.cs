@@ -1,3 +1,4 @@
+using FalkForge.Compiler.Msi.UI.Templates;
 using System.Collections.Immutable;
 
 namespace FalkForge.Compiler.Msi.UI.Layout.Builders;
@@ -32,7 +33,11 @@ internal static class InstallDirDlgBuilder
         //   Back: NewDialog flow.BackDialog
         //   Next: EndDialog Return
         //   Cancel: SpawnDialog flow.CancelDialog
-        var nextEvent = DialogFooter.InstallEvent("Next");
+        // Resolved from the flow rather than hardcoded, so a step spliced in after this
+        // dialog actually receives the handoff. NextEvent returns the identical
+        // EndDialog/Return event when the flow leaves NextDialog unset, which is the
+        // unspliced case, so the stock output is unchanged.
+        var nextEvent = DialogFooter.NextEvent(flow, defaultTarget: DialogNames.Progress);
 
         var events = ImmutableArray.Create(
             new DialogControlEvent
