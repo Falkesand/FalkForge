@@ -974,7 +974,7 @@ public sealed class DialogSetProducerTests
     {
         var customization = new DialogCustomizationModel
         {
-            InsertedSteps = ImmutableArray.Create(new InsertedDialogStep("AutoWireStep", StockDialog.Welcome)),
+            InsertedSteps = ImmutableArray.Create(new InsertedDialogStep("AutoWireStep", DialogStepAnchor.Welcome)),
         };
         var package = new PackageModel
         {

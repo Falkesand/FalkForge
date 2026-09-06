@@ -127,12 +127,28 @@ public sealed class DialogCustomization
     /// The stock dialog after which this step appears. Use <see cref="StockDialog.Extension"/>
     /// to append at the end of the sequence.
     /// </param>
-    public DialogCustomization InsertStep(string stepName, StockDialog after)
+    public DialogCustomization InsertStep(string stepName, DialogStepAnchor after)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(stepName);
         _insertedSteps.Add(new InsertedDialogStep(stepName, after));
         return this;
     }
+
+    /// <summary>
+    /// Obsolete. Use the <see cref="DialogStepAnchor"/> overload.
+    /// </summary>
+    /// <param name="stepName">Unused. This overload is rejected at compile time.</param>
+    /// <param name="after">Unused. This overload is rejected at compile time.</param>
+    [Obsolete(
+        "StockDialog names dialogs that can be suppressed, not dialogs a step can follow. Four of " +
+        "its members mapped to no emitted dialog, so inserting after them silently did nothing. " +
+        "Use the DialogStepAnchor overload, which names only dialogs that can host a step.",
+        error: true)]
+    [SuppressMessage("Sonar", "S1133",
+        Justification = "Deliberate permanent gate on an anchor type that could never work, not a " +
+            "deprecation in progress. Kept rather than deleted so the compile error explains why.")]
+    public DialogCustomization InsertStep(string stepName, StockDialog after)
+        => throw new NotSupportedException("Use the DialogStepAnchor overload of InsertStep.");
 
     /// <summary>
     /// Freezes the current builder state into an immutable <see cref="DialogCustomizationModel"/>.

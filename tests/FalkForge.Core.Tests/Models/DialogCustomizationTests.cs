@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using System.Reflection;
 using FalkForge.Models;
 using Xunit;
 
@@ -90,36 +92,36 @@ public sealed class DialogCustomizationTests
     public void InsertStep_with_null_name_throws()
     {
         var c = new DialogCustomization();
-        Assert.Throws<ArgumentNullException>(() => c.InsertStep(null!, StockDialog.License));
+        Assert.Throws<ArgumentNullException>(() => c.InsertStep(null!, DialogStepAnchor.License));
     }
 
     [Fact]
     public void InsertStep_with_whitespace_name_throws()
     {
         var c = new DialogCustomization();
-        Assert.Throws<ArgumentException>(() => c.InsertStep("   ", StockDialog.License));
+        Assert.Throws<ArgumentException>(() => c.InsertStep("   ", DialogStepAnchor.License));
     }
 
     [Fact]
     public void InsertStep_records_step_in_model()
     {
         var c = new DialogCustomization()
-            .InsertStep("LicenseKeyDlg", StockDialog.License);
+            .InsertStep("LicenseKeyDlg", DialogStepAnchor.License);
 
         var model = c.ToModel();
 
         Assert.Single(model.InsertedSteps);
         Assert.Equal("LicenseKeyDlg", model.InsertedSteps[0].StepName);
-        Assert.Equal(StockDialog.License, model.InsertedSteps[0].After);
+        Assert.Equal(DialogStepAnchor.License, model.InsertedSteps[0].After);
     }
 
     [Fact]
     public void InsertStep_multiple_steps_preserves_order()
     {
         var c = new DialogCustomization()
-            .InsertStep("StepA", StockDialog.Welcome)
-            .InsertStep("StepB", StockDialog.License)
-            .InsertStep("StepC", StockDialog.License);
+            .InsertStep("StepA", DialogStepAnchor.Welcome)
+            .InsertStep("StepB", DialogStepAnchor.License)
+            .InsertStep("StepC", DialogStepAnchor.License);
 
         var model = c.ToModel();
 
@@ -133,14 +135,74 @@ public sealed class DialogCustomizationTests
     public void InsertStep_snapshot_is_independent_of_later_mutations()
     {
         var c = new DialogCustomization()
-            .InsertStep("StepA", StockDialog.License);
+            .InsertStep("StepA", DialogStepAnchor.License);
 
         var first = c.ToModel();
 
-        c.InsertStep("StepB", StockDialog.Welcome);
+        c.InsertStep("StepB", DialogStepAnchor.Welcome);
         var second = c.ToModel();
 
         Assert.Single(first.InsertedSteps);
         Assert.Equal(2, second.InsertedSteps.Length);
+    }
+
+    // ── DialogStepAnchor, the insertion anchor that replaces StockDialog ──────────────
+
+    [Fact]
+    public void InsertStep_records_the_anchor_in_the_model()
+    {
+        var c = new DialogCustomization()
+            .InsertStep("LicenseKeyDlg", DialogStepAnchor.License);
+
+        var model = c.ToModel();
+
+        Assert.Single(model.InsertedSteps);
+        Assert.Equal("LicenseKeyDlg", model.InsertedSteps[0].StepName);
+        Assert.Equal(DialogStepAnchor.License, model.InsertedSteps[0].After);
+    }
+
+    [Fact]
+    public void InsertStep_keeps_call_order_for_two_steps_after_one_anchor()
+    {
+        // Order is call order and nothing sorts it, so two steps after the same anchor appear in
+        // the wizard in the order the author wrote them.
+        var model = new DialogCustomization()
+            .InsertStep("SecondPage", DialogStepAnchor.Welcome)
+            .InsertStep("FirstPage", DialogStepAnchor.Welcome)
+            .ToModel();
+
+        Assert.Equal(["SecondPage", "FirstPage"], model.InsertedSteps.Select(s => s.StepName));
+    }
+
+    [Fact]
+    public void DialogStepAnchor_names_only_dialogs_that_can_host_a_step()
+    {
+        // StockDialog was built to name dialogs that could be suppressed, not dialogs a step can
+        // follow. Four of its members map to no dialog at all, ProgressDlg is modeless with no
+        // Next control, ExitDlg comes after the install, and the two most plausible anchors,
+        // SetupTypeDlg and InstallScopeDlg, have no member. This enum lists exactly the dialogs a
+        // step can be spliced in after, plus BeforeInstall for the set-independent case.
+        var members = Enum.GetNames<DialogStepAnchor>();
+
+        Assert.Equal(
+            ["Welcome", "License", "SetupType", "InstallScope", "InstallDir", "Features", "BeforeInstall"],
+            members);
+    }
+
+    [Fact]
+    public void The_StockDialog_overload_of_InsertStep_is_gated_off()
+    {
+        // StockDialog could name anchors that silently did nothing, so the overload is rejected at
+        // compile time rather than left to look like a working call, matching how SuppressDialog is
+        // gated. Reflection rather than a call site, because the call would not compile.
+        var method = typeof(DialogCustomization)
+            .GetMethods()
+            .Single(m => m.Name == nameof(DialogCustomization.InsertStep)
+                && m.GetParameters()[1].ParameterType == typeof(StockDialog));
+
+        var obsolete = method.GetCustomAttribute<ObsoleteAttribute>();
+
+        Assert.NotNull(obsolete);
+        Assert.True(obsolete.IsError);
     }
 }

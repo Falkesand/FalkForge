@@ -167,8 +167,8 @@ public sealed class DialogSetProducerCustomDialogTests
         var customization = new DialogCustomizationModel
         {
             InsertedSteps = ImmutableArray.Create(
-                new InsertedDialogStep("ExtStep", StockDialog.Welcome),
-                new InsertedDialogStep("ExtStep", StockDialog.License)),
+                new InsertedDialogStep("ExtStep", DialogStepAnchor.Welcome),
+                new InsertedDialogStep("ExtStep", DialogStepAnchor.License)),
         };
         var package = new PackageModel
         {
