@@ -173,6 +173,32 @@ public sealed class DialogSetProducerStepSpliceTests
 
             Assert.Equal(("EndDialog", "Return"), NextEventOf(tables, "ProbeStep"));
             Assert.Equal("&Install", ButtonText(tables, "ProbeStep", "Next"));
+
+            // "Last whatever the set" has to mean every path, not just the main one. On Mondo and
+            // Advanced the setup-type dialog's Typical and Complete buttons start the install
+            // directly, so a user choosing Typical would skip the step unless those route through
+            // it too. Asserting only the step's own event would pass while that hole was open.
+            // Only reachable wizard pages count. ExitDlg's Finish and the support modals also
+            // publish EndDialog/Return, legitimately, because they end a dialog AFTER the install
+            // or return from a spawned child. InstallDirDlg is excluded for a different and less
+            // comfortable reason: the Mondo and Advanced sets compose it and nothing ever
+            // navigates to it, so it publishes the handoff from a page the user cannot reach.
+            // That is a separate open defect, not something this splice introduced, and excluding
+            // it here records it rather than hiding it. If that dialog ever becomes reachable,
+            // this list must shrink and this assertion must start covering it.
+            string[] notReachableWizardPages =
+                ["ExitDlg", "CancelDlg", "BrowseDlg", "MsiRMFilesInUse", "InstallDirDlg"];
+            RecipeTable events = tables.First(t => t.Name.Value == "ControlEvent");
+            foreach (RecipeRow row in events.Rows)
+            {
+                string dialog = Str(row.Cells[0]);
+                if (Str(row.Cells[2]) == "EndDialog"
+                    && Str(row.Cells[3]) == "Return"
+                    && !notReachableWizardPages.Contains(dialog))
+                {
+                    Assert.Equal("ProbeStep", dialog);
+                }
+            }
         }
     }
 

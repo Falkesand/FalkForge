@@ -29,8 +29,13 @@ namespace FalkForge.Compiler.Msi.UI.Layout;
 internal sealed class DialogFlowSplice
 {
     private readonly ImmutableArray<string> _chain;
+    private readonly string? _installTarget;
 
-    private DialogFlowSplice(ImmutableArray<string> chain) => _chain = chain;
+    private DialogFlowSplice(ImmutableArray<string> chain, string? installTarget)
+    {
+        _chain = chain;
+        _installTarget = installTarget;
+    }
 
     /// <summary>The spliced chain, first page first.</summary>
     public ImmutableArray<string> Chain => _chain;
@@ -46,7 +51,7 @@ internal sealed class DialogFlowSplice
     {
         if (customization is null || customization.InsertedSteps.IsDefaultOrEmpty)
         {
-            return new DialogFlowSplice(stockChain);
+            return new DialogFlowSplice(stockChain, installTarget: null);
         }
 
         var chain = stockChain.ToBuilder();
@@ -74,7 +79,16 @@ internal sealed class DialogFlowSplice
             chain.Insert(insertAt, step.StepName);
         }
 
-        return new DialogFlowSplice(chain.ToImmutable());
+        // When a step now sits after every stock page, every control that would have started the
+        // install must route through it first. That matters on the sets where more than one dialog
+        // can start the install: the setup-type dialog's Typical and Complete buttons begin it
+        // directly, so without this a user choosing Typical would skip the step entirely.
+        ImmutableArray<string> spliced = chain.ToImmutable();
+        string? installTarget = spliced.Length > 0 && !stockChain.Contains(spliced[^1])
+            ? spliced[^1]
+            : null;
+
+        return new DialogFlowSplice(spliced, installTarget);
     }
 
     /// <summary>
@@ -101,18 +115,9 @@ internal sealed class DialogFlowSplice
         {
             BackDialog = i > 0 ? _chain[i - 1] : null,
             NextDialog = i < _chain.Length - 1 ? _chain[i + 1] : DialogNames.Progress,
+            InstallTarget = _installTarget,
         };
     }
-
-    /// <summary>
-    /// Where a control that starts the install should now point. Normally the progress dialog,
-    /// which means "hand off to InstallUISequence". When a step is anchored at
-    /// <see cref="DialogStepAnchor.BeforeInstall"/>, every such control routes through that step
-    /// first instead, which is what makes the anchor well defined on the branching sets where more
-    /// than one dialog can start the install.
-    /// </summary>
-    public string InstallTarget =>
-        _chain.IsDefaultOrEmpty ? DialogNames.Progress : _chain[^1];
 
     private static int AnchorIndex(ImmutableArray<string>.Builder chain, DialogStepAnchor anchor)
     {

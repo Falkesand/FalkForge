@@ -44,4 +44,17 @@ public sealed record DialogFlowContext
     /// the legacy <c>includeStatusLabel</c> parameter.
     /// </summary>
     public bool IncludeStatusLabel { get; init; } = true;
+
+    /// <summary>
+    /// Where a control that starts the install should point. Null means the progress dialog, which
+    /// is the handoff to <c>InstallUISequence</c>.
+    /// </summary>
+    /// <remarks>
+    /// Set when an extension step is anchored at <c>BeforeInstall</c>, so that every path which
+    /// would have started the install goes through that step first. This matters on the sets where
+    /// more than one dialog can start the install: the setup-type dialog's Typical and Complete
+    /// buttons begin it directly, so without this a user choosing Typical would skip the inserted
+    /// step entirely.
+    /// </remarks>
+    public string? InstallTarget { get; init; }
 }

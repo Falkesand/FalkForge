@@ -23,7 +23,9 @@ internal static class SetupTypeDlgBuilder
 
     /// <summary>Builds the declarative content for the SetupType dialog with explicit flow targets.</summary>
     /// <param name="flow">Back routes to <see cref="DialogFlowContext.BackDialog"/> (defaults to LicenseAgreementDlg per legacy).
-    /// Typical and Complete end the dialog chain directly via <see cref="DialogFooter.InstallEvent"/>
+    /// Typical and Complete start the install, so they route through
+    /// <see cref="DialogFooter.AdvanceEvent"/>, which ends the dialog chain directly unless a step
+    /// has been anchored before the install, in which case they navigate to that step first
     /// so InstallUISequence can run Progress/ExecuteAction; Custom advances to
     /// CustomizeDlg, whose own Next does the same once it reaches Progress.</param>
     public static DialogContent Build(DialogFlowContext flow)
@@ -32,14 +34,14 @@ internal static class SetupTypeDlgBuilder
 
         var events = ImmutableArray.Create(
             DialogFooter.BackEvent(flow, defaultTarget: "LicenseAgreementDlg"),
-            DialogFooter.InstallEvent("TypicalButton"),
+            DialogFooter.AdvanceEvent("TypicalButton", flow.InstallTarget),
             new DialogControlEvent
             {
                 Control = "CustomButton",
                 Event = "NewDialog",
                 Argument = "CustomizeDlg",
             },
-            DialogFooter.InstallEvent("CompleteButton"),
+            DialogFooter.AdvanceEvent("CompleteButton", flow.InstallTarget),
             DialogFooter.CancelEvent(flow));
 
         return new DialogContent
