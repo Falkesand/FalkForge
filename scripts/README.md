@@ -14,13 +14,15 @@
 
 The version for every assembly, the `forge` CLI, and every `.nupkg` is set in **one**
 place: `VersionPrefix` + `VersionSuffix` in the root `Directory.Build.props`
-(currently `0.5.0-beta.7`). Intended progression: `alpha.N` → `beta.1` (friend beta)
+(currently `0.5.0-beta.8`). Intended progression: `alpha.N` → `beta.1` (friend beta)
 → `beta.N` (public beta) → `1.0.0` GA.
 
 When bumping, also update the pinned `ExpectedVersion` in
 `tests/FalkForge.Core.Tests/VersionSingleSourceTests.cs` and
-`tests/FalkForge.Cli.Tests/VersionInfoTests.cs` — the pin makes every version change a
-deliberate, reviewed act.
+`tests/FalkForge.Cli.Tests/VersionInfoTests.cs`, and the `FalkForgeVersion` `defaultValue`
+in both `src/FalkForge.Templates/content/*/.template.config/template.json` files —
+`TemplatePackTests.cs` fails if the templates fall out of step with the single source.
+The pins make every version change a deliberate, reviewed act.
 
 ## License and package metadata
 
