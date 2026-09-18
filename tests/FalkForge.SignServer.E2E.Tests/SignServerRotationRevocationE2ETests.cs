@@ -49,7 +49,10 @@ public sealed class SignServerRotationRevocationE2ETests
         "WORKER10.CRYPTOTOKEN_IMPLEMENTATION_CLASS=org.signserver.server.cryptotokens.KeystoreCryptoToken\\n" +
         "WORKER10.NAME=CryptoTokenP12\\n" +
         "WORKER10.KEYSTORETYPE=PKCS12\\n" +
-        "WORKER10.KEYSTOREPATH=/opt/keyfactor/signserver/res/test/dss10/dss10_keystore.p12\\n" +
+        // See the note in SignServerPodSigningE2ETests: the /opt/signserver spelling is required by the
+        // keystore path allowlist SignServer 7.7.1 added, even though /opt/keyfactor/signserver is the
+        // same directory. Do not "correct" it to match the install directory.
+        "WORKER10.KEYSTOREPATH=/opt/signserver/res/test/dss10/dss10_keystore.p12\\n" +
         "WORKER10.KEYSTOREPASSWORD=foo123\\n" +
         "WORKER11.TYPE=PROCESSABLE\\n" +
         "WORKER11.IMPLEMENTATION_CLASS=org.signserver.module.cmssigner.PlainSigner\\n" +
@@ -282,6 +285,10 @@ public sealed class SignServerRotationRevocationE2ETests
             ["data"] = Convert.ToBase64String("ready-probe"u8.ToArray())
         });
 
+        // See the note in SignServerPodSigningE2ETests: report what the server last said, or this loop
+        // fails with no information at all.
+        var lastOutcome = "no response was ever received";
+
         for (var attempt = 0; attempt < 30; attempt++)
         {
             try
@@ -291,16 +298,20 @@ public sealed class SignServerRotationRevocationE2ETests
                     new Uri($"/signserver/rest/v1/workers/{workerName}/process", UriKind.Relative), content);
                 if (response.StatusCode == HttpStatusCode.OK)
                     return;
+
+                var reason = await response.Content.ReadAsStringAsync();
+                lastOutcome = $"HTTP {(int)response.StatusCode}: {SignServerPodSigningE2ETests.Truncate(reason)}";
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException ex)
             {
                 // container still warming up
+                lastOutcome = $"{ex.GetType().Name}: {ex.Message}";
             }
 
             await Task.Delay(2000);
         }
 
-        Assert.Fail($"SignServer worker '{workerName}' did not become ready in time.");
+        Assert.Fail($"SignServer worker '{workerName}' did not become ready in time. Last response: {lastOutcome}");
     }
 
     private static BundleModel BuildModel(string tempDir, string bundleName, params ISignatureProvider[] providers)
