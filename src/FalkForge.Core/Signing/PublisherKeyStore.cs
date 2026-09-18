@@ -1,6 +1,11 @@
 namespace FalkForge.Signing;
 
+using System.Buffers;
+using System.Runtime.Versioning;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
+using System.Security.Principal;
+using System.Text;
 
 /// <summary>
 /// Resolves the publisher's ECDSA P-256 signing key from a PEM file, generating one on first use,
@@ -59,18 +64,15 @@ public static class PublisherKeyStore
         try
         {
             using var generated = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-            var pem = Header + generated.ExportPkcs8PrivateKeyPem() + Environment.NewLine;
 
             var dir = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
 
-            File.WriteAllText(path, pem);
-
-            if (OperatingSystem.IsWindows())
-                RestrictToCurrentUserWindows(path);
+            WriteKeyFilePkcs8(path, generated);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                        or CryptographicException or PlatformNotSupportedException)
         {
             return Result<PublisherKey>.Failure(ErrorKind.SecurityError,
                 $"SGN021: Could not write the generated publisher signing key: {ex.Message}");
@@ -160,95 +162,227 @@ public static class PublisherKeyStore
         candidate.Length == 64 && candidate.All(Uri.IsHexDigit)
         && string.Equals(candidate, candidate.ToUpperInvariant(), StringComparison.Ordinal);
 
+    // The fingerprint is uppercase-hex SHA-256 over the key's SubjectPublicKeyInfo (the public half
+    // only -- the private half never enters this computation). Pulled out of Load so a test can pin
+    // this exact algorithm against a fixed public key, instead of only proving Load agrees with
+    // itself.
+    internal static string ComputeFingerprint(ECDsa key) =>
+        Convert.ToHexString(SHA256.HashData(key.ExportSubjectPublicKeyInfo()));
+
     private static Result<PublisherKey> Load(string path, bool wasGenerated)
     {
         try
         {
-            using var key = ECDsa.Create();
-            key.ImportFromPem(File.ReadAllText(path));
-            var fingerprint = Convert.ToHexString(SHA256.HashData(key.ExportSubjectPublicKeyInfo()));
-
-            // Best-effort, warn-only: a key restored from a backup or with a widened ACL is used
-            // forever unless every load checks. A filesystem that cannot express the ACL (a network
-            // share, a container bind mount) is a legitimate case, so this never fails the build.
-            if (OperatingSystem.IsWindows() && !IsRestrictedToCurrentUserWindows(path))
+            var fileBytes = File.ReadAllBytes(path);
+            try
             {
-                Console.Error.WriteLine(
-                    $"FalkForge: warning: the publisher signing key '{path}' is readable by more " +
-                    "than the current user. Run `icacls \"" + path + "\" /inheritance:r /grant:r " +
-                    "\"%USERNAME%:F\"` from an elevated prompt, or restrict it by hand, to narrow it.");
-            }
+                var charCount = Encoding.UTF8.GetCharCount(fileBytes);
+                var chars = ArrayPool<char>.Shared.Rent(charCount);
+                try
+                {
+                    var charsWritten = Encoding.UTF8.GetChars(fileBytes, chars);
 
-            return new PublisherKey(path, fingerprint, wasGenerated);
+                    using var key = ECDsa.Create();
+                    key.ImportFromPem(chars.AsSpan(0, charsWritten));
+                    var fingerprint = ComputeFingerprint(key);
+
+                    // Best-effort, warn-only: a key restored from a backup or with a widened ACL is
+                    // used forever unless every load checks. A filesystem that cannot express the ACL
+                    // (a network share, a container bind mount) is a legitimate case, so this never
+                    // fails the load -- it is surfaced to the caller as a Warning instead of a
+                    // Console write, which a caller with no console (an MSBuild task, a GUI host)
+                    // would never see.
+                    string? warning = null;
+                    if (OperatingSystem.IsWindows() && !IsRestrictedToCurrentUserWindows(path))
+                    {
+                        warning =
+                            $"The publisher signing key '{path}' is readable by more than the " +
+                            "current user, or its permissions could not be verified. Run " +
+                            "`icacls \"" + path + "\" /inheritance:r /grant:r \"%USERNAME%:F\"` " +
+                            "from an elevated prompt, or restrict it by hand, to narrow it.";
+                    }
+
+                    return new PublisherKey(path, fingerprint, wasGenerated, warning);
+                }
+                finally
+                {
+                    Array.Clear(chars);
+                    ArrayPool<char>.Shared.Return(chars);
+                }
+            }
+            finally
+            {
+                CryptographicOperations.ZeroMemory(fileBytes);
+            }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or CryptographicException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
+                                        or ArgumentException or CryptographicException)
         {
             return Result<PublisherKey>.Failure(ErrorKind.SecurityError,
                 $"SGN022: Could not read the publisher signing key: {ex.Message}");
         }
     }
 
-    // The key is a secret sitting in a project directory, so narrow its DACL to the current user.
-    // Best effort: a filesystem that cannot carry an ACL must not fail the build.
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static void RestrictToCurrentUserWindows(string path)
+    // Exports and writes the private key without a managed string ever holding the secret. The BCL
+    // gives no span-returning way to export PKCS#8 or to PEM-encode it, so ExportPkcs8PrivateKey()'s
+    // returned byte[] is an unavoidable single copy -- it is zeroed immediately after use. Everything
+    // downstream of it (the PEM char buffer, the UTF-8 byte buffer written to disk) is a pooled
+    // buffer this method owns and clears, in full, before releasing it back to the pool.
+    private static void WriteKeyFilePkcs8(string path, ECDsa generated)
     {
+        var pkcs8 = generated.ExportPkcs8PrivateKey();
         try
         {
-            var info = new FileInfo(path);
-            var security = info.GetAccessControl();
-            security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-            var user = System.Security.Principal.WindowsIdentity.GetCurrent().User;
-            if (user is not null)
+            const string Label = "PRIVATE KEY";
+            var pemLength = PemEncoding.GetEncodedSize(Label.Length, pkcs8.Length);
+            var pemBuffer = ArrayPool<char>.Shared.Rent(pemLength + Environment.NewLine.Length);
+            try
             {
-                security.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
-                    user, System.Security.AccessControl.FileSystemRights.FullControl,
-                    System.Security.AccessControl.AccessControlType.Allow));
+                PemEncoding.TryWrite(Label, pkcs8, pemBuffer, out var pemWritten);
+                Environment.NewLine.CopyTo(pemBuffer.AsSpan(pemWritten));
+                WriteRestrictedFile(path, pemBuffer.AsSpan(0, pemWritten + Environment.NewLine.Length));
             }
-
-            info.SetAccessControl(security);
+            finally
+            {
+                Array.Clear(pemBuffer);
+                ArrayPool<char>.Shared.Return(pemBuffer);
+            }
         }
-        catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        finally
         {
-            // Leave the inherited ACL rather than failing the build.
+            CryptographicOperations.ZeroMemory(pkcs8);
         }
     }
 
-    // Read-only counterpart used by Load to decide whether to warn. Conforming means: inheritance
-    // severed, and no Allow ACE grants access to anyone but the current user.
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static bool IsRestrictedToCurrentUserWindows(string path)
+    // Writes the header (not secret) plus the PEM body (secret) to a file created with its final
+    // restrictive permissions already attached -- see CreateRestrictedFileStream. The body's UTF-8
+    // bytes live only in a pooled buffer this method clears before returning it.
+    private static void WriteRestrictedFile(string path, ReadOnlySpan<char> secretPem)
     {
+        var headerBytes = Encoding.UTF8.GetBytes(Header);
+        var bodyByteCount = Encoding.UTF8.GetByteCount(secretPem);
+        var bodyBytes = ArrayPool<byte>.Shared.Rent(bodyByteCount);
+        try
+        {
+            var bodyWritten = Encoding.UTF8.GetBytes(secretPem, bodyBytes);
+            using var stream = CreateRestrictedFileStream(path);
+            stream.Write(headerBytes, 0, headerBytes.Length);
+            stream.Write(bodyBytes, 0, bodyWritten);
+        }
+        finally
+        {
+            Array.Clear(bodyBytes);
+            ArrayPool<byte>.Shared.Return(bodyBytes);
+        }
+    }
+
+    // Creates the key file with its final restricted permissions attached at creation, so there is no
+    // window in which the file exists on disk readable by anyone but the current user. FileMode.CreateNew
+    // also means a concurrent second writer fails loudly instead of silently overwriting the key.
+    private static FileStream CreateRestrictedFileStream(string path)
+    {
+        if (OperatingSystem.IsWindows())
+            return CreateRestrictedFileStreamWindows(path);
+
+        // UnixCreateMode sets the mode bits as part of the create() syscall itself, so the file never
+        // briefly exists at the umask-default mode the way create-then-chmod would leave it.
+        var options = new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+            UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite,
+        };
+        return new FileStream(path, options);
+    }
+
+    // Ownership is set explicitly to the current user rather than left to whatever the process
+    // token's default owner happens to be -- an elevated token's default owner is frequently the
+    // Administrators group, not the signed-in user, which would fail the owner check in
+    // IsRestrictedToCurrentUser on the very file this method creates.
+    [SupportedOSPlatform("windows")]
+    private static FileStream CreateRestrictedFileStreamWindows(string path)
+    {
+        var security = new FileSecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+        var user = WindowsIdentity.GetCurrent().User;
+        if (user is not null)
+        {
+            security.SetOwner(user);
+            security.AddAccessRule(new FileSystemAccessRule(
+                user, FileSystemRights.FullControl, AccessControlType.Allow));
+        }
+
+        return new FileInfo(path).Create(FileMode.CreateNew, FileSystemRights.FullControl,
+            FileShare.None, bufferSize: 4096, FileOptions.None, security);
+    }
+
+    // Pure decision over an already-read descriptor (owner + protection flag + access rules), unit
+    // testable in-memory with a fabricated "foreign" SID and no real file or elevation, the same way
+    // TrustStateStore.IsAclConforming (FalkForge.Engine.Protocol) is. Conformance requires ALL of:
+    // (1) inheritance severed (protected DACL); (2) the OWNER is the current user -- an owner holds
+    // implicit WRITE_DAC/WRITE_OWNER regardless of what the DACL says, so an attacker who creates the
+    // file and grants the victim FullControl would otherwise pass an ACE-only check while keeping the
+    // standing to rewrite the ACL at will; (3) no Allow ACE names anyone but the current user.
+    [SupportedOSPlatform("windows")]
+    internal static bool IsRestrictedToCurrentUser(
+        SecurityIdentifier currentUser, SecurityIdentifier? owner, bool areAccessRulesProtected,
+        IEnumerable<FileSystemAccessRule> accessRules)
+    {
+        ArgumentNullException.ThrowIfNull(currentUser);
+        ArgumentNullException.ThrowIfNull(accessRules);
+
+        if (!areAccessRulesProtected)
+            return false;
+
+        if (owner is null || !owner.Equals(currentUser))
+            return false;
+
+        foreach (var rule in accessRules)
+        {
+            if (rule.AccessControlType != AccessControlType.Allow)
+                continue;
+
+            if (rule.IdentityReference is SecurityIdentifier sid && !sid.Equals(currentUser))
+                return false;
+        }
+
+        return true;
+    }
+
+    // Read-only counterpart used by Load to decide whether to warn. Reads the descriptor and defers
+    // the actual decision to the pure IsRestrictedToCurrentUser above.
+    [SupportedOSPlatform("windows")]
+    internal static bool IsRestrictedToCurrentUserWindows(string path)
+    {
+        var user = WindowsIdentity.GetCurrent().User;
+        if (user is null)
+            return false;
+
         try
         {
             var security = new FileInfo(path).GetAccessControl();
-            if (!security.AreAccessRulesProtected)
-                return false;
+            var owner = security.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+            var rules = security
+                .GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier))
+                .Cast<FileSystemAccessRule>();
 
-            var user = System.Security.Principal.WindowsIdentity.GetCurrent().User;
-            if (user is null)
-                return false;
-
-            foreach (System.Security.AccessControl.FileSystemAccessRule rule in
-                     security.GetAccessRules(includeExplicit: true, includeInherited: true,
-                         typeof(System.Security.Principal.SecurityIdentifier)))
-            {
-                if (rule.AccessControlType != System.Security.AccessControl.AccessControlType.Allow)
-                    continue;
-
-                if (rule.IdentityReference is System.Security.Principal.SecurityIdentifier sid && !sid.Equals(user))
-                    return false;
-            }
-
-            return true;
+            return IsRestrictedToCurrentUser(user, owner, security.AreAccessRulesProtected, rules);
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
         {
-            // Cannot establish the ACL shape at all -- do not accuse it of being wrong.
-            return true;
+            // Cannot establish the ACL shape at all -- fail closed (not restricted) rather than
+            // waving through a file the check could not examine as conforming.
+            return false;
         }
     }
 }
 
-/// <summary>A resolved publisher key: where it lives, its pinned fingerprint, and whether this build made it.</summary>
-public readonly record struct PublisherKey(string Path, string Fingerprint, bool WasGenerated);
+/// <summary>
+/// A resolved publisher key: where it lives, its pinned fingerprint, whether this build made it, and
+/// an advisory <see cref="Warning"/> (never fatal) when its on-disk permissions could not be confirmed
+/// restricted to the current user. Callers decide how to surface the warning; the library never writes
+/// to <see cref="Console"/> itself, since it may run inside an MSBuild task or a GUI host with none.
+/// </summary>
+public readonly record struct PublisherKey(string Path, string Fingerprint, bool WasGenerated, string? Warning = null);
