@@ -72,10 +72,12 @@ public sealed class TrustedKeySetPropertyTests
         // stray FalkForgeTrustedKey left in a shell profile or a CI job's environment block, which
         // would otherwise reshape the anchor with no `-p:` in sight.
         var environment = new Dictionary<string, string> { ["FalkForgeTrustedKey"] = ReleaseFp };
-        var exitCode = RunBuild(property: null, out var output, environmentOverrides: environment);
+        var objDir = Path.Combine(Path.GetTempPath(), "fk-tks-" + Guid.NewGuid().ToString("N"));
+        var exitCode = RunBuild(property: null, out var output, objDir, environmentOverrides: environment);
 
         Assert.NotEqual(0, exitCode);
         Assert.Contains("FALKPQ005", output, StringComparison.Ordinal);
+        AssertNothingBaked(objDir, ReleaseFp);
     }
 
     [Fact]
@@ -131,24 +133,58 @@ public sealed class TrustedKeySetPropertyTests
             ["FalkForgeTrustedKey"] = ReleaseFp,
             ["FalkForgeTrustedKeyAllowEnvironment"] = "true"
         };
-        var exitCode = RunBuild(property: null, out var output, environmentOverrides: environment);
+        var objDir = Path.Combine(Path.GetTempPath(), "fk-tks-" + Guid.NewGuid().ToString("N"));
+        var exitCode = RunBuild(property: null, out var output, objDir, environmentOverrides: environment);
 
         Assert.NotEqual(0, exitCode);
         Assert.Contains("FALKPQ005", output, StringComparison.Ordinal);
+        AssertNothingBaked(objDir, ReleaseFp);
     }
 
-    // D62: FALKPQ005 originally checked only FalkForgeTrustedKey. A stray FalkForgeTrustedKeySet in
-    // a shell profile or a CI job's environment block reshaped the roled set the same way, with no
-    // guard at all. These four tests mirror the four TrustedKey_* environment tests above, for the
-    // set property, and share its FalkForgeTrustedKeyAllowEnvironment opt-out.
+    [Fact]
+    public void TrustedKey_OptOutFromPropsFileWithEnvironmentKey_StillFailsWithFalkpq005()
+    {
+        // The opt-out must count only when it arrived as an MSBuild global property (-p: on the
+        // command line). A Directory.Build.props that sets FalkForgeTrustedKeyAllowEnvironment=true
+        // is not that: DirectoryBuildPropsPath makes MSBuild import it exactly as it would an
+        // auto-discovered Directory.Build.props, an ordinary (non-global) property. Measured against
+        // the pre-fix guard: this build succeeded and baked ReleaseFp, because the guard only
+        // checked whether the opt-out differed from the environment variable of the same name, not
+        // where it came from.
+        var propsFile = Path.Combine(Path.GetTempPath(), "fk-tks-dbp-" + Guid.NewGuid().ToString("N") + ".props");
+        File.WriteAllText(propsFile,
+            "<Project><PropertyGroup><FalkForgeTrustedKeyAllowEnvironment>true</FalkForgeTrustedKeyAllowEnvironment></PropertyGroup></Project>");
+        try
+        {
+            var environment = new Dictionary<string, string> { ["FalkForgeTrustedKey"] = ReleaseFp };
+            var objDir = Path.Combine(Path.GetTempPath(), "fk-tks-" + Guid.NewGuid().ToString("N"));
+            var exitCode = RunBuild(
+                $"-p:DirectoryBuildPropsPath={propsFile}", out var output, objDir, environmentOverrides: environment);
+
+            Assert.NotEqual(0, exitCode);
+            Assert.Contains("FALKPQ005", output, StringComparison.Ordinal);
+            AssertNothingBaked(objDir, ReleaseFp);
+        }
+        finally
+        {
+            File.Delete(propsFile);
+        }
+    }
+
+    // FALKPQ005 covers FalkForgeTrustedKeySet the same way it covers FalkForgeTrustedKey: a stray
+    // value left in a shell profile or a CI job's environment block would otherwise reshape the
+    // roled set with no `-p:` in sight. These four tests mirror the four TrustedKey_* environment
+    // tests above, for the set property, and share its FalkForgeTrustedKeyAllowEnvironment opt-out.
     [Fact]
     public void TrustedKeySet_EqualToEnvironmentValue_FailsWithFalkpq005()
     {
         var environment = new Dictionary<string, string> { ["FalkForgeTrustedKeySet"] = $"{ReleaseFp}=release" };
-        var exitCode = RunBuild(property: null, out var output, environmentOverrides: environment);
+        var objDir = Path.Combine(Path.GetTempPath(), "fk-tks-" + Guid.NewGuid().ToString("N"));
+        var exitCode = RunBuild(property: null, out var output, objDir, environmentOverrides: environment);
 
         Assert.NotEqual(0, exitCode);
         Assert.Contains("FALKPQ005", output, StringComparison.Ordinal);
+        AssertNothingBaked(objDir, ReleaseFp);
     }
 
     [Fact]
@@ -181,10 +217,54 @@ public sealed class TrustedKeySetPropertyTests
             ["FalkForgeTrustedKeySet"] = $"{ReleaseFp}=release",
             ["FalkForgeTrustedKeyAllowEnvironment"] = "true"
         };
-        var exitCode = RunBuild(property: null, out var output, environmentOverrides: environment);
+        var objDir = Path.Combine(Path.GetTempPath(), "fk-tks-" + Guid.NewGuid().ToString("N"));
+        var exitCode = RunBuild(property: null, out var output, objDir, environmentOverrides: environment);
 
         Assert.NotEqual(0, exitCode);
         Assert.Contains("FALKPQ005", output, StringComparison.Ordinal);
+        AssertNothingBaked(objDir, ReleaseFp);
+    }
+
+    [Fact]
+    public void TrustedKeySet_OptOutFromPropsFileWithEnvironmentKey_StillFailsWithFalkpq005()
+    {
+        // Same hole as TrustedKey_OptOutFromPropsFileWithEnvironmentKey_StillFailsWithFalkpq005,
+        // for the roled set property: the opt-out must count only when it arrived as an MSBuild
+        // global property, never from a Directory.Build.props.
+        var propsFile = Path.Combine(Path.GetTempPath(), "fk-tks-dbp-" + Guid.NewGuid().ToString("N") + ".props");
+        File.WriteAllText(propsFile,
+            "<Project><PropertyGroup><FalkForgeTrustedKeyAllowEnvironment>true</FalkForgeTrustedKeyAllowEnvironment></PropertyGroup></Project>");
+        try
+        {
+            var environment = new Dictionary<string, string> { ["FalkForgeTrustedKeySet"] = $"{ReleaseFp}=release" };
+            var objDir = Path.Combine(Path.GetTempPath(), "fk-tks-" + Guid.NewGuid().ToString("N"));
+            var exitCode = RunBuild(
+                $"-p:DirectoryBuildPropsPath={propsFile}", out var output, objDir, environmentOverrides: environment);
+
+            Assert.NotEqual(0, exitCode);
+            Assert.Contains("FALKPQ005", output, StringComparison.Ordinal);
+            AssertNothingBaked(objDir, ReleaseFp);
+        }
+        finally
+        {
+            File.Delete(propsFile);
+        }
+    }
+
+    // The fail-closed guard returns before the generated-source write, so a failed build must never
+    // produce a TrustedKeys.g.cs carrying the fingerprint the guard rejected. Asserts that directly
+    // rather than trusting the exit code and diagnostic alone, so a future reordering that moved the
+    // write ahead of the check would be caught here instead of baking an attacker-supplied key.
+    private static void AssertNothingBaked(string objDir, string forbiddenFingerprint)
+    {
+        var generated = Directory.Exists(objDir)
+            ? Directory.GetFiles(objDir, "TrustedKeys.g.cs", SearchOption.AllDirectories)
+            : Array.Empty<string>();
+        foreach (var file in generated)
+        {
+            var content = File.ReadAllText(file);
+            Assert.DoesNotContain(forbiddenFingerprint, content, StringComparison.Ordinal);
+        }
     }
 
     // Builds the engine project with the supplied property and returns the generated TrustedKeys.g.cs.

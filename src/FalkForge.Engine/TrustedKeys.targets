@@ -48,15 +48,42 @@
        FalkForgeTrustedKeySet left in a shell profile or a CI job's environment block would
        otherwise reshape the anchor with no `-p:` in sight. The build fails when the effective
        value of either property equals the raw environment variable of the same name, unless
-       FalkForgeTrustedKeyAllowEnvironment=true is passed explicitly on the command line (the
-       opt-out itself must not be environment-sourced, or a stray environment could set both
-       variables and silence the guard, and it covers both properties). This defends against
+       FalkForgeTrustedKeyAllowEnvironment=true arrived as an MSBuild global property — the form
+       that `-p:FalkForgeTrustedKeyAllowEnvironment=true` on the command line produces. A value set
+       by a Directory.Build.props, an ImportBefore hook, or the environment does not count even when
+       it reads "true": only a global property survives the reassignment the probe below performs,
+       so those sources cannot silence the guard for either key property. This defends against
        an accident or a misconfigured shell, never against an attacker who can already run code on
-       the build machine. Build-machine compromise is out of scope, ruled 2026-08-28.
+       the build machine. Build-machine compromise is out of scope, ruled 2026-08-28 — including a
+       Directory.Build.rsp at the repository root, which MSBuild auto-loads as global properties for
+       every `dotnet build` under that tree and which this guard cannot tell apart from a deliberate
+       `-p:`.
 
        Reuses the RoslynCodeTaskFactory generated-source idiom from
        FalkForge.Sdk/Sdk/Sdk.targets.
        ============================================================ -->
+
+  <!-- FALKPQ005 opt-out source probe. An MSBuild global property (set by -p: on the command line,
+       or by a global from a response file) cannot be overwritten by an ordinary property
+       assignment done at project-evaluation time; a property set by an imported props file or
+       initialized from the process environment can be. Reassigning the opt-out to a sentinel here
+       and checking whether the reassignment took tells the two apart. This MUST run at the top
+       level of this file, at evaluation time, and never inside a Target: measured by experiment, a
+       Target's PropertyGroup at execution time CAN overwrite a global property, which would
+       silently defeat this probe. Confirmed by experiment against all three sources this guard
+       cares about (-p:, Directory.Build.props via DirectoryBuildPropsPath, and the process
+       environment): only the -p: case resists the reassignment. The original value is restored
+       immediately after, so the rest of this file sees what was actually passed. -->
+  <PropertyGroup>
+    <_FalkForgeAllowEnvOriginal>$(FalkForgeTrustedKeyAllowEnvironment)</_FalkForgeAllowEnvOriginal>
+    <FalkForgeTrustedKeyAllowEnvironment>__falkforge_allow_env_probe__</FalkForgeTrustedKeyAllowEnvironment>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(FalkForgeTrustedKeyAllowEnvironment)' != '__falkforge_allow_env_probe__'">
+    <_FalkForgeAllowEnvIsGlobal>true</_FalkForgeAllowEnvIsGlobal>
+  </PropertyGroup>
+  <PropertyGroup>
+    <FalkForgeTrustedKeyAllowEnvironment>$(_FalkForgeAllowEnvOriginal)</FalkForgeTrustedKeyAllowEnvironment>
+  </PropertyGroup>
 
   <!-- Allow the property form `-p:FalkForgeTrustedKey=FP` (single) in addition to items. -->
   <ItemGroup Condition="'$(FalkForgeTrustedKey)' != ''">
@@ -72,6 +99,7 @@
       <TrustedKeyPropertyValue ParameterType="System.String" Required="false" />
       <TrustedKeySetPropertyValue ParameterType="System.String" Required="false" />
       <AllowEnvironmentPropertyValue ParameterType="System.String" Required="false" />
+      <AllowEnvironmentIsGlobalPropertyValue ParameterType="System.String" Required="false" />
       <OutputFile ParameterType="System.String" Required="true" />
     </ParameterGroup>
     <Task>
@@ -116,13 +144,15 @@ Func<string, string> normalizeFp = raw =>
 // single-value FalkForgeTrustedKey and the multi-key FalkForgeTrustedKeySet are checked, sharing
 // one opt-out.
 //
-// The opt-out must not itself be environment-sourced, or a stray environment could set both
-// variables and silence the guard it exists to enforce.
-var envAllowFlag = System.Environment.GetEnvironmentVariable("FalkForgeTrustedKeyAllowEnvironment") ?? string.Empty;
+// The opt-out counts only when FalkForgeTrustedKeyAllowEnvironment arrived as an MSBuild global
+// property. AllowEnvironmentIsGlobalPropertyValue is computed by the probe near the top of this
+// file, which reassigns the property at evaluation time and checks whether the reassignment took —
+// a global property resists it, a property set by a Directory.Build.props or the environment does
+// not. Without this check, any props file that set the opt-out to "true" would silence the guard
+// for both key properties at once with no `-p:` in sight.
+var allowIsGlobal = string.Equals(AllowEnvironmentIsGlobalPropertyValue ?? string.Empty, "true", System.StringComparison.OrdinalIgnoreCase);
 var allowValue = AllowEnvironmentPropertyValue ?? string.Empty;
-var allowIsEnvironmentSourced = envAllowFlag.Length != 0 &&
-    string.Equals(allowValue, envAllowFlag, System.StringComparison.Ordinal);
-var allowedExplicitly = !allowIsEnvironmentSourced &&
+var allowedExplicitly = allowIsGlobal &&
     string.Equals(allowValue.Trim(), "true", System.StringComparison.OrdinalIgnoreCase);
 
 var envTrustedKey = System.Environment.GetEnvironmentVariable("FalkForgeTrustedKey") ?? string.Empty;
@@ -395,6 +425,7 @@ File.WriteAllText(OutputFile, sb.ToString(), new UTF8Encoding(false));
         TrustedKeyPropertyValue="$(FalkForgeTrustedKey)"
         TrustedKeySetPropertyValue="$(FalkForgeTrustedKeySet)"
         AllowEnvironmentPropertyValue="$(FalkForgeTrustedKeyAllowEnvironment)"
+        AllowEnvironmentIsGlobalPropertyValue="$(_FalkForgeAllowEnvIsGlobal)"
         OutputFile="$(_FalkTrustedKeysFile)" />
 
     <ItemGroup>
