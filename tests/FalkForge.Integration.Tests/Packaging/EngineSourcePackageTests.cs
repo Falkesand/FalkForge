@@ -2,6 +2,7 @@ namespace FalkForge.Integration.Tests.Packaging;
 
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Text.RegularExpressions;
 using Xunit;
 
 /// <summary>
@@ -21,7 +22,13 @@ public sealed class EngineSourcePackageTests
             .Select(e => e.FullName.Replace('\\', '/'))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var (project, relative) in RepoSourceFiles())
+        // A walk that finds zero .cs files makes the loop below a no-op that still passes, so this
+        // test would go green on a package that carries no source at all. Assert the walk itself
+        // found something before trusting what it did not complain about.
+        var sourceFiles = RepoSourceFiles().ToList();
+        Assert.NotEmpty(sourceFiles);
+
+        foreach (var (project, relative) in sourceFiles)
         {
             var expected = $"tools/src/{project}/{relative}";
             Assert.True(entries.Contains(expected), $"missing from the package: {expected}");
@@ -49,20 +56,56 @@ public sealed class EngineSourcePackageTests
     public void PackagedProjects_ReferencePackagesNotSiblingProjects()
     {
         // A ProjectReference in the shipped csproj points at a path that does not exist on a
-        // consumer's disk, so the first build fails with a confusing MSBuild error.
+        // consumer's disk, so the first build fails with a confusing MSBuild error. Reads the REAL
+        // packed csproj -- the substituted copy the nupkg actually ships -- not the checked-in
+        // template: the template still carries the literal $(FalkForgePackageVersion) placeholder,
+        // so reading it here would let an empty or malformed substitution pass unnoticed.
+        using var package = ZipFile.OpenRead(PackedNupkgPath());
         foreach (var name in new[] { "FalkForge.Engine", "FalkForge.Engine.Elevation" })
         {
-            var text = File.ReadAllText(Path.Combine(
-                RepoRoot(), "src", "FalkForge.Engine.Sources", "src", name, $"{name}.csproj"));
+            var text = ReadPackedEntry(package, $"tools/src/{name}/{name}.csproj");
+
             Assert.DoesNotContain("<ProjectReference", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("$(FalkForgePackageVersion)", text, StringComparison.Ordinal);
             Assert.Contains("<PackageReference Include=\"FalkForge.Engine.Protocol\"", text,
                 StringComparison.Ordinal);
+
+            // The bare version NuGet used to see here reads as a floor, not a pin: "1.2.3" resolves
+            // to >=1.2.3. Exact bracket notation is what actually pins it.
+            var match = Regex.Match(text, @"FalkForge\.Engine\.Protocol""\s+Version=""(\[[^""]+\])""");
+            Assert.True(match.Success,
+                $"FalkForge.Engine.Protocol's PackageReference in {name}.csproj is not an exact " +
+                $"bracketed version:\n{text}");
+            Assert.NotEqual("[]", match.Groups[1].Value);
+        }
+    }
+
+    [Fact]
+    public void PackagedProjects_DoNotCompileViaTheDefaultGlob()
+    {
+        // Once restored, the packaged csproj lives under the machine-wide global NuGet packages
+        // folder (%USERPROFILE%\.nuget\packages), which is user-writable and shared by every
+        // project on the machine -- see FalkForge.Engine.Sources/build/FalkForge.Engine.Sources.props.
+        // NuGet never re-verifies an already-extracted package, so a .cs file dropped into that
+        // directory after the fact would silently join the next build if the project still compiled
+        // via the SDK's default **/*.cs glob. EnableDefaultCompileItems=false plus an explicit,
+        // enumerated <Compile> list closes that: a planted file sits on disk but not in the list, so
+        // it never compiles in.
+        using var package = ZipFile.OpenRead(PackedNupkgPath());
+        foreach (var name in new[] { "FalkForge.Engine", "FalkForge.Engine.Elevation" })
+        {
+            var text = ReadPackedEntry(package, $"tools/src/{name}/{name}.csproj");
+
+            Assert.Contains("<EnableDefaultCompileItems>false</EnableDefaultCompileItems>", text,
+                StringComparison.Ordinal);
+            Assert.DoesNotContain("FALKFORGE_COMPILE_ITEMS", text, StringComparison.Ordinal);
+            Assert.Matches(new Regex(@"<Compile Include=""[^""]+\.cs"" />"), text);
         }
     }
 
     /// <summary>
-    /// The three tests above check zip entries and grep csproj text, so a package that is missing
-    /// one .cs file, or whose rewritten csproj does not restore, still passes them and fails at the
+    /// The tests above check zip entries and grep csproj text, so a package that is missing one .cs
+    /// file, or whose rewritten csproj does not restore, still passes them and fails at the
     /// consumer's first build. This test extracts the real package and builds both packaged projects
     /// against their real sibling packages (FalkForge.Engine.Protocol, FalkForge.Platform.Windows,
     /// FalkForge.Compiler.Msi and their own closure) from the local feed <c>scripts/pack.ps1</c>
@@ -95,36 +138,7 @@ public sealed class EngineSourcePackageTests
         var packagesPath = Path.Combine(Path.GetTempPath(), "fk-srcbuild-pkgs-" + Guid.NewGuid().ToString("N"));
         var objDir = Path.Combine(Path.GetTempPath(), "fk-srcbuild-obj-" + Guid.NewGuid().ToString("N"));
 
-        // Package-source-mapped config, the same local-feed convention NuGetConsumerEndToEndTests
-        // uses, refined with mapping. An additional source is not enough on its own: measured here,
-        // FalkForge.Engine.Protocol 0.5.0-beta.7 is already published on nuget.org from an earlier
-        // point in this same pre-release cycle, and it is stale (it predates
-        // TrustPolicy/HashBoundFileResult). With the packaged NuGet.config's nuget.org source still
-        // active and the local feed merely added via RestoreAdditionalSources, restore picked the
-        // stale nuget.org copy and the build failed with CS0234. But dropping nuget.org entirely
-        // (measured) breaks restore of the NativeAOT toolchain packages (Microsoft.DotNet.ILCompiler
-        // and friends) the SDK references implicitly whenever PublishAot is set, regardless of
-        // whether publish ever runs. Package source mapping routes every FalkForge.* id to the local
-        // feed exclusively while leaving everything else on nuget.org.
-        var testNuGetConfig = Path.Combine(Path.GetTempPath(), "fk-srcbuild-nuget-" + Guid.NewGuid().ToString("N") + ".config");
-        File.WriteAllText(testNuGetConfig, $"""
-            <?xml version="1.0" encoding="utf-8"?>
-            <configuration>
-              <packageSources>
-                <clear />
-                <add key="falkforge-local" value="{feed}" />
-                <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
-              </packageSources>
-              <packageSourceMapping>
-                <packageSource key="falkforge-local">
-                  <package pattern="FalkForge.*" />
-                </packageSource>
-                <packageSource key="nuget.org">
-                  <package pattern="*" />
-                </packageSource>
-              </packageSourceMapping>
-            </configuration>
-            """);
+        var testNuGetConfig = BuildTestNuGetConfigFromTheShippedFile(feed);
 
         var engineExit = ProcessRunner.Run("dotnet",
             [
@@ -150,6 +164,73 @@ public sealed class EngineSourcePackageTests
         // TrustedKeys.targets imports ran and generated their source.
         var generated = Directory.GetFiles(objDir, "TrustedKeys.g.cs", SearchOption.AllDirectories);
         Assert.Equal(2, generated.Length);
+
+        // Proves the analyzer set Directory.Build.props puts back actually restored into this build,
+        // not only that the props file exists. project.assets.json records every package that was
+        // resolved for the project, analyzers included.
+        var engineAssets = File.ReadAllText(Path.Combine(objDir, "engine", "project.assets.json"));
+        Assert.Contains("SonarAnalyzer.CSharp", engineAssets, StringComparison.Ordinal);
+        Assert.Contains("SecurityCodeScan.VS2019", engineAssets, StringComparison.Ordinal);
+        Assert.Contains("IDisposableAnalyzers", engineAssets, StringComparison.Ordinal);
+        Assert.Contains("Meziantou.Analyzer", engineAssets, StringComparison.Ordinal);
+        Assert.Contains("Microsoft.VisualStudio.Threading.Analyzers", engineAssets, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Builds the restore config this test uses from the SHIPPED NuGet.config's own text, adding
+    /// only the local feed this session's freshly packed FalkForge.* siblings live in. Earlier this
+    /// test wrote an entirely independent config, so deleting the shipped file's &lt;clear /&gt; or
+    /// its packageSourceMapping left every test in this class green -- nothing here read the shipped
+    /// file at all. The Assert.Contains calls below fail loudly, before any restore runs, if a future
+    /// edit strips either one out.
+    /// </summary>
+    private static string BuildTestNuGetConfigFromTheShippedFile(string feed)
+    {
+        const string NugetOrgSourceLine =
+            "<add key=\"nuget.org\" value=\"https://api.nuget.org/v3/index.json\" />";
+        const string NugetOrgMappingOpen = "<packageSource key=\"nuget.org\">";
+
+        var shippedConfigPath = Path.Combine(
+            RepoRoot(), "src", "FalkForge.Engine.Sources", "src", "NuGet.config");
+        var shippedConfigText = File.ReadAllText(shippedConfigPath);
+
+        Assert.Contains("<clear />", shippedConfigText, StringComparison.Ordinal);
+        Assert.Contains("<packageSourceMapping>", shippedConfigText, StringComparison.Ordinal);
+        Assert.Contains(NugetOrgSourceLine, shippedConfigText, StringComparison.Ordinal);
+        Assert.Contains(NugetOrgMappingOpen, shippedConfigText, StringComparison.Ordinal);
+
+        // Package source mapping picks the most specific pattern for each package id regardless of
+        // which entry declares it, so adding "FalkForge.*" -> the local feed here narrows where
+        // FalkForge.* packages resolve from without loosening the shipped file's own "*" -> nuget.org
+        // restriction for anything else -- the NativeAOT toolchain packages PublishAot references
+        // included (measured: dropping nuget.org from the source list entirely breaks their restore).
+        var withLocalSource = shippedConfigText.Replace(
+            NugetOrgSourceLine,
+            NugetOrgSourceLine + Environment.NewLine +
+                $"    <add key=\"falkforge-local\" value=\"{feed}\" />",
+            StringComparison.Ordinal);
+        var withLocalMapping = withLocalSource.Replace(
+            NugetOrgMappingOpen,
+            "<packageSource key=\"falkforge-local\">" + Environment.NewLine +
+                "      <package pattern=\"FalkForge.*\" />" + Environment.NewLine +
+                "    </packageSource>" + Environment.NewLine +
+                "    " + NugetOrgMappingOpen,
+            StringComparison.Ordinal);
+
+        Assert.Contains($"key=\"falkforge-local\" value=\"{feed}\"", withLocalMapping, StringComparison.Ordinal);
+        Assert.Contains("<packageSource key=\"falkforge-local\">", withLocalMapping, StringComparison.Ordinal);
+
+        var path = Path.Combine(Path.GetTempPath(), "fk-srcbuild-nuget-" + Guid.NewGuid().ToString("N") + ".config");
+        File.WriteAllText(path, withLocalMapping);
+        return path;
+    }
+
+    private static string ReadPackedEntry(ZipArchive package, string entryPath)
+    {
+        var entry = package.GetEntry(entryPath);
+        Assert.True(entry is not null, $"missing from the package: {entryPath}");
+        using var reader = new StreamReader(entry.Open());
+        return reader.ReadToEnd();
     }
 
     private static IEnumerable<(string Project, string Relative)> RepoSourceFiles()

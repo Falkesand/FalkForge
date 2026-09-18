@@ -73,6 +73,68 @@ File.WriteAllText(DestinationPath, substituted);
     </Task>
   </UsingTask>
 
+  <!-- Second pass over the same generated csproj copies: replaces the FALKFORGE_COMPILE_ITEMS
+       marker with an explicit, enumerated <Compile Include="..."/> list built from the real .cs
+       files under the corresponding repository source directory. These are the same files the
+       None ItemGroup above packs, computed the same way (Path.GetRelativePath from that
+       directory, excluding obj/bin), so the compiled set and the packed set cannot drift apart.
+       Paired with EnableDefaultCompileItems=false in the templates, a .cs file that later appears
+       in a consumer's extracted copy of this package (the global NuGet packages folder is
+       user-writable and shared machine-wide; NuGet never re-verifies an already-extracted
+       package) is on disk but not in this list, so it does not compile in. -->
+  <UsingTask TaskName="_FalkForgeInsertExplicitCompileItems"
+             TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <SourceDir ParameterType="System.String" Required="true" />
+      <ProjectFileToEdit ParameterType="System.String" Required="true" />
+      <PlaceholderToken ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Linq" />
+      <Using Namespace="System.Text" />
+      <Code Type="Fragment" Language="cs">
+<![CDATA[
+// RoslynCodeTaskFactory compiles this fragment against the .NET Framework reference set
+// carried by Microsoft.Build.Tasks.Core.dll, where System.IO.Path has no GetRelativePath
+// overload (it is a .NET Core / .NET Standard 2.1 addition). SourceDir is the root passed
+// to Directory.EnumerateFiles below, so every returned path is guaranteed to start with it;
+// stripping that known prefix stands in for GetRelativePath without needing it.
+var sourceRootFull = Path.GetFullPath(SourceDir);
+if (!sourceRootFull.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal))
+{
+    sourceRootFull += Path.DirectorySeparatorChar;
+}
+
+string RelativeToSourceRoot(string fullPath) => Path.GetFullPath(fullPath).Substring(sourceRootFull.Length);
+
+var files = Directory.EnumerateFiles(SourceDir, "*.cs", SearchOption.AllDirectories)
+    .Where(f =>
+    {
+        var rel = RelativeToSourceRoot(f).Replace('\\', '/');
+        return !rel.StartsWith("obj/", StringComparison.OrdinalIgnoreCase)
+            && !rel.StartsWith("bin/", StringComparison.OrdinalIgnoreCase);
+    })
+    .OrderBy(f => f, StringComparer.Ordinal)
+    .ToList();
+
+var itemLines = new StringBuilder();
+foreach (var file in files)
+{
+    var relative = RelativeToSourceRoot(file)
+        .Replace("&", "&amp;").Replace("\"", "&quot;").Replace("<", "&lt;").Replace(">", "&gt;");
+    itemLines.Append("    <Compile Include=\"").Append(relative).Append("\" />").Append(Environment.NewLine);
+}
+
+var text = File.ReadAllText(ProjectFileToEdit);
+var substituted = text.Replace(PlaceholderToken, itemLines.ToString().TrimEnd());
+File.WriteAllText(ProjectFileToEdit, substituted);
+]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
   <!-- _GetPackageFiles is the NuGet SDK target that gathers @(None) items with Pack=true into the
        nuspec; running before it lets these dynamically-added items be seen the same way as the
        static ones above. -->
@@ -92,6 +154,18 @@ File.WriteAllText(DestinationPath, substituted);
         DestinationPath="$(_FalkForgeElevationCsprojOut)"
         PackageVersionValue="$(PackageVersion)"
         PlaceholderToken="%24(FalkForgePackageVersion)" />
+
+    <!-- Same source directories the None ItemGroup above packs from: ..\FalkForge.Engine and
+         ..\FalkForge.Engine.Elevation, siblings of this project, not the packaged template folder
+         under src\ which holds only the rewritten csproj. -->
+    <_FalkForgeInsertExplicitCompileItems
+        SourceDir="..\FalkForge.Engine"
+        ProjectFileToEdit="$(_FalkForgeEngineCsprojOut)"
+        PlaceholderToken="&lt;!--FALKFORGE_COMPILE_ITEMS--&gt;" />
+    <_FalkForgeInsertExplicitCompileItems
+        SourceDir="..\FalkForge.Engine.Elevation"
+        ProjectFileToEdit="$(_FalkForgeElevationCsprojOut)"
+        PlaceholderToken="&lt;!--FALKFORGE_COMPILE_ITEMS--&gt;" />
 
     <ItemGroup>
       <None Include="$(_FalkForgeEngineCsprojOut)" Pack="true" PackagePath="tools/src/FalkForge.Engine" />
