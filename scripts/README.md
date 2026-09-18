@@ -4,11 +4,49 @@
 |--------|---------|
 | `pack.ps1` | `dotnet pack` every packable project (Release) into a folder that doubles as a **local NuGet feed**. Default output `./artifacts/nuget`. `-Version` overrides the single-source version. By default it first publishes the NativeAOT engine + elevation companion and packs them into `FalkForge.Engine.Runtime.win-x64` and `FalkForge.Tool` (see below); `-SkipEnginePublish` reuses an existing `artifacts/publish/engine`, `-NoEngine` packs without the engine (explicit opt-out). |
 | `publish.ps1` | Build Release and publish the shippable executables: the `forge` CLI plus the NativeAOT `FalkForge.Engine` / `FalkForge.Engine.Elevation` binaries. Default output `./artifacts/publish`. `-SkipEngine` skips the slow NativeAOT publishes. |
-| `coverage.ps1` | Code coverage via `dotnet-coverage` (works under Microsoft.Testing.Platform where `--collect` is a no-op). See [`docs/testing/coverage-baseline.md`](../docs/testing/coverage-baseline.md) for the current baseline. |
+| `coverage.ps1` | Code coverage via `dotnet-coverage` (works under Microsoft.Testing.Platform where `--collect` is a no-op), then a browsable ReportGenerator HTML report. Reports, never fails. See [`docs/testing/coverage-baseline.md`](../docs/testing/coverage-baseline.md) for the current baseline. |
+| `coverage-gate.ps1` | The same collection, plus the numbers CI enforces: solution total, every project worst first, and the coverage of the lines this branch changed since it left `main`. `-FailUnder` turns a missed floor into a non-zero exit, which is how CI blocks a pull request. `-UseExisting` re-reads the last report instead of re-running the tests. Reads `scripts/coverage.settings.xml`, or `.coverage.settings.xml` at the repo root if you add one. See [Coverage gate](#coverage-gate). |
 | `mutation.ps1` | Runs Stryker.NET mutation testing (`-TestProject <Name>.Tests -SourceProject <Name>`) against one FalkForge project. Periodic, not per-commit. See [`docs/testing/mutation-testing.md`](../docs/testing/mutation-testing.md) for how to read the results and the traps that make this not "just run Stryker". |
 | `scan-deps.ps1` | Dependency scanning. |
 | `verify-real-machine.ps1` | Runs the real-system e2e suite (`FALKFORGE_E2E=1` + `FALKFORGE_REAL_SYSTEM_E2E=1`) on an elevated machine. **Mutates machine state** — run only on a disposable VM. See [`docs/testing/real-machine-verification.md`](../docs/testing/real-machine-verification.md) for the full runbook, including the manual checks it can't automate. |
 | `pack-docs.ps1` | Zips the static HTML documentation site (`documentation.html` as both itself and `index.html`, plus `docs/tutorials/*.html` and its `shared/` assets -- no markdown, no internal plans) into `./artifacts/falkforge-docs-<version>.zip`. Same content published to GitHub Pages ([`.github/workflows/pages.yml`](../.github/workflows/pages.yml)) and attached to GitHub Releases ([`.github/workflows/release.yml`](../.github/workflows/release.yml)). `-Version` overrides the single-source version; `-Output` overrides the destination folder. |
+
+## Coverage gate
+
+```powershell
+./scripts/coverage-gate.ps1                 # build, test, report all three views
+./scripts/coverage-gate.ps1 -FailUnder      # exit 1 when a floor is missed
+./scripts/coverage-gate.ps1 -UseExisting    # re-report the last run, no tests
+./scripts/coverage-gate.ps1 -Html -Open     # browsable per-file report as well
+```
+
+Floors default to 80 % for the solution and 80 % for the changed lines, with 90 % reported as over
+the band. Override with `-MinTotal`, `-MaxTotal`, `-MinDiff`.
+
+CI runs it at [`ci.yml`](../.github/workflows/ci.yml) as `-UseExisting -FailUnder -MinDiff 0
+-BaseRef origin/main`. It reuses the report the test step already wrote, so it costs seconds. The
+solution floor blocks the job; the changed-lines number is printed but not enforced yet, because no
+pull request has been measured against it. Raise `-MinDiff` to 80 once a few have.
+
+The branch view compares the merge base of `HEAD` and `origin/main` against the **working tree**, so
+staged work counts before it is committed. Only coverable changed lines are counted: a brace, a
+`using` or a field declaration is in neither half of the fraction. A brand-new `.cs` file that was
+never staged is invisible to `git diff` and the script says so by name rather than quietly ignoring
+it. The CI checkout uses `fetch-depth: 0` because a shallow clone has no merge base.
+
+Two traps that cost real time, both verified rather than assumed:
+
+`dotnet-coverage` accepts a settings file with the wrong schema, prints "is not a valid settings
+file, using default values", and **exits 0**. The root element must be `<Configuration>` wrapping
+`<CodeCoverage>`, both capitalised, and the file must be well-formed XML, so a raw `<` inside a
+regex breaks it. When it is rejected the test assemblies come back into the report at near 100 %,
+because running a test project executes it, and the total comes out several points too high. The
+script does not trust the file: it filters test assemblies again while reading the report and prints
+what it had to drop.
+
+`scripts/coverage-gate.ps1` is a copy. The original lives in the maintainer's tool folder so the same
+gate runs across projects. Change the original, bump `$script:ToolVersion`, copy the whole file here.
+Running the original inside this repo warns when the two versions differ.
 
 ## Single-source version
 

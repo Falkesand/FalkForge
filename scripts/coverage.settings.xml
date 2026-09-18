@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Collector exclusions for dotnet-coverage.
+
+  SCHEMA WARNING, verified 2026-09-18 on dotnet-coverage 18.11.2.
+  The root element must be <Configuration> wrapping <CodeCoverage>, both
+  capitalised exactly like this. Every other shape was rejected:
+  <configuration><codecoverage> lowercase, <configuration><CodeCoverage>, and a
+  bare <CodeCoverage> root all failed. So does any file that is not well-formed
+  XML, which includes a raw < or > inside a regex.
+
+  A rejected file does NOT fail the run. The collector prints "is not a valid
+  settings file, using default values" and exits 0, so the run looks fine and
+  the numbers are quietly wrong: test assemblies come back in, and a test
+  project is ~99 % covered by definition because running it executes it.
+  Get-Coverage.ps1 therefore does not trust this file. It filters test
+  assemblies again when it reads the report, and says so loudly if it had to.
+
+  A repo can override this file with its own .coverage.settings.xml at the
+  repository root.
+-->
+<Configuration>
+  <CodeCoverage>
+
+    <ModulePaths>
+      <Exclude>
+        <!-- Test assemblies and their helper executables. -->
+        <ModulePath>.*\.Tests\.dll$</ModulePath>
+        <ModulePath>.*\.Tests\.exe$</ModulePath>
+        <ModulePath>.*\.Tests\..*\.dll$</ModulePath>
+        <ModulePath>.*\.Tests\..*\.exe$</ModulePath>
+        <ModulePath>.*\.IntegrationTests\.dll$</ModulePath>
+        <ModulePath>.*\.E2E\.Tests\.dll$</ModulePath>
+
+        <!-- Test infrastructure shipped by the runner, never product code. -->
+        <ModulePath>.*xunit.*\.dll$</ModulePath>
+        <ModulePath>.*Microsoft\.Testing\..*\.dll$</ModulePath>
+        <ModulePath>.*\.TestAdapter\.dll$</ModulePath>
+        <ModulePath>.*Moq.*\.dll$</ModulePath>
+        <ModulePath>.*NSubstitute.*\.dll$</ModulePath>
+        <ModulePath>.*FluentAssertions.*\.dll$</ModulePath>
+        <ModulePath>.*Shouldly.*\.dll$</ModulePath>
+      </Exclude>
+    </ModulePaths>
+
+    <Sources>
+      <Exclude>
+        <!-- Generated code. Nobody writes tests for it, and counting it moves
+             the number without telling you anything about the product. -->
+        <Source>.*\\obj\\.*</Source>
+        <Source>.*\.g\.cs$</Source>
+        <Source>.*\.g\.i\.cs$</Source>
+        <Source>.*\.Designer\.cs$</Source>
+        <Source>.*\.AssemblyInfo\.cs$</Source>
+      </Exclude>
+    </Sources>
+
+    <Attributes>
+      <Exclude>
+        <Attribute>^System\.Diagnostics\.DebuggerHiddenAttribute$</Attribute>
+        <Attribute>^System\.Diagnostics\.DebuggerNonUserCodeAttribute$</Attribute>
+        <Attribute>^System\.Diagnostics\.CodeAnalysis\.ExcludeFromCodeCoverageAttribute$</Attribute>
+        <Attribute>^System\.CodeDom\.Compiler\.GeneratedCodeAttribute$</Attribute>
+      </Exclude>
+    </Attributes>
+
+  </CodeCoverage>
+</Configuration>

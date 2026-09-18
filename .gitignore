@@ -155,6 +155,11 @@ coverage*.json
 coverage*.xml
 coverage*.info
 
+# ...but scripts/coverage.settings.xml is source, not output. Without this line the collector
+# exclusions never reach the repository and the CI coverage gate aborts with "collector settings
+# not found", having found nothing to fall back to on the runner.
+!scripts/coverage.settings.xml
+
 # Visual Studio code coverage results
 *.coverage
 *.coveragexml
@@ -441,6 +446,7 @@ mutation-reports/
 .graphify_python
 .claude/scheduled_tasks.lock
 .pipeline-complete
+.pipeline-coverage
 reports/
 .testrunner/
 

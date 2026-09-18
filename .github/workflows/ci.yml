@@ -15,7 +15,12 @@ jobs:
   build-and-test:
     runs-on: windows-latest
     steps:
+      # fetch-depth: 0 because the coverage gate below measures the lines this branch changed,
+      # which needs `git merge-base origin/main HEAD`. A shallow clone has no merge base and the
+      # gate would silently report nothing to measure.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -102,7 +107,21 @@ jobs:
       - name: Test with coverage
         env:
           FALKFORGE_E2E: '1'
-        run: dotnet-coverage collect -f cobertura -o TestResults\coverage.cobertura.xml 'dotnet test FalkForge.slnx --no-build -c Release -v minimal -- --report-trx --report-trx-filename test-results.trx'
+        run: dotnet-coverage collect -f cobertura -o TestResults\coverage\coverage.cobertura.xml 'dotnet test FalkForge.slnx --no-build -c Release -v minimal -- --report-trx --report-trx-filename test-results.trx'
+
+      # Enforces the coverage band. Reads the report the step above already produced, so it adds
+      # seconds, not another test run. Prints the solution total, every project worst first, and the
+      # coverage of the lines this branch changed.
+      #
+      # -FailUnder makes the 80 % solution floor fail this job. -MinDiff 0 keeps the changed-lines
+      # number reported but not blocking, because no pull request has been measured against it yet.
+      # Raise it to 80 once a few PRs have shown what the real number looks like.
+      #
+      # scripts/coverage-gate.ps1 is a copy of the maintainer's local tool, kept here so CI and
+      # outside contributors can run the same gate. See scripts/README.md.
+      - name: Coverage gate
+        shell: pwsh
+        run: ./scripts/coverage-gate.ps1 -UseExisting -FailUnder -MinDiff 0 -BaseRef origin/main
 
       - name: Upload test results
         uses: actions/upload-artifact@v5
@@ -125,7 +144,7 @@ jobs:
       # part of the `dotnet test FalkForge.slnx` run this wraps, so they never
       # appear in the cobertura file — the *Demo* exclusion below is defensive only.
       - name: Generate coverage report (src-only)
-        run: reportgenerator "-reports:TestResults\coverage.cobertura.xml" "-targetdir:CoverageReport" "-reporttypes:JsonSummary;TextSummary" "-assemblyfilters:+FalkForge.*;-FalkForge.*.Tests;-FalkForge.*.Tests.*;-*Demo*"
+        run: reportgenerator "-reports:TestResults\coverage\coverage.cobertura.xml" "-targetdir:CoverageReport" "-reporttypes:JsonSummary;TextSummary" "-assemblyfilters:+FalkForge.*;-FalkForge.*.Tests;-FalkForge.*.Tests.*;-*Demo*"
 
       - name: Print coverage summary (src-only)
         run: Get-Content CoverageReport\Summary.txt
@@ -133,7 +152,7 @@ jobs:
       # Secondary report: all-assembly (unfiltered), kept as a separate artifact
       # for anyone who wants the raw number including test-project code.
       - name: Generate coverage report (all-assembly)
-        run: reportgenerator "-reports:TestResults\coverage.cobertura.xml" "-targetdir:CoverageReport-AllAssembly" "-reporttypes:JsonSummary;TextSummary"
+        run: reportgenerator "-reports:TestResults\coverage\coverage.cobertura.xml" "-targetdir:CoverageReport-AllAssembly" "-reporttypes:JsonSummary;TextSummary"
 
       - name: Upload coverage report (src-only)
         uses: actions/upload-artifact@v5
