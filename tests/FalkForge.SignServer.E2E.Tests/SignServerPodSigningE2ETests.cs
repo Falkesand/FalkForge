@@ -50,7 +50,14 @@ public sealed class SignServerPodSigningE2ETests
         "WORKER10.CRYPTOTOKEN_IMPLEMENTATION_CLASS=org.signserver.server.cryptotokens.KeystoreCryptoToken\\n" +
         "WORKER10.NAME=CryptoTokenP12\\n" +
         "WORKER10.KEYSTORETYPE=PKCS12\\n" +
-        "WORKER10.KEYSTOREPATH=/opt/keyfactor/signserver/res/test/dss10/dss10_keystore.p12\\n" +
+        // Name the keystore by its /opt/signserver spelling, not /opt/keyfactor/signserver. Both resolve
+        // to the same file, because /opt/signserver is a symlink in the image, but SignServer 7.7.1 added
+        // an allowlist that compares the configured string against a literal prefix. The image ships
+        // `keystorecryptotoken.keystore.path.allowed.0=/opt/signserver/res/test/` in
+        // conf/signserver_deploy.properties, so the /opt/keyfactor spelling is rejected before the file is
+        // ever opened, with "KEYSTOREPATH is not allowed". Do not "correct" this path to match the
+        // install directory.
+        "WORKER10.KEYSTOREPATH=/opt/signserver/res/test/dss10/dss10_keystore.p12\\n" +
         "WORKER10.KEYSTOREPASSWORD=foo123\\n" +
         "WORKER11.TYPE=PROCESSABLE\\n" +
         "WORKER11.IMPLEMENTATION_CLASS=org.signserver.module.cmssigner.PlainSigner\\n" +
@@ -166,6 +173,12 @@ public sealed class SignServerPodSigningE2ETests
             ["data"] = Convert.ToBase64String("ready-probe"u8.ToArray())
         });
 
+        // Keep the last thing the server said. Without it this loop reports "did not become ready" and
+        // nothing else, which is what it did when SignServer 7.7.1 started rejecting the keystore path:
+        // the server was answering 500 with the exact reason every two seconds and the test discarded all
+        // thirty of them.
+        var lastOutcome = "no response was ever received";
+
         for (var attempt = 0; attempt < 30; attempt++)
         {
             try
@@ -175,16 +188,30 @@ public sealed class SignServerPodSigningE2ETests
                     new Uri($"/signserver/rest/v1/workers/{WorkerName}/process", UriKind.Relative), content);
                 if (response.StatusCode == HttpStatusCode.OK)
                     return;
+
+                var reason = await response.Content.ReadAsStringAsync();
+                lastOutcome = $"HTTP {(int)response.StatusCode}: {Truncate(reason)}";
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException ex)
             {
                 // container still warming up
+                lastOutcome = $"{ex.GetType().Name}: {ex.Message}";
             }
 
             await Task.Delay(2000);
         }
 
-        Assert.Fail($"SignServer worker '{WorkerName}' did not become ready in time.");
+        Assert.Fail($"SignServer worker '{WorkerName}' did not become ready in time. Last response: {lastOutcome}");
+    }
+
+    /// <summary>
+    /// Trims a SignServer error body to something that stays readable in a test failure message. The
+    /// interesting part is the leading error text; a signed response body would be kilobytes of base64.
+    /// </summary>
+    internal static string Truncate(string body)
+    {
+        var flattened = body.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        return flattened.Length <= 400 ? flattened : flattened[..400] + "...";
     }
 
     private static BundleModel BuildModel(string tempDir, ISignatureProvider provider)
