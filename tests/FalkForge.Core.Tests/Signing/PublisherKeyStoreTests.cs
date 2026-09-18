@@ -1,4 +1,6 @@
+using System.Security.AccessControl;
 using System.Security.Cryptography;
+using System.Security.Principal;
 using FalkForge;
 using FalkForge.Signing;
 using FalkForge.TestSupport;
@@ -52,20 +54,31 @@ public sealed class PublisherKeyStoreTests : IDisposable
         Assert.Equal(firstBytes, File.ReadAllBytes(path));
     }
 
+    // A fixed PUBLIC key (SubjectPublicKeyInfo, DER, base64), not a secret: nobody holds or ever held
+    // the private half this SPKI would pair with in this test, it was generated once, offline, purely
+    // to have a stable input, and the corresponding private key was discarded immediately after. It
+    // and the fingerprint below were computed independently of PublisherKeyStore -- outside this test,
+    // outside the production code -- so the assertion below pins the algorithm (uppercase-hex SHA-256
+    // over the SPKI) against a value neither this test nor the code under test derived. The earlier
+    // version of this test recomputed its "expected" value with the same production helper it was
+    // checking, which proves only that the computation is deterministic, not that it is correct.
+    private const string FixedPublicKeySpkiBase64 =
+        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEj0i3gS3eRP3DjdsEMwoqtqL2ompX" +
+        "n2zAtPcvqKF4N9vx4eVB46mqpnaOVNwM9pN85gnptObA4KdxMQ8tp8tKJA==";
+
+    private const string FixedPublicKeyExpectedFingerprint =
+        "2AB0ACC68337B644FAF0F5C62A72A23B12A83855F2CF99E024CD364D7072D893";
+
     [Fact]
-    public void EnsureKey_FingerprintIsUppercaseSha256OfSpki()
+    public void ComputeFingerprint_FixedPublicKey_MatchesThePinnedValue()
     {
-        // The baked pin is compared against exactly this value, so the computation must match
-        // EngineTrustAnchor's: SHA-256 of SubjectPublicKeyInfo, uppercase hex, 64 characters.
-        var path = Path.Combine(_dir, "falkforge-signing.pem");
-        var result = PublisherKeyStore.EnsureKey(path, allowGeneration: true);
-
+        var spki = Convert.FromBase64String(FixedPublicKeySpkiBase64);
         using var key = ECDsa.Create();
-        key.ImportFromPem(File.ReadAllText(path));
-        var expected = Convert.ToHexString(SHA256.HashData(key.ExportSubjectPublicKeyInfo()));
+        key.ImportSubjectPublicKeyInfo(spki, out _);
 
-        Assert.Equal(expected, result.Value.Fingerprint);
-        Assert.Equal(64, result.Value.Fingerprint.Length);
+        var fingerprint = PublisherKeyStore.ComputeFingerprint(key);
+
+        Assert.Equal(FixedPublicKeyExpectedFingerprint, fingerprint);
     }
 
     [Fact]
@@ -134,5 +147,182 @@ public sealed class PublisherKeyStoreTests : IDisposable
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
+    [Theory]
+    [InlineData(63)]
+    [InlineData(65)]
+    public void ReadPublicFingerprint_WrongLength_Fails(int length)
+    {
+        var path = Path.Combine(_dir, "falkforge-signing.pub");
+        File.WriteAllText(path, "# header\n" + new string('A', length) + "\n");
+
+        var result = PublisherKeyStore.ReadPublicFingerprint(path);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
+    [Fact]
+    public void ReadPublicFingerprint_LowercaseHex_Fails()
+    {
+        // The stored fingerprint is compared byte-for-byte (WritePublicFingerprint always writes
+        // uppercase), so a lowercase value can only mean hand-edited or corrupted content.
+        var path = Path.Combine(_dir, "falkforge-signing.pub");
+        File.WriteAllText(path, "# header\n" + new string('a', 64) + "\n");
+
+        var result = PublisherKeyStore.ReadPublicFingerprint(path);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+    }
+
+    [Fact]
+    public void EnsureKey_NewlyGeneratedKeyOnASingleUserOwnedTempDir_CarriesNoWarning()
+    {
+        // The temp directory this test writes into is the current user's own, so a correctly
+        // restricted key file must produce no advisory warning.
+        var path = Path.Combine(_dir, "falkforge-signing.pem");
+
+        var result = PublisherKeyStore.EnsureKey(path, allowGeneration: true);
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Null(result.Value.Warning);
+    }
+
+    [Fact]
+    public void EnsureKey_NoFile_RestrictsTheWrittenFileToTheCurrentUserWindows()
+    {
+        // The key must never be readable by anyone but the current user. This checks the end state
+        // EnsureKey leaves on disk (owner + DACL), the outcome the TOCTOU fix in
+        // CreateRestrictedFileStreamWindows exists to guarantee with no window of exposure.
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Windows-only: exercises Windows ACL/security APIs.");
+            return; // Unreachable (Skip throws) — kept so the CA1416 platform-guard analysis sees the branch exit.
+        }
+
+        var path = Path.Combine(_dir, "falkforge-signing.pem");
+        var result = PublisherKeyStore.EnsureKey(path, allowGeneration: true);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+
+        var currentUser = WindowsIdentity.GetCurrent().User!;
+        var security = new FileInfo(path).GetAccessControl();
+        var owner = security.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+        var rules = security
+            .GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier))
+            .Cast<FileSystemAccessRule>();
+
+        Assert.True(PublisherKeyStore.IsRestrictedToCurrentUser(
+            currentUser, owner, security.AreAccessRulesProtected, rules));
+    }
+
+    [Fact]
+    public void EnsureKey_NoFile_RestrictsTheWrittenFileModeOnUnix()
+    {
+        // Off Windows the old code applied no restriction at all; the key landed at the process
+        // umask, which is commonly group- or world-readable.
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Unix-only: exercises POSIX file mode bits.");
+            return;
+        }
+
+        var path = Path.Combine(_dir, "falkforge-signing.pem");
+        var result = PublisherKeyStore.EnsureKey(path, allowGeneration: true);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(path));
+    }
+
+    [Fact]
+    public void IsRestrictedToCurrentUser_OwnerIsSomeoneElse_ReturnsFalse()
+    {
+        // The attack this defends against: an attacker creates the file (becoming its owner), then
+        // grants the victim a FullControl Allow ACE. The ACE alone looks fine; only the owner check
+        // catches that the attacker still holds implicit WRITE_DAC/WRITE_OWNER and can rewrite the
+        // ACL back at will. No elevation is needed to construct this: the "foreign" owner is a
+        // fabricated SID, never actually applied to a real file.
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Windows-only: exercises Windows ACL/security APIs.");
+            return;
+        }
+
+        var currentUser = WindowsIdentity.GetCurrent().User!;
+        var foreignOwner = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
+        var rules = new[]
+        {
+            new FileSystemAccessRule(currentUser, FileSystemRights.FullControl, AccessControlType.Allow),
+        };
+
+        var result = PublisherKeyStore.IsRestrictedToCurrentUser(
+            currentUser, foreignOwner, areAccessRulesProtected: true, rules);
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void IsRestrictedToCurrentUser_ForeignAllowAce_ReturnsFalse()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Windows-only: exercises Windows ACL/security APIs.");
+            return;
+        }
+
+        var currentUser = WindowsIdentity.GetCurrent().User!;
+        var everyone = new SecurityIdentifier(WellKnownSidType.WorldSid, null);
+        var rules = new[]
+        {
+            new FileSystemAccessRule(currentUser, FileSystemRights.FullControl, AccessControlType.Allow),
+            new FileSystemAccessRule(everyone, FileSystemRights.Read, AccessControlType.Allow),
+        };
+
+        var result = PublisherKeyStore.IsRestrictedToCurrentUser(
+            currentUser, currentUser, areAccessRulesProtected: true, rules);
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public void IsRestrictedToCurrentUser_OwnerAndSoleAceAreCurrentUser_ReturnsTrue()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Windows-only: exercises Windows ACL/security APIs.");
+            return;
+        }
+
+        var currentUser = WindowsIdentity.GetCurrent().User!;
+        var rules = new[]
+        {
+            new FileSystemAccessRule(currentUser, FileSystemRights.FullControl, AccessControlType.Allow),
+        };
+
+        var result = PublisherKeyStore.IsRestrictedToCurrentUser(
+            currentUser, currentUser, areAccessRulesProtected: true, rules);
+
+        Assert.True(result);
+    }
+
+    [Fact]
+    public void IsRestrictedToCurrentUserWindows_UnreadableAcl_FailsClosed()
+    {
+        // A path whose ACL cannot even be read (here, because nothing exists at it — GetAccessControl
+        // throws FileNotFoundException, an IOException) must be reported as NOT restricted. The old
+        // catch block returned true, so a file the check could not examine at all was waved through
+        // as conforming.
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Skip("Windows-only: exercises Windows ACL/security APIs.");
+            return;
+        }
+
+        var path = Path.Combine(_dir, "does-not-exist.pem");
+
+        var result = PublisherKeyStore.IsRestrictedToCurrentUserWindows(path);
+
+        Assert.False(result);
     }
 }

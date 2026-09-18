@@ -461,5 +461,13 @@ build.log
 # Claude Code local config
 .claude/
 
+# Publisher signing keys (PublisherKeyStore.EnsureKey writes these). The private half must never be
+# committed: an installed copy trusts this key and nothing else, so a leaked key lets anyone sign a
+# forgery it accepts. *.pem covers any path a publisher points SigningKey()/HybridKey() at; the two
+# names below are the ones this repo's own docs and demos use by convention.
+*.pem
+falkforge-signing.pem
+falkforge-mldsa.pem
+
 # MAS — external test solution kept locally under demo/, not part of FalkForge
 /demo/MAS/
