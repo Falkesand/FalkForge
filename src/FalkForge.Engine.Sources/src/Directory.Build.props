@@ -36,7 +36,7 @@
        PackageReference needs its own explicit Version. WpfAnalyzers is left out: neither shipped
        project sets UseWPF, matching the repository root's own condition for it. -->
   <ItemGroup>
-    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.30.0.144632">
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.34.0.3385">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>analyzers; build</IncludeAssets>
     </PackageReference>
@@ -48,7 +48,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>analyzers; build</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Meziantou.Analyzer" Version="3.0.130">
+    <PackageReference Include="Meziantou.Analyzer" Version="3.0.261">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>analyzers; build</IncludeAssets>
     </PackageReference>

@@ -73,12 +73,13 @@ internal static class WixManifestMapper
 
         var version = reg.Attribute("Version")?.Value ?? "1.0.0";
 
+        // A Code attribute that is absent, or present but not a GUID, both give Guid.Empty. The
+        // caller treats that as "this manifest names no upgrade code".
         var upgradeCode = Guid.Empty;
         var codeAttr = reg.Attribute("Code")?.Value;
-        if (codeAttr is not null)
+        if (codeAttr is not null && Guid.TryParse(codeAttr.Trim('{', '}'), out var parsedCode))
         {
-            var trimmed = codeAttr.Trim('{', '}');
-            Guid.TryParse(trimmed, out upgradeCode);
+            upgradeCode = parsedCode;
         }
 
         var scope = ParseScope(reg);
