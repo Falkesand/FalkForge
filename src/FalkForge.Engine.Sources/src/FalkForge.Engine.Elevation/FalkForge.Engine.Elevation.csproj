@@ -18,10 +18,20 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <IlcOptimizationPreference>Size</IlcOptimizationPreference>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- See the matching comment in ..\FalkForge.Engine\FalkForge.Engine.csproj: this project also
+         lands under the machine-wide global NuGet packages folder once restored. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="FalkForge.Engine.Protocol" Version="$(FalkForgePackageVersion)" />
-    <PackageReference Include="FalkForge.Platform.Windows" Version="$(FalkForgePackageVersion)" />
+    <!-- Bracketed (exact) version, see the matching comment in ..\FalkForge.Engine\FalkForge.Engine.csproj. -->
+    <PackageReference Include="FalkForge.Engine.Protocol" Version="[$(FalkForgePackageVersion)]" />
+    <PackageReference Include="FalkForge.Platform.Windows" Version="[$(FalkForgePackageVersion)]" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Populated at pack time, see ..\FalkForge.Engine\FalkForge.Engine.csproj and
+         _FalkForgeInsertExplicitCompileItems in FalkForge.Engine.Sources.csproj. -->
+    <!--FALKFORGE_COMPILE_ITEMS-->
   </ItemGroup>
   <Import Project="..\FalkForge.Engine\TrustedKeys.targets" />
   <!-- Explains a Visual Studio toolchain bug that otherwise looks like a missing NativeAOT linker. -->

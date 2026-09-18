@@ -22,15 +22,32 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- comctl32 v6 app manifest — required for TaskDialogIndirect (pre-UI progress dialog) -->
     <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- Once restored, this project lives under the machine-wide global NuGet packages folder
+         (%USERPROFILE%\.nuget\packages), user-writable and shared by every project on the
+         machine. See FalkForge.Engine.Sources/build/FalkForge.Engine.Sources.props. NuGet never
+         re-verifies an already-extracted package, so the SDK's default **/*.cs glob would compile
+         in any .cs file dropped into that directory after the fact. Disabled here; the explicit,
+         pack-time-generated Compile list below replaces it with an exact file list instead. -->
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
   <ItemGroup>
     <!-- The repository original references these as sibling ProjectReference items. A consumer of
          this package has no sibling project to point at, and the engine's whole dependency closure
          already ships on NuGet as libraries, so these are PackageReference at this very package's
-         own version instead. -->
-    <PackageReference Include="FalkForge.Engine.Protocol" Version="$(FalkForgePackageVersion)" />
-    <PackageReference Include="FalkForge.Platform.Windows" Version="$(FalkForgePackageVersion)" />
-    <PackageReference Include="FalkForge.Compiler.Msi" Version="$(FalkForgePackageVersion)" />
+         own version instead. Bracketed (exact) version: a bare version is a NuGet FLOOR, not a
+         pin. "1.2.3" resolves to >=1.2.3, so a higher version published later, malicious or not,
+         would satisfy it just as well. -->
+    <PackageReference Include="FalkForge.Engine.Protocol" Version="[$(FalkForgePackageVersion)]" />
+    <PackageReference Include="FalkForge.Platform.Windows" Version="[$(FalkForgePackageVersion)]" />
+    <PackageReference Include="FalkForge.Compiler.Msi" Version="[$(FalkForgePackageVersion)]" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Populated at THIS package's pack time with the real, enumerated file list. See
+         _FalkForgeInsertExplicitCompileItems in FalkForge.Engine.Sources.csproj, so the list can
+         never drift from what was actually packed, and a file planted here after extraction is on
+         disk but not in this list. -->
+    <!--FALKFORGE_COMPILE_ITEMS-->
   </ItemGroup>
 
   <!-- Build-time injection of the trusted publisher-key set into a generated BakedTrustedKeys constant. -->

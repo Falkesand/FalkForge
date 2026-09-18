@@ -1,6 +1,61 @@
 <Project>
-  <!-- Empty on purpose. Its only job is to stop the upward MSBuild walk so a consumer's own
-       repository-root Directory.Build.props (TreatWarningsAsErrors, custom analyzers, whatever
-       else) cannot reach into the engine's trust-critical build. Measured: without a stopper file
-       here, an ordinary consumer repository silently reshapes the packaged engine's compile. -->
+  <!-- Stops the upward MSBuild walk so a consumer's own repository-root Directory.Build.props
+       (TreatWarningsAsErrors, custom analyzers, whatever else) cannot reach into the engine's
+       trust-critical build. Measured: without a stopper file here, an ordinary consumer
+       repository silently reshapes the packaged engine's compile.
+
+       Stopping the walk is not the whole job: it also throws away everything the repository
+       root's own Directory.Build.props would have supplied, so this file puts the equivalent
+       constraints back explicitly. Compare against the repository root's Directory.Build.props
+       before changing anything here; the two should not drift without a reason. -->
+  <PropertyGroup>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!-- TreatWarningsAsErrors is deliberately NOT set to true here, unlike the repository root.
+         There, it gates a fixed CI toolchain the maintainer controls. Here, it would gate an
+         unknown publisher's SDK: a newer SDK can carry analyzer rules this package has never been
+         tested against, and failing a publisher's rebuild of the engine on a warning this
+         repository doesn't know about yet is a support burden, not a security control. The
+         analyzers below still restore and still run, so the trust-critical build still gets
+         inspected; it just does not block the build on a warning. A publisher who wants the
+         stricter posture can still pass -p:TreatWarningsAsErrors=true on the command line: an
+         MSBuild global property set that way cannot be overridden by the plain assignment below. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+
+    <!-- Lost the same way as everything else here. A lock file is created next to each shipped
+         csproj on first restore and consulted on every restore after that, so a later restore
+         that resolves differently is visible instead of silent. This alone does not protect the
+         FIRST restore against a compromised transitive dependency; shipping a pre-built,
+         enforced lock file for the packaged tree is tracked as a follow-up, not done here; see the
+         project ledger. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <!-- Same five analyzers the repository root pins, at the same versions, since
+       ManagePackageVersionsCentrally is off for this tree (see Directory.Packages.props) and each
+       PackageReference needs its own explicit Version. WpfAnalyzers is left out: neither shipped
+       project sets UseWPF, matching the repository root's own condition for it. -->
+  <ItemGroup>
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.30.0.144632">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>analyzers; build</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.7.23">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>analyzers; build</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="IDisposableAnalyzers" Version="4.0.8">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>analyzers; build</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Meziantou.Analyzer" Version="3.0.130">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>analyzers; build</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="SecurityCodeScan.VS2019" Version="5.6.7">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>analyzers; build</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
 </Project>
