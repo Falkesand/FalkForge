@@ -27,11 +27,12 @@ public static partial class MsiPackageReconstructor
         var manufacturer = props.GetOrDefault("Manufacturer", "Unknown");
         var versionStr = props.GetOrDefault("ProductVersion", "1.0.0");
 
-        Version.TryParse(versionStr, out var version);
-        version ??= DefaultVersion;
-
-        Guid.TryParse(props.Get("UpgradeCode"), out var upgradeCode);
-        Guid.TryParse(props.Get("ProductCode"), out var productCode);
+        // An unparsable value falls back rather than throwing: a decompiled package often carries
+        // junk here, and a recipe with a default version is more useful than no recipe. The
+        // branches say so, where relying on the out parameter's value after a failed parse did not.
+        var version = Version.TryParse(versionStr, out var parsedVersion) ? parsedVersion : DefaultVersion;
+        var upgradeCode = Guid.TryParse(props.Get("UpgradeCode"), out var parsedUpgrade) ? parsedUpgrade : Guid.Empty;
+        var productCode = Guid.TryParse(props.Get("ProductCode"), out var parsedProduct) ? parsedProduct : Guid.Empty;
 
         var scope = InstallScope.PerMachine;
         var allUsers = props.Get("ALLUSERS");

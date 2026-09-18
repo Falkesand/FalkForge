@@ -10,9 +10,9 @@
       },
       "Meziantou.Analyzer": {
         "type": "Direct",
-        "requested": "[3.0.130, )",
-        "resolved": "3.0.130",
-        "contentHash": "w/v3D0Au2jbi/kyCod2Aitq5iw5Ui5+riT5xoa02PobTy3gAxYkqbPLhba+f3j0ZlHqIV4Bh9C74r4S8Y6HMoA=="
+        "requested": "[3.0.261, )",
+        "resolved": "3.0.261",
+        "contentHash": "EMfgtsjvJY2zuKu+y4Kw8d0xU+wHHvTyS6ZVxJvZmwglZobskzncl2zluUPyT5h+8SK5tKUiBENCwjC4xD9tMQ=="
       },
       "Microsoft.VisualStudio.Threading.Analyzers": {
         "type": "Direct",
@@ -28,9 +28,9 @@
       },
       "SonarAnalyzer.CSharp": {
         "type": "Direct",
-        "requested": "[10.30.0.144632, )",
-        "resolved": "10.30.0.144632",
-        "contentHash": "e4n1kWNoFAuXcYR4uEGyMi4I5vKHcjAVmIw6k6y57UWJA1o6cxkeHmcE45xfCphM4k4G0Yo8yMhOT637AmofJw=="
+        "requested": "[10.34.0.3385, )",
+        "resolved": "10.34.0.3385",
+        "contentHash": "FfjaQa9G9xdEyh14AYWeG6vLQ+2PZWkooI/w3cH5aGBGGeWmhjeWS+/luYoJDYgrXMI2ciBj42y6buhJJHO2ow=="
       },
       "falkforge.compiler.bundle": {
         "type": "Project",
