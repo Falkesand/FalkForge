@@ -104,10 +104,15 @@ jobs:
       # finishes in minutes. The SignServer container e2e (FalkForge.SignServer.E2E.Tests)
       # additionally requires a Linux container runtime, which windows-latest lacks — those
       # skip here and run for real in the dedicated signserver-e2e job on ubuntu-latest below.
+      # -s applies scripts/coverage.settings.xml, the same exclusions the gate below expects.
+      # Without it the collector also counts generated code (obj\, .g.cs, .Designer.cs,
+      # .AssemblyInfo.cs) and the test assemblies. Run 35439160829 measured that difference:
+      # 99,198 lines at 73.8% unfiltered against 56,872 lines at 85.7% filtered, so the gate
+      # failed its 80% floor on a solution that was over it.
       - name: Test with coverage
         env:
           FALKFORGE_E2E: '1'
-        run: dotnet-coverage collect -f cobertura -o TestResults\coverage\coverage.cobertura.xml 'dotnet test FalkForge.slnx --no-build -c Release -v minimal -- --report-trx --report-trx-filename test-results.trx'
+        run: dotnet-coverage collect -s scripts\coverage.settings.xml -f cobertura -o TestResults\coverage\coverage.cobertura.xml 'dotnet test FalkForge.slnx --no-build -c Release -v minimal -- --report-trx --report-trx-filename test-results.trx'
 
       # Enforces the coverage band. Reads the report the step above already produced, so it adds
       # seconds, not another test run. Prints the solution total, every project worst first, and the
@@ -140,9 +145,12 @@ jobs:
       # "how much of our product code is exercised" figure. -assemblyfilters
       # keeps every FalkForge.* production assembly and drops anything ending
       # in .Tests or containing .Tests. (catches FalkForge.Compiler.Msi.Tests.FakeSigil).
-      # Demo projects (demo/*) build under a separate solution and are never
-      # part of the `dotnet test FalkForge.slnx` run this wraps, so they never
-      # appear in the cobertura file — the *Demo* exclusion below is defensive only.
+      # Demo projects (demo/*) build under a separate solution, but FALKFORGE_E2E=1 makes the
+      # e2e tests build and run the whole demo catalog inside this run, so their assemblies do
+      # reach the cobertura file. Run 35439160829 listed 01-hello-world, 04-dev-toolkit, sigil
+      # and about thirty more. Their names carry no "Demo" token, so the *Demo* filter below
+      # does not match them either. They are roughly 2,850 lines at 87-100%, so they move the
+      # total by a fraction of a percent, and a local run without FALKFORGE_E2E=1 omits them.
       - name: Generate coverage report (src-only)
         run: reportgenerator "-reports:TestResults\coverage\coverage.cobertura.xml" "-targetdir:CoverageReport" "-reporttypes:JsonSummary;TextSummary" "-assemblyfilters:+FalkForge.*;-FalkForge.*.Tests;-FalkForge.*.Tests.*;-*Demo*"
 
