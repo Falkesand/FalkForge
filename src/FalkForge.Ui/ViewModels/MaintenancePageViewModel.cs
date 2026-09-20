@@ -142,6 +142,10 @@ public sealed class MaintenancePageViewModel : InstallerPageViewModel, IReactive
     /// </summary>
     private async Task PlanAndNavigateAsync(InstallAction action, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
+        // Navigation awaits the progress page's complete plan/apply run. Forward command
+        // cancellation to the engine throughout that run, including while it is applying.
+        using var cancellation = ct.Register(Engine.Cancel);
         IsOperationInProgress = true;
         try
         {

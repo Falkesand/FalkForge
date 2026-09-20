@@ -7,6 +7,24 @@ public sealed class ManifestGenerator
 {
     public Result<InstallerManifest> Generate(BundleModel model)
     {
+        byte[]? licenseContent = null;
+        if (model.UiConfig?.LicenseFile is { } licenseFile)
+        {
+            try
+            {
+                licenseContent = File.ReadAllBytes(licenseFile);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                return Result<InstallerManifest>.Failure(ErrorKind.PayloadError,
+                    $"License file could not be read: '{licenseFile}'. {ex.Message}");
+            }
+
+            if (licenseContent.Length == 0)
+                return Result<InstallerManifest>.Failure(ErrorKind.PayloadError,
+                    $"License file is empty: '{licenseFile}'.");
+        }
+
         var packages = new List<PackageInfo>();
 
         foreach (var pkg in model.Packages)
@@ -129,6 +147,7 @@ public sealed class ManifestGenerator
             UiType = model.UiConfig?.UiType.ToString(),
             CustomUiProjectPath = model.UiConfig?.CustomUiProjectPath,
             LicenseFile = model.UiConfig?.LicenseFile,
+            LicenseContent = licenseContent,
             LogoFile = model.UiConfig?.LogoFile,
             ThemeColor = model.UiConfig?.ThemeColor,
             WatermarkImage = model.UiConfig?.WatermarkImage,

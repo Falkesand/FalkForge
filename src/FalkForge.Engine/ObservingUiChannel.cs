@@ -15,6 +15,8 @@ internal sealed class ObservingUiChannel : IUiChannel
 
     public bool CompletingEmitted { get; private set; }
 
+    public CancellationToken CancellationRequested => _inner.CancellationRequested;
+
     public ObservingUiChannel(IUiChannel inner) => _inner = inner;
 
     public void SetSessionCorrelationId(Guid id) => _inner.SetSessionCorrelationId(id);

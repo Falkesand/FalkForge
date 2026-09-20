@@ -26,7 +26,7 @@ InstallerApp.Run(args, app => app
         .AllowLanguageSelection())
     .Window(w => w
         .Size(500, 350)
-        .Title("My App Setup")
+        .TitleLocalized("Window.Title")
         .Accent("#2563EB"))
     .Pages(p => p
         .Add<WelcomePage>()

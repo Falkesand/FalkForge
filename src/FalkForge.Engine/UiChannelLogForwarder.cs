@@ -54,6 +54,6 @@ internal sealed class UiChannelLogForwarder
             {
                 // Swallow. Re-logging here would recurse through the same callback.
             }
-        });
+        }, CancellationToken.None); // Keep shutdown/rollback diagnostics after UI cancellation.
     }
 }

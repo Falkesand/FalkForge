@@ -100,7 +100,7 @@ public static class InstallerApp
             else
             {
                 var customWindow = new CustomInstallerWindow();
-                customWindow.ApplyConfig(config);
+                customWindow.ApplyConfig(config, locConfig?.Resolver);
                 customWindow.DataContext = viewModel;
                 window = customWindow;
             }

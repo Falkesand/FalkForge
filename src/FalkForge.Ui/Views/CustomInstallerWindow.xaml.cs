@@ -11,15 +11,15 @@ internal partial class CustomInstallerWindow : Window
     public CustomInstallerWindow()
     {
         InitializeComponent();
+        Localization.WindowChromeLocalization.Apply(this);
     }
 
-    internal void ApplyConfig(InstallerWindowConfig config)
+    internal void ApplyConfig(InstallerWindowConfig config, Localization.UiStringResolver? resolver = null)
     {
         Width = config.Width;
         Height = config.Height;
 
-        if (config.Title is not null)
-            Title = config.Title;
+        Localization.WindowChromeLocalization.Apply(this, resolver, config.Title, config.TitleLocalizationKey);
 
         if (config.IsBorderless)
         {

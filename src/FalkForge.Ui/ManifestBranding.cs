@@ -23,6 +23,7 @@ internal static class ManifestBranding
             BackgroundColor = config.BackgroundColor,
             AccentColor = config.AccentColor ?? TryParseColor(manifest.ThemeColor),
             Title = config.Title,
+            TitleLocalizationKey = config.TitleLocalizationKey,
             IconPath = config.IconPath ?? NullIfWhitespace(manifest.LogoFile),
             CustomWindowFactory = config.CustomWindowFactory,
             CustomWindowType = config.CustomWindowType,

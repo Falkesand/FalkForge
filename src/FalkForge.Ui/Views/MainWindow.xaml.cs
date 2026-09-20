@@ -8,6 +8,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        Localization.WindowChromeLocalization.Apply(this);
     }
 
     public MainWindow(DefaultShellViewModel shell) : this()

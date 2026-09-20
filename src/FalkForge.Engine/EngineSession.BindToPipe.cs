@@ -344,7 +344,7 @@ public sealed partial class EngineSession
             if (OperatingSystem.IsWindows() && companionExePath is not null)
             {
                 elevationGateway = new NamedPipeElevationGateway(
-                    new ProcessLauncher(), companionExePath, companionHandle);
+                    new ProcessLauncher(), companionExePath, companionHandle, logger);
                 companionHandle = null; // ownership transferred to the gateway
             }
         }

@@ -24,6 +24,18 @@ public abstract record PipelineEvent
     /// <summary>A terminal failure has occurred.</summary>
     public sealed record Failed(ErrorKind Kind, string Message) : PipelineEvent;
 
+    /// <summary>Detection is about to begin.</summary>
+    public sealed record DetectBegin : PipelineEvent;
+
+    /// <summary>Planning is about to begin for the requested action.</summary>
+    public sealed record PlanBegin(InstallAction Action) : PipelineEvent;
+
+    /// <summary>Execution is about to begin for the planned packages.</summary>
+    public sealed record ApplyBegin(int TotalPackages) : PipelineEvent;
+
+    /// <summary>The session has ended with the given engine exit code.</summary>
+    public sealed record ShutdownComplete(int ExitCode) : PipelineEvent;
+
     /// <summary>
     /// The Detect phase completed successfully. Emitted once, after the per-package
     /// <see cref="DetectPackageComplete"/> notifications, carrying the aggregate detected state.

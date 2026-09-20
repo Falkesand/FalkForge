@@ -42,6 +42,37 @@ public sealed class PlannerFeatureTests
         };
     }
 
+    [Theory]
+    [InlineData(InstallAction.Install, false)]
+    [InlineData(InstallAction.Install, true)]
+    [InlineData(InstallAction.Modify, false)]
+    [InlineData(InstallAction.Repair, false)]
+    public void RequiredFeature_CannotBeOmittedOrDeselected(InstallAction action, bool omitSelection)
+    {
+        var manifest = CreateManifest([CreatePackage("CorePkg")],
+            [new ManifestFeature("Core", "Core", null, false, true, ["CorePkg"])]);
+        var selections = omitSelection ? null : new Dictionary<string, bool> { ["Core"] = false };
+
+        var result = new Planner().CreatePlan(manifest, NotInstalledDetection, action,
+            featureSelections: selections);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("CorePkg", Assert.Single(result.Value.Actions).PackageId);
+        if (selections is not null)
+            Assert.False(selections["Core"]); // Planning must not mutate caller-owned state.
+    }
+
+    [Fact]
+    public void RequiredFeature_StillRespectsItsPackageCondition()
+    {
+        var manifest = CreateManifest([CreatePackage("CorePkg", "MissingVar")],
+            [new ManifestFeature("Core", "Core", null, false, true, ["CorePkg"])]);
+        var result = new Planner().CreatePlan(manifest, NotInstalledDetection, InstallAction.Install,
+            variables: new VariableStore(), featureSelections: new Dictionary<string, bool> { ["Core"] = false });
+        Assert.True(result.IsSuccess);
+        Assert.Empty(result.Value.Actions);
+    }
+
     [Fact]
     public void Plan_NoFeatures_AllPackagesIncluded()
     {

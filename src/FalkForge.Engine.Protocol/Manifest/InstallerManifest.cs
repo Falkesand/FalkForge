@@ -20,6 +20,13 @@ public sealed record InstallerManifest
     public string? LicenseFile { get; init; }
 
     /// <summary>
+    /// Original license file bytes embedded at build time (plain text or RTF). The UI must
+    /// not read LicenseFile from the target machine; it is an authoring path.
+    /// Null supports older manifests that did not embed their agreement.
+    /// </summary>
+    public byte[]? LicenseContent { get; init; }
+
+    /// <summary>
     /// Optional logo image path authored via <c>BundleBuilder.UseBuiltInUI(logoFile: ...)</c>.
     /// The built-in UI maps it onto the installer window icon. Null (the default) leaves the
     /// window without a custom logo. Additive/nullable so older engines skip it on

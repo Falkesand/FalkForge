@@ -12,6 +12,7 @@ internal sealed class InstallerWindowConfig
     public Color? BackgroundColor { get; init; }
     public Color? AccentColor { get; init; }
     public string? Title { get; init; }
+    public string? TitleLocalizationKey { get; init; }
     public string? IconPath { get; init; }
 
     /// <summary>

@@ -213,14 +213,15 @@ public sealed class ManifestGeneratorTests : IDisposable
             UiConfig = new BundleUiConfig
             {
                 UiType = BundleUiType.BuiltIn,
-                LicenseFile = "license.rtf"
+                LicenseFile = CreateTempFile("license.rtf", @"{\rtf1 Test agreement}")
             }
         };
 
         var result = _generator.Generate(model);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("license.rtf", result.Value.LicenseFile);
+        Assert.Equal(model.UiConfig.LicenseFile, result.Value.LicenseFile);
+        Assert.Equal(File.ReadAllBytes(model.UiConfig.LicenseFile), result.Value.LicenseContent);
     }
 
     [Fact]

@@ -18,6 +18,7 @@ public abstract class PipeTransportBase : IAsyncDisposable
     protected PipeStream? _pipe;
     private CancellationTokenSource? _cts;
     private Task? _receiveLoop;
+    private int _disposeStarted;
     private readonly Func<EngineMessage, Task> _messageHandler;
 
     protected PipeTransportBase(PipeConnectionOptions options, Func<EngineMessage, Task> messageHandler)
@@ -151,6 +152,9 @@ public abstract class PipeTransportBase : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
+            return;
+
         if (_cts is not null)
         {
             await _cts.CancelAsync();

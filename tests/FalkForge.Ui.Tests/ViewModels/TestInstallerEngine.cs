@@ -14,7 +14,10 @@ internal sealed class TestInstallerEngine : IInstallerEngine
         BundleId = Guid.NewGuid(),
         UpgradeCode = Guid.NewGuid(),
         Packages = [],
-        Scope = InstallScope.PerUser
+        Scope = InstallScope.PerUser,
+        // The default navigation fixture has an agreement; unlicensed cases clear both fields.
+        LicenseFile = "license.txt",
+        LicenseContent = "Test licence agreement."u8.ToArray()
     };
 
     public InstallState DetectedState { get; set; } = InstallState.NotInstalled;

@@ -21,6 +21,16 @@ public sealed class NamedPipeUiChannelTests
     // ──────────────────────────────────────────────────────────────────────────
 
     [Fact]
+    public async Task ObservingChannel_PreservesTheUnderlyingCancellationSignal()
+    {
+        await using var channel = NamedPipeUiChannel.CreateNullChannel();
+        var observer = new ObservingUiChannel(channel);
+
+        Assert.True(observer.CancellationRequested.CanBeCanceled);
+        Assert.Equal(channel.CancellationRequested, observer.CancellationRequested);
+    }
+
+    [Fact]
     public void NamedPipeUiChannel_Implements_IUiChannel()
     {
         var ch = NamedPipeUiChannel.CreateNullChannel();
