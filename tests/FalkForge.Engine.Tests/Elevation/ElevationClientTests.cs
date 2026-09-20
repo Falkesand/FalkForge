@@ -17,6 +17,39 @@ public sealed class ElevationClientTests
     //   on pre-populated pending requests (testing the correlation logic).
     // - For timeout/cancellation tests: SendAsync fails with pipe error, which is also a valid failure path.
 
+    [Fact]
+    public async Task HandleMessageAsync_CompanionWarning_WritesEngineLog()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"companion-log-{Guid.NewGuid():N}.log");
+        try
+        {
+            var correlation = Guid.NewGuid();
+            using (var logger = new FalkForge.Engine.Logging.EngineLogger(path)
+            {
+                SessionCorrelationId = correlation
+            })
+            {
+                await using var pipe = new PipeServer(CreatePipeOptions(), _ => Task.CompletedTask);
+                await using var client = new ElevationClient(pipe, logger: logger);
+                await client.HandleMessageAsync(new LogMessage
+                {
+                    Level = FalkForge.Diagnostics.LogLevel.Warning,
+                    Text = "Possible log-path tampering was detected.",
+                    SessionCorrelationId = correlation
+                });
+            }
+            var entry = Assert.Single(File.ReadAllLines(path));
+            Assert.Contains("WARNING", entry, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Elevation", entry);
+            Assert.Contains("Possible log-path tampering", entry);
+            Assert.Contains(correlation.ToString("D"), entry);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private static PipeConnectionOptions CreatePipeOptions() => new()
     {
         PipeName = $"test_{Guid.NewGuid():N}",

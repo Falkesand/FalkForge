@@ -229,6 +229,13 @@ public static class BuiltInVariables
                 RegistryRoot.LocalMachine,
                 @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired");
 
+            var configuredName = platform.Registry.TryGetStringValue(
+                RegistryRoot.LocalMachine,
+                @"SYSTEM\CurrentControlSet\Control\ComputerName\ComputerName", "ComputerName");
+            var activeName = platform.Registry.TryGetStringValue(
+                RegistryRoot.LocalMachine,
+                @"SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName", "ComputerName");
+
             // An unreadable probe is not evidence of safety — fail closed to "pending" rather than
             // read an inconclusive result as "absent" (mirrors the fail-closed precedent on
             // IRegistry.TryReadSubKeyNames: an unknown state must never look like the safe answer).
@@ -237,7 +244,9 @@ public static class BuiltInVariables
             rebootPending =
                 cbsResult.IsFailure || cbsResult.Value ||
                 windowsUpdateResult.IsFailure || windowsUpdateResult.Value ||
-                pendingRenameResult.IsFailure || pendingRenameResult.Value;
+                pendingRenameResult.IsFailure || pendingRenameResult.Value ||
+                configuredName.IsFailure || activeName.IsFailure ||
+                !string.Equals(configuredName.Value, activeName.Value, StringComparison.OrdinalIgnoreCase);
         }
         store.Set(BuiltInVariableNames.RebootPending, rebootPending ? 1L : 0L);
     }

@@ -6,7 +6,7 @@ Practical examples showing how to build Windows Installer packages with FalkForg
 
 FalkForge supports two ways to define installers:
 
-1. **C# Fluent API** (demos 01-63 + MAS) -- Full-featured, programmatic definitions as .NET console apps. Use this for maximum control, conditional logic, and extension integration.
+1. **C# Fluent API** (66 numbered demo directories covering 01-65, with two demos numbered 15) -- Full-featured, programmatic definitions as .NET console apps. Use this for maximum control, conditional logic, and extension integration.
 2. **JSON Configuration** (demos 01-07 in `demo/json/`) -- Declarative JSON files validated and built by the `forge` CLI. Use this for straightforward packages that do not need custom code.
 
 Both approaches produce standard `.msi` Windows Installer packages (or `.exe` bundles). The C# demos cover the full API surface; the JSON demos show the subset available through declarative configuration.
@@ -20,7 +20,7 @@ Key properties:
 - **Fluent API** -- discoverable builder pattern with IntelliSense support
 - **JSON mode** -- declarative configuration for common scenarios, no code required
 - **MSI native** -- generates standard Windows Installer databases via `msi.dll` P/Invoke
-- **NativeAOT engine** -- 3-5 MB self-extracting bundle runtime with WPF UI
+- **NativeAOT engine** -- self-extracting bundle runtime with WPF UI
 - **Extension system** -- Firewall, IIS, SQL, .NET detection, Dependency, and utility actions
 
 ## New Here? Start With These
@@ -57,6 +57,8 @@ narratively instead of as a reference table.
 | 10 | Advanced Bundle     | ~163  | Advanced bundle: ExePackage, MsuPackage, MspPackage, rollback | Built-in WPF |
 
 ### UI Demos (11-14)
+
+These projects run directly as UI previews. Bundle integration through `UseCustomUI(projectPath)` does not yet build or embed the project.
 
 | #  | Name              | Lines | Description                                                |
 |----|-------------------|-------|------------------------------------------------------------|
@@ -104,11 +106,11 @@ narratively instead of as a reference table.
 | 36 | Bundle EXE Package    | ~67   | EXE prerequisite with exit code mapping                          |
 | 37 | Bundle MSU Package    | ~63   | Windows Update (.msu) hotfix prerequisite                        |
 | 38 | Bundle Nested         | ~64   | Nested child bundle inside a parent bundle                       |
-| 39 | Bundle Remote Payload | ~64   | Download package from URL at install time                        |
+| 39 | Bundle Remote Payload | ~64   | Remote-payload authoring metadata; runtime download not wired    |
 | 40 | Bundle Variables      | ~81   | Secret, Hidden, and Persisted bundle variables                   |
 | 41 | Bundle Rollback       | ~68   | Rollback boundaries isolating failure domains                    |
 | 42 | Bundle Update Feed    | ~62   | Automatic update checking from a feed URL                        |
-| 43 | Bundle Layout         | ~68   | Named containers for offline layout scenarios                    |
+| 43 | Bundle Layout         | ~68   | Named container metadata; offline `/layout` not wired            |
 
 ### Additional Output Types (44-46)
 
@@ -147,7 +149,7 @@ narratively instead of as a reference table.
 | 59 | Bundle Integrity Signing | ~197 | ECDSA payload signing via `Integrity()`: ephemeral key vs stable PEM key, signature verified back |
 | 60 | Trusted-Key Rotation | ~178 | Rotation-safe dual-signing, trusted-key pinning (`-p:FalkForgeTrustedKey`, `EngineTrustAnchor`), roles/quorum notes |
 | 61 | SignServer Remote Signing | ~181 | Remote signing via `SignServerSignatureProvider` on the async build pipeline; local-key fallback without a server |
-| 62 | Require-Signed Updates | ~167 | Update-trust authoring: `Integrity().Epoch()/.Revoke()` + `UpdateFeed()`; require-signed, anti-downgrade, revocation |
+| 62 | Require-Signed Updates | ~167 | Update-trust authoring plus require-signed staged verification; persistent epoch/revocation enforcement is not active yet |
 | 63 | Hybrid Post-Quantum Signing | ~248 | Dual-signs with ECDSA P-256 + ML-DSA-65 (FIPS 204) via `HybridKey()`; companion pin makes the strip attack fail (INT011) |
 
 ### Capstone (64)
@@ -722,7 +724,7 @@ Nest a child bundle (`BundlePackage`) inside a parent bundle alongside an MSI pa
 
 ### 39 -- Bundle Remote Payload
 
-Download an MSI package from a URL at install time using `RemotePayload()` with hash and size instead of embedding it.
+Author a remote MSI package with `RemotePayload()`. The metadata is emitted, but the ordinary chain download is not wired into the production install path yet.
 
 ### 40 -- Bundle Variables
 
@@ -742,7 +744,7 @@ Automatic update checking from a JSON feed URL with `UpdatePolicy.NotifyOnly`.
 
 ### 43 -- Bundle Layout
 
-Named containers (`Container()`) for grouping payloads in offline layout scenarios.
+Named container metadata (`Container()`) for grouping payloads. Offline `/layout` execution is not wired yet. Use a container with `DownloadUrl(...)` for the supported external-container path.
 
 ### 44 -- Merge Module
 
@@ -873,11 +875,12 @@ database + scripts and .NET 8.0+ runtime detection this demo's name references, 
 
 ## Output Types
 
-FalkForge supports five output types:
+FalkForge supports six output types:
 
 | Type       | Extension | Entry Point                     | Description                                       |
 |------------|-----------|-------------------------------- |---------------------------------------------------|
 | MSI        | `.msi`    | `Installer.Build()`            | Standard Windows Installer package                |
+| MSIX       | `.msix`   | `Installer.BuildMsix()`        | Experimental MSIX package                         |
 | MSM        | `.msm`    | `Installer.BuildMergeModule()` | Merge module (shared components)                  |
 | MSP        | `.msp`    | `Installer.BuildPatch()`       | Patch (delta updates)                             |
 | MST        | `.mst`    | `Installer.BuildTransform()`   | Transform (MSI customization)                     |

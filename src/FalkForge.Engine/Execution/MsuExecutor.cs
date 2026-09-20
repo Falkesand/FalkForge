@@ -23,7 +23,7 @@ public sealed class MsuExecutor
 
         try
         {
-            var exitCode = await _processRunner.RunAsync("wusa.exe", args.Value, ct);
+            var exitCode = await _processRunner.RunAsync(WindowsSystemExecutable.Wusa, args.Value, ct);
             var mapped = MapExitCode(exitCode);
             return mapped.IsFailure
                 ? Result<int>.Failure(mapped.Error)

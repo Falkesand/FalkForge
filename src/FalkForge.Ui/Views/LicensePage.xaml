@@ -45,15 +45,14 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <TextBox Grid.Row="0"
-                     Text="{Binding LicenseText, Mode=OneWay}"
-                     IsReadOnly="True"
-                     VerticalScrollBarVisibility="Auto"
-                     TextWrapping="Wrap"
-                     Margin="0,0,0,12" />
+            <RichTextBox x:Name="LicenseViewer" Grid.Row="0"
+                         IsReadOnly="True"
+                         VerticalScrollBarVisibility="Auto"
+                         Margin="0,0,0,12" />
 
             <CheckBox Grid.Row="1"
                       Content="I accept the license agreement"
+                      IsEnabled="{Binding CanAccept}"
                       IsChecked="{Binding IsAccepted}" />
         </Grid>
     </DockPanel>

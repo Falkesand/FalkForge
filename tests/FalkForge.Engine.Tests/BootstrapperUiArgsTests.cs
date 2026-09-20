@@ -14,11 +14,14 @@ using Xunit;
 public sealed class BootstrapperUiArgsTests
 {
     private const string ManifestPath = @"C:\cache\manifest.json";
+    private const string ManifestSha256 =
+        "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF";
     private const string PipeName = "FalkForge_abcdef";
     private const string SecretPipe = "falkforge_init_xyz";
 
     private const string Canonical =
-        @"--manifest ""C:\cache\manifest.json"" --pipe FalkForge_abcdef --secret-pipe falkforge_init_xyz";
+        @"--manifest ""C:\cache\manifest.json"" --manifest-sha256 " + ManifestSha256 +
+        " --pipe FalkForge_abcdef --secret-pipe falkforge_init_xyz";
 
     [Fact]
     public void RunAsBootstrapper_AppendsLogFlagToUiArgs()
@@ -28,7 +31,7 @@ public sealed class BootstrapperUiArgsTests
         // a bundle EXE silently does nothing in bootstrapper mode.
         var args = new ProgramArgs(LogPath: @"C:\Logs\acme.log", MinimumLogLevel: null);
 
-        var actual = Bootstrapper.BuildUiArgs(ManifestPath, PipeName, SecretPipe, args);
+        var actual = Bootstrapper.BuildUiArgs(ManifestPath, ManifestSha256, PipeName, SecretPipe, args);
 
         Assert.Contains(@"--log C:\Logs\acme.log", actual);
     }
@@ -40,7 +43,7 @@ public sealed class BootstrapperUiArgsTests
         // is far less useful for debugging than one captured at --log-level Debug.
         var args = new ProgramArgs(LogPath: null, MinimumLogLevel: LogLevel.Debug);
 
-        var actual = Bootstrapper.BuildUiArgs(ManifestPath, PipeName, SecretPipe, args);
+        var actual = Bootstrapper.BuildUiArgs(ManifestPath, ManifestSha256, PipeName, SecretPipe, args);
 
         Assert.Contains("--log-level Debug", actual);
     }
@@ -53,7 +56,7 @@ public sealed class BootstrapperUiArgsTests
         // depend on the exact shape (e.g. logging, telemetry that captures command lines).
         var args = new ProgramArgs(LogPath: null, MinimumLogLevel: null);
 
-        var actual = Bootstrapper.BuildUiArgs(ManifestPath, PipeName, SecretPipe, args);
+        var actual = Bootstrapper.BuildUiArgs(ManifestPath, ManifestSha256, PipeName, SecretPipe, args);
 
         Assert.Equal(Canonical, actual);
     }
@@ -63,7 +66,8 @@ public sealed class BootstrapperUiArgsTests
     {
         // Intent: defensive — when the parser produced null (early-exit code paths), the
         // bootstrapper must still emit valid canonical args, never throw.
-        var actual = Bootstrapper.BuildUiArgs(ManifestPath, PipeName, SecretPipe, programArgs: null);
+        var actual = Bootstrapper.BuildUiArgs(
+            ManifestPath, ManifestSha256, PipeName, SecretPipe, programArgs: null);
 
         Assert.Equal(Canonical, actual);
     }
@@ -77,7 +81,7 @@ public sealed class BootstrapperUiArgsTests
             LogPath: @"C:\Program Files\My App\install.log",
             MinimumLogLevel: null);
 
-        var actual = Bootstrapper.BuildUiArgs(ManifestPath, PipeName, SecretPipe, args);
+        var actual = Bootstrapper.BuildUiArgs(ManifestPath, ManifestSha256, PipeName, SecretPipe, args);
 
         Assert.Contains(@"--log ""C:\Program Files\My App\install.log""", actual);
     }
@@ -89,7 +93,7 @@ public sealed class BootstrapperUiArgsTests
         // an accidental refactor that swaps order is caught.
         var args = new ProgramArgs(LogPath: @"out.log", MinimumLogLevel: LogLevel.Verbose);
 
-        var actual = Bootstrapper.BuildUiArgs(ManifestPath, PipeName, SecretPipe, args);
+        var actual = Bootstrapper.BuildUiArgs(ManifestPath, ManifestSha256, PipeName, SecretPipe, args);
 
         var logIdx = actual.IndexOf("--log out.log", StringComparison.Ordinal);
         var lvlIdx = actual.IndexOf("--log-level Verbose", StringComparison.Ordinal);

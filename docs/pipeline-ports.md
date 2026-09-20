@@ -214,8 +214,8 @@ design task (a step needs to be written that calls it), not a follow-up rename.
 
 An earlier `IPayloadCache` / `IPayloadSource` / `ILayoutStore` / `IRandomSource` port set was
 built alongside these but never wired to any step, and was removed rather than left as scaffolding.
-The live payload path is `PayloadDownloader` → `PackageCache` → `LayoutManager`; see
-`src/FalkForge.Engine/Download/`, `src/FalkForge.Engine/Cache/`, and `src/FalkForge.Engine/Layout/`.
+`PayloadDownloader`, `PackageCache`, and `LayoutManager` exist under
+`src/FalkForge.Engine/Download/`, `src/FalkForge.Engine/Cache/`, and `src/FalkForge.Engine/Layout/`, but the cache/layout chain has no production caller yet. Downloadable external containers use a separate live path through `ExternalContainerAcquirer`.
 
 ## See Also
 

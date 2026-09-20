@@ -46,7 +46,7 @@ All other parsers had pre-existing guards:
 The fuzz tests run as part of the normal test suite. No special steps needed:
 
 ```
-dotnet test FalkForge.slnx --blame-hang-timeout 30s
+dotnet test FalkForge.slnx -p:FalkHangDumpTimeout=30s
 ```
 
 ### Scaling up locally
@@ -55,7 +55,7 @@ Set `FALKFORGE_FUZZ_ITERATIONS` before running to increase iteration counts:
 
 ```powershell
 $env:FALKFORGE_FUZZ_ITERATIONS = 10000
-dotnet test tests/FalkForge.Engine.Tests --filter "ConditionParserFuzz" --blame-hang-timeout 120s
+dotnet test --project tests/FalkForge.Engine.Tests/FalkForge.Engine.Tests.csproj -p:FalkHangDumpTimeout=120s -- --filter-class FalkForge.Engine.Tests.Variables.ConditionParserFuzzTests
 ```
 
 ### Nightly deep fuzz
@@ -82,8 +82,8 @@ Every failing assertion embeds a fixed seed value, iteration index, and the firs
 
 ## CabinetExtractor cautions
 
-`CabinetExtractor` uses FDI (Windows File Decompression Interface) via P/Invoke. FDI handles malformed cabinet bytes internally; the extractor converts FDI failure codes to `Result.Failure`. However, native crashes inside FDI (stack corruption from extremely malformed input) would kill the test process rather than throwing a managed exception. The blame-hang timeout detects a killed test process and reports it as a test failure.
+`CabinetExtractor` uses FDI (Windows File Decompression Interface) via P/Invoke. FDI handles malformed cabinet bytes internally; the extractor converts FDI failure codes to `Result.Failure`. However, native crashes inside FDI (stack corruption from extremely malformed input) would kill the test process rather than throwing a managed exception. The MTP host reports a killed process as a failed run. Its hang-dump guard captures processes that stop making progress.
 
 - **Iteration count is capped at 2000** for the cabinet fuzz tests even in nightly mode. FDI creates and deletes a temp file per call, which is slow.
 - Cabinet fuzz tests are **Windows-only** (`[SupportedOSPlatform("windows")]`) because FDI is a Windows API.
-- If a fuzz iteration kills the process, the TRX report will show a test timeout rather than an assertion failure. Check the blame dump file uploaded with the artifact.
+- If a fuzz iteration kills the process, the run fails without a managed assertion. Check the uploaded diagnostics and TRX artifacts.

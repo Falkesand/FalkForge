@@ -294,7 +294,7 @@ internal sealed class InstallUISequenceTableProducer : ITableProducer
     /// for all three rows — matching the legacy <c>DialogEmitter</c> (deleted in Phase 9) which called
     /// <c>SetString(field, "")</c> for dialog-flow row conditions.
     /// </remarks>
-    private static (string Action, int Sequence)[] GetDialogFlowRows(PackageModel package)
+    internal static (string Action, int Sequence)[] GetDialogFlowRows(PackageModel package)
     {
         if (package.DialogSet == MsiDialogSet.None)
         {

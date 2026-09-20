@@ -24,7 +24,7 @@ namespace FalkForge.Engine.Protocol.Tests;
 ///   Or use the hex prefix directly: MessageDeserializer.Deserialize(Convert.FromHexString(hex)).
 ///
 /// Scale up:
-///   FALKFORGE_FUZZ_ITERATIONS=50000 dotnet test --filter "MessageDeserializerFuzz"
+///   FALKFORGE_FUZZ_ITERATIONS=50000 dotnet test -- --filter-class FalkForge.Engine.Protocol.Tests.MessageDeserializerFuzzTests
 /// </summary>
 public sealed class MessageDeserializerFuzzTests
 {

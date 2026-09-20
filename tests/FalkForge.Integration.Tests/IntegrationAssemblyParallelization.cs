@@ -28,4 +28,4 @@
 // equally valid evidence for it. Parallel is meaningfully faster here; this line is justified by
 // correctness (removing a nondeterministic failure mode), not by speed — say so plainly rather than
 // pretending serialization is free.
-[assembly: Xunit.CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]

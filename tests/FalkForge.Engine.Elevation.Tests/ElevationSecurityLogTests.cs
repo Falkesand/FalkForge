@@ -62,6 +62,68 @@ public sealed class ElevationSecurityLogTests : IDisposable
         TestTemp.TryDelete(_tempDir);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SessionStart_ReportsTamperingOverAuthenticatedPipe(bool tampered)
+    {
+        TamperField.SetValue(null, tampered);
+        InitializedField.SetValue(null, true);
+        var options = new FalkForge.Engine.Protocol.Transport.PipeConnectionOptions
+        {
+            PipeName = $"log_tamper_{Guid.NewGuid():N}",
+            SharedSecret = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)
+        };
+        var logs = new System.Collections.Concurrent.ConcurrentQueue<FalkForge.Engine.Protocol.Messages.LogMessage>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var server = new FalkForge.Engine.Protocol.Transport.PipeServer(options, message =>
+        {
+            if (message is FalkForge.Engine.Protocol.Messages.LogMessage log)
+                logs.Enqueue(log);
+            if (message is FalkForge.Engine.Protocol.Messages.ElevateResultMessage)
+                completed.TrySetResult();
+            return Task.CompletedTask;
+        });
+        var listening = server.StartAsync(timeout.Token);
+        await using var host = new ElevatedHost(options, Environment.ProcessId);
+        var running = host.RunAsync(timeout.Token);
+        try
+        {
+            Assert.True((await listening).IsSuccess);
+            Assert.Empty(logs);
+            var correlation = Guid.NewGuid();
+            Assert.True((await server.SendAsync(new FalkForge.Engine.Protocol.Messages.SessionStartMessage
+            {
+                CorrelationId = correlation,
+                StartedUtc = DateTimeOffset.UtcNow
+            }, timeout.Token)).IsSuccess);
+            Assert.True((await server.SendAsync(new FalkForge.Engine.Protocol.Messages.ElevateExecuteMessage
+            {
+                SequenceId = 1,
+                CommandName = "UnknownTestCommand",
+                CommandPayload = []
+            }, timeout.Token)).IsSuccess);
+            await completed.Task.WaitAsync(timeout.Token);
+            if (tampered)
+            {
+                var warning = Assert.Single(logs);
+                Assert.Equal(FalkForge.Diagnostics.LogLevel.Warning, warning.Level);
+                Assert.Equal(correlation, warning.SessionCorrelationId);
+                Assert.Contains("tampering", warning.Text);
+            }
+            else
+            {
+                Assert.Empty(logs);
+            }
+        }
+        finally
+        {
+            await timeout.CancelAsync();
+            await running;
+        }
+    }
+
     /// <summary>
     /// Shuts down any existing writer, then injects a fresh StreamWriter over
     /// a new temp file. Returns the file path for assertion.
@@ -135,6 +197,22 @@ public sealed class ElevationSecurityLogTests : IDisposable
     // -------------------------------------------------------------------------
     // Format tests
     // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task HostConnectionFailure_WritesToTheSameStaticLogAsync()
+    {
+        InjectFreshWriter();
+        var options = new FalkForge.Engine.Protocol.Transport.PipeConnectionOptions
+        {
+            PipeName = $"test-log-absent-{Guid.NewGuid():N}",
+            SharedSecret = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32),
+            ConnectionTimeout = TimeSpan.FromMilliseconds(250)
+        };
+        await using var host = new ElevatedHost(options, Environment.ProcessId);
+        Assert.Equal(1, await host.RunAsync());
+        var lines = ReadLogLines();
+        Assert.Contains(lines, line => line.Contains("Failed to connect to engine pipe", StringComparison.Ordinal));
+    }
 
     [Fact]
     public void SecurityEvent_WritesTabDelimitedLineWithWarningSeverity()
@@ -560,56 +638,26 @@ public sealed class ElevationSecurityLogTests : IDisposable
     }
 
     // -------------------------------------------------------------------------
-    // Bucket D: edge case — tab character in message body
+    // Bucket D: untrusted field encoding
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void WriteEntry_WhenMessageContainsTabChar_DelimiterStaysParseable()
+    public void WriteEntry_ControlCharactersCannotAlterRecordsOrColumns()
     {
-        // Log format: [timestamp]\t[level]\t[category]\t[message]\t[correlationId]
-        // If the message contains a tab, a naive Split('\t') yields more than 5 fields.
-        // The format is designed so fields 0-2 (timestamp, level, category) and the
-        // LAST field (correlationId) are always fixed. The message field sits between
-        // field index 3 and the last field; any tabs inside the message are preserved.
-        //
-        // Recovery pattern: split without limit, then:
-        //   timestamp = parts[0], level = parts[1], category = parts[2],
-        //   correlationId = parts[last], message = join(parts[3..last-1])
-        //
-        // This test verifies that:
-        //  (a) no exception is thrown when writing a tab-containing message, AND
-        //  (b) fields 0-2 and the last field are correctly recoverable, AND
-        //  (c) the message is recoverable by joining parts[3] to parts[length-2].
-
         InjectFreshWriter();
 
-        const string tabMessage = "a\tb\tc"; // three sub-fields separated by tabs
-        ElevationSecurityLog.SecurityEvent("TabTest", tabMessage);
+        ElevationSecurityLog.SecurityEvent(
+            "Cat\tInjected\r\n\u001b",
+            "Msg\nFORGED\tfield\u0085\u2028");
 
         var lines = ReadLogLines();
-        Assert.Single(lines);
+        var line = Assert.Single(lines);
+        var parts = line.Split('\t');
 
-        var line = lines[0];
-
-        // Split with no limit — yields timestamp, WARNING, TabTest, a, b, c, (empty)
-        // (7 fields for this message with an empty correlationId at the end)
-        var allParts = line.Split('\t');
-        Assert.True(allParts.Length >= 5,
-            "Line must have at least 5 tab-delimited segments.");
-
-        // Fields 0-2 are always fixed (timestamp, level, category)
-        Assert.True(DateTimeOffset.TryParse(allParts[0],
-            System.Globalization.CultureInfo.InvariantCulture,
-            System.Globalization.DateTimeStyles.None, out _),
-            $"Field 0 (timestamp) not parseable: '{allParts[0]}'");
-        Assert.Equal("WARNING", allParts[1]);
-        Assert.Equal("TabTest", allParts[2]);
-
-        // Last field is the correlation id — empty when not set
-        Assert.Equal(string.Empty, allParts[allParts.Length - 1]);
-
-        // Message is the join of parts[3] through parts[length-2]
-        var recoveredMessage = string.Join('\t', allParts[3..(allParts.Length - 1)]);
-        Assert.Equal(tabMessage, recoveredMessage);
+        Assert.Equal(5, parts.Length);
+        Assert.Equal("WARNING", parts[1]);
+        Assert.Equal("Cat\\tInjected\\r\\n\\u001B", parts[2]);
+        Assert.Equal("Msg\\nFORGED\\tfield\\u0085\\u2028", parts[3]);
+        Assert.Equal(string.Empty, parts[4]);
     }
 }

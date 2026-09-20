@@ -76,12 +76,18 @@ jobs:
       attestations: write   # required to write build provenance attestations
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
+
+      - name: Verify release tag matches package version
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: ./scripts/Assert-ReleaseVersion.ps1 -Tag $env:RELEASE_TAG
 
       - name: Restore
         run: dotnet restore FalkForge.slnx
@@ -111,7 +117,7 @@ jobs:
       # release run must be diagnosable from the Actions UI alone, without needing local
       # reproduction of the exact CI environment (elevation, absent tools, OS image contents).
       - name: Upload test results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         if: always()
         with:
           name: release-test-results
@@ -206,7 +212,7 @@ jobs:
       # A warning step below makes any failure visible in the workflow summary.
       - name: Attest build provenance
         id: attest
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
         continue-on-error: true
         with:
           subject-path: |
@@ -300,12 +306,12 @@ jobs:
       contents: read    # checkout only; this job does not modify repo contents
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       # Packs all 29 packable FalkForge projects (Core, both compilers, extensions,
       # plugins, Sdk, the FalkForge meta-package, the FalkForge.Templates template pack,
@@ -315,7 +321,8 @@ jobs:
       #
       # No -Version override: package version comes from the single-sourced
       # VersionPrefix/VersionSuffix in the root Directory.Build.props, independent of the
-      # git tag that triggered this workflow (see FalkForge.Templates' single-source
+      # git tag that triggered this workflow; the release job verifies equality before building.
+      # (See FalkForge.Templates' single-source
       # version pinning, enforced by TemplatePackTests).
       #
       # No symbol packages (.snupkg) are produced today (no IncludeSymbols/
@@ -328,7 +335,7 @@ jobs:
 
       - name: NuGet login (OIDC -> temp API key)
         id: nuget-login
-        uses: NuGet/login@v1
+        uses: NuGet/login@ebc737b6fc418a6ca0073cf116ec8dc156d8b81e # v1
         with:
           user: ${{ secrets.NUGET_USER }}
 

@@ -4,6 +4,8 @@ A teaching example that demonstrates all engine lifecycle hooks available in the
 collects database configuration from the user, passes properties to MSI packages (including secure password transport),
 and logs every lifecycle phase to a visible status log.
 
+> **Integration status:** running this project directly is a UI preview. The lifecycle hooks need a real engine session to execute. `UseCustomUI(projectPath)` does not build or embed the project yet.
+
 ## What This Demonstrates
 
 - All three phase-level lifecycle hook pairs: Detect, Plan, Apply (begin/complete)

@@ -29,27 +29,27 @@ jobs:
         include:
           - parser: ConditionParser
             project: tests/FalkForge.Engine.Tests/FalkForge.Engine.Tests.csproj
-            filter: ConditionParserFuzz
+            filter: FalkForge.Engine.Tests.Variables.ConditionParserFuzzTests
 
           - parser: MessageDeserializer
             project: tests/FalkForge.Engine.Protocol.Tests/FalkForge.Engine.Protocol.Tests.csproj
-            filter: MessageDeserializerFuzz
+            filter: FalkForge.Engine.Protocol.Tests.MessageDeserializerFuzzTests
 
           - parser: CabinetExtractor
             project: tests/FalkForge.Compiler.Msi.Tests/FalkForge.Compiler.Msi.Tests.csproj
-            filter: CabinetExtractorFuzz
+            filter: FalkForge.Compiler.Msi.Tests.CabinetExtractorFuzzTests
 
           - parser: BundleReader
             project: tests/FalkForge.Decompiler.Tests/FalkForge.Decompiler.Tests.csproj
-            filter: BundleReaderFuzz|BundleAccessManifestLengthCap
+            filter: FalkForge.Decompiler.Tests.BundleReaderFuzzTests FalkForge.Decompiler.Tests.BundleAccessManifestLengthCapTests
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - name: Restore
         run: dotnet restore FalkForge.slnx
@@ -63,15 +63,17 @@ jobs:
           dotnet test ${{ matrix.project }} `
             --no-build `
             --configuration Release `
-            --filter "FullyQualifiedName~${{ matrix.filter }}" `
-            --blame-hang-timeout 120s `
-            --logger "trx;LogFileName=fuzz-${{ matrix.parser }}.trx" `
-            --results-directory ./FuzzResults
+            -p:FalkHangDumpTimeout=120s `
+            --results-directory ./FuzzResults `
+            -- `
+            --filter-class ${{ matrix.filter }} `
+            --report-trx `
+            --report-trx-filename "fuzz-${{ matrix.parser }}.trx"
         # FALKFORGE_FUZZ_ITERATIONS is set at job level via env: above.
 
       - name: Upload fuzz failure artifacts
         if: failure()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: fuzz-failures-${{ matrix.parser }}-${{ github.run_number }}
           path: |
@@ -87,7 +89,7 @@ jobs:
 
       - name: Upload TRX results (always)
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: fuzz-trx-${{ matrix.parser }}-${{ github.run_number }}
           path: ./FuzzResults/*.trx

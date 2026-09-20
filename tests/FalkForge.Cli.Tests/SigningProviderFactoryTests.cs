@@ -475,24 +475,57 @@ public sealed class SigningProviderFactoryTests : IDisposable
         Assert.DoesNotContain(SecretShapedLiteral, result.Error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    // ── warnings (match SignServerConfig doc guidance: warn, don't fail) ─────
+    // ── transport and authentication warnings ─────────────────────────────
 
     [Fact]
-    public void SignServer_HttpBaseUrl_SurfacesWarning()
+    public void SignServer_HttpWithoutDevelopmentOptIn_FailsClosed()
     {
-        var tokenEnv = SetEnv("tok");
+        var result = SigningProviderFactory.Create(new SigningConfig
+        {
+            Provider = "signserver",
+            BaseUrl = "http://localhost:8080",
+            Worker = "W",
+            AuthMode = "none",
+        }, _tempDir);
 
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("SGN025", result.Error.Message);
+    }
+
+    [Fact]
+    public void SignServer_HttpDevelopmentOptInWithBearer_FailsBeforeReadingCredential()
+    {
         var result = SigningProviderFactory.Create(new SigningConfig
         {
             Provider = "signserver",
             BaseUrl = "http://localhost:8080",
             Worker = "W",
             AuthMode = "bearer",
-            BearerTokenEnv = tokenEnv,
+            BearerTokenEnv = UnsetEnvName(),
+            AllowInsecureHttpForDevelopment = true,
+        }, _tempDir);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("SGN025", result.Error.Message);
+        Assert.DoesNotContain("JSN019", result.Error.Message);
+    }
+
+    [Fact]
+    public void SignServer_HttpWithDevelopmentOptInAndNoAuth_SurfacesWarning()
+    {
+        var result = SigningProviderFactory.Create(new SigningConfig
+        {
+            Provider = "signserver",
+            BaseUrl = "http://localhost:8080",
+            Worker = "W",
+            AuthMode = "none",
+            AllowInsecureHttpForDevelopment = true,
         }, _tempDir);
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
-        Assert.Contains(result.Value.Warnings, w => w.Contains("http://", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Value.Warnings, w => w.Contains("development-only", StringComparison.OrdinalIgnoreCase));
         (result.Value.Provider as IDisposable)?.Dispose();
     }
 

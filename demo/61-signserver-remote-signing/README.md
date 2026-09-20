@@ -48,16 +48,15 @@ With a real SignServer instance fronting a PlainSigner worker (ECDSA, SHA256with
 ```
 set SIGNSERVER_URL=https://your-signserver:8443
 set SIGNSERVER_WORKER=YourWorkerName
-set SIGNSERVER_AUTH=none
+set SIGNSERVER_AUTH=bearer
+set SIGNSERVER_BEARER_TOKEN=your-token
 dotnet run --project demo/61-signserver-remote-signing/bundle -- -o ./out
 ```
 
 `SIGNSERVER_AUTH` also accepts `clientcert` (plus `SIGNSERVER_CLIENT_CERT` /
 `SIGNSERVER_CLIENT_CERT_PASSWORD`), `basic` (plus `SIGNSERVER_BASIC_USER` /
 `SIGNSERVER_BASIC_PASS`), or `bearer` (plus `SIGNSERVER_BEARER_TOKEN`). See
-`SignServerConfig.FromEnvironment()` for the full contract; a missing URL or worker, or
-missing credentials for the selected auth mode, fails loud with `SGN024` rather than silently
-signing unauthenticated.
+`SignServerConfig.FromEnvironment()` for the full contract. Use `none` only with an isolated local test container. A missing URL or worker, or missing credentials for the selected auth mode, fails loud with `SGN024` rather than silently signing unauthenticated.
 
 All nine `SIGNSERVER_*` variables (name, type, effect, default) are also listed in the
 "Environment Variables" reference in `documentation.html`, alongside every other variable
@@ -96,6 +95,7 @@ var result = await new BundleCompiler().CompileAsync(bundle, outputPath);
 
 ## Notes
 
+- The provider accepts the certificate and signature returned by the configured worker, but it does not yet verify that the signature matches the submitted digest or pin an expected signer identity. Treat the SignServer endpoint, worker routing, TLS, and authentication as part of the trusted build boundary.
 - `SignServerSignatureProvider` implements `IDisposable` (it owns an `HttpClient`); this demo
   disposes it after the build.
 - For local single-key and stable-key signing, see demo 59. For dual-sign key rotation and the

@@ -29,6 +29,8 @@
         <LangVersion>latest</LangVersion>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+        <!-- Dependency changes must opt in with -p:RestoreLockedMode=false. -->
+        <RestoreLockedMode Condition="'$(RestoreLockedMode)' == ''">true</RestoreLockedMode>
         <!-- Explicit NuGet audit posture, pinned so it cannot drift silently when the SDK
              changes its own defaults. Checks every restore against known vulnerability
              advisories for direct AND transitive packages, down to low severity. -->
@@ -70,10 +72,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="SonarAnalyzer.CSharp">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>analyzers; build</IncludeAssets>
-        </PackageReference>
         <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>analyzers; build</IncludeAssets>

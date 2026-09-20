@@ -140,7 +140,7 @@ dotnet test tests/FalkForge.Compiler.Msi.Tests/FalkForge.Compiler.Msi.Tests.cspr
 ```
 
 This scopes the run to the one project that holds all eight real-system tests (see the table
-above) instead of the full ~8,000-test solution, so it stays fast. To run the *entire* heavyweight
+above) instead of the full solution test suite, so it stays fast. To run the *entire* heavyweight
 e2e surface the same way CI does (full demo-catalog builds, `forge verify --rebuild`, plus these
 real-system tests), run the whole solution instead:
 

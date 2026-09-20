@@ -360,6 +360,8 @@ public sealed class EngineLogger : IFalkLogger
         var timestamp = entry.Timestamp.ToString("o", CultureInfo.InvariantCulture);
         var levelName = GetLevelName(entry.Level);
         var propertiesJson = FormatProperties(entry.Properties);
+        var category = LogFieldEncoder.EncodeTsvField(entry.Category);
+        var message = LogFieldEncoder.EncodeTsvField(entry.Message);
         var correlationId = entry.SessionCorrelationId == Guid.Empty
             ? string.Empty
             : entry.SessionCorrelationId.ToString("D");
@@ -368,9 +370,9 @@ public sealed class EngineLogger : IFalkLogger
         _writer.Write('\t');
         _writer.Write(levelName);
         _writer.Write('\t');
-        _writer.Write(entry.Category);
+        _writer.Write(category);
         _writer.Write('\t');
-        _writer.Write(entry.Message);
+        _writer.Write(message);
         _writer.Write('\t');
         _writer.Write(propertiesJson);
         _writer.Write('\t');
@@ -388,8 +390,8 @@ public sealed class EngineLogger : IFalkLogger
         _bytesWrittenSinceRotation +=
             timestamp.Length + 1 +
             levelName.Length + 1 +
-            entry.Category.Length + 1 +
-            entry.Message.Length + 1 +
+            category.Length + 1 +
+            message.Length + 1 +
             propertiesJson.Length + 1 +
             correlationId.Length + 1; // +1 for each tab/newline separator
     }
@@ -441,7 +443,7 @@ public sealed class EngineLogger : IFalkLogger
                 case '\b': sb.Append("\\b"); break;
                 case '\f': sb.Append("\\f"); break;
                 default:
-                    if (c < ' ')
+                    if (char.IsControl(c) || c is '\u2028' or '\u2029')
                     {
                         sb.Append("\\u");
                         sb.Append(((int)c).ToString("X4", CultureInfo.InvariantCulture));

@@ -16,6 +16,19 @@ using Xunit;
 public sealed class MockRegistryTryGetStringValueTests
 {
     [Fact]
+    public void KeyExists_DistinguishesEmptyKeysFromValueNames()
+    {
+        var registry = new MockRegistry()
+            .AddKey(RegistryRoot.CurrentUser, @"Software\Empty")
+            .SetStringValue(RegistryRoot.CurrentUser, @"Software\WithValue", "ValueOnly", "x");
+
+        Assert.True(registry.KeyExists(RegistryRoot.CurrentUser, @"Software\Empty"));
+        Assert.True(registry.KeyExists(RegistryRoot.CurrentUser, @"Software\WithValue"));
+        Assert.False(registry.KeyExists(RegistryRoot.CurrentUser, @"Software\WithValue\ValueOnly"));
+        Assert.True(registry.TryValueExists(RegistryRoot.CurrentUser, @"Software\WithValue", "ValueOnly").Value);
+    }
+
+    [Fact]
     public void TryGetStringValue_MissingKey_ReturnsSuccessWithNull()
     {
         var registry = new MockRegistry();

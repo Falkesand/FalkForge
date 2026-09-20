@@ -23,6 +23,16 @@ public sealed class Planner
 
         // Build feature-to-package lookup: packageId -> set of featureIds that reference it
         var packageFeatureMap = BuildPackageFeatureMap(manifest.Features);
+        if (manifest.Features.Any(feature => feature.IsRequired))
+        {
+            var enforcedSelections = featureSelections is null
+                ? new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, bool>(featureSelections, StringComparer.OrdinalIgnoreCase);
+            foreach (var feature in manifest.Features)
+                if (feature.IsRequired)
+                    enforcedSelections[feature.Id] = true;
+            featureSelections = enforcedSelections;
+        }
 
         switch (action)
         {

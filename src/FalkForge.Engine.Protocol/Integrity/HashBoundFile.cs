@@ -201,18 +201,17 @@ public static class HashBoundFile
     /// accepts a <c>\\?\</c> path. The UNC form comes back as <c>\\?\UNC\server\share\...</c> and
     /// has to become <c>\\server\share\...</c>, not <c>\UNC\...</c>.
     /// </summary>
-    private static string StripExtendedLengthPrefix(ReadOnlySpan<char> path)
+    internal static string? StripExtendedLengthPrefix(ReadOnlySpan<char> path)
     {
         const string ExtendedUncPrefix = @"\\?\UNC\";
         const string ExtendedPrefix = @"\\?\";
 
-        if (path.StartsWith(ExtendedUncPrefix, StringComparison.Ordinal))
-            return string.Concat(@"\\", path[ExtendedUncPrefix.Length..]);
-
-        if (path.StartsWith(ExtendedPrefix, StringComparison.Ordinal))
-            return new string(path[ExtendedPrefix.Length..]);
-
-        return new string(path);
+        string resolved = path.StartsWith(ExtendedUncPrefix, StringComparison.Ordinal)
+            ? string.Concat(@"\\", path[ExtendedUncPrefix.Length..])
+            : path.StartsWith(ExtendedPrefix, StringComparison.Ordinal)
+                ? new string(path[ExtendedPrefix.Length..])
+                : new string(path);
+        return Path.IsPathFullyQualified(resolved) ? resolved : null;
     }
 
     private static void ComputeSha256(Stream source, Span<byte> destination)

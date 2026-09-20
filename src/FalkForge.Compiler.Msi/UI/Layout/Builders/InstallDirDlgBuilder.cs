@@ -62,7 +62,15 @@ internal static class InstallDirDlgBuilder
                 Order = 3,
             },
             DialogFooter.BackEvent(flow),
-            nextEvent,
+            new DialogControlEvent
+            {
+                Control = "Next",
+                Event = "SetTargetPath",
+                Argument = "INSTALLDIR",
+                Condition = "NOT Installed AND ProductState <> 5",
+                Order = 1,
+            },
+            nextEvent with { Order = 2 },
             DialogFooter.CancelEvent(flow));
 
         return new DialogContent

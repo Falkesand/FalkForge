@@ -419,6 +419,7 @@ public sealed class OnboardingEndToEndTests : IDisposable
     {
         var feed = FindOnboardingFeed();
         Assert.SkipUnless(feed is not null, FeedSkipReason);
+        AssertFeedVersionMatchesScaffold(feed);
 
         var hive = InstallTemplatesIntoIsolatedHive(feed);
         var projectDir = InstantiateTemplate(hive, "falkforge-msi", "TplMsiApp", "Template App");
@@ -434,6 +435,7 @@ public sealed class OnboardingEndToEndTests : IDisposable
     {
         var feed = FindOnboardingFeed();
         Assert.SkipUnless(feed is not null, FeedSkipReason);
+        AssertFeedVersionMatchesScaffold(feed);
 
         var hive = InstallTemplatesIntoIsolatedHive(feed);
         var projectDir = InstantiateTemplate(hive, "falkforge-bundle", "TplBundleApp", "Template Suite");

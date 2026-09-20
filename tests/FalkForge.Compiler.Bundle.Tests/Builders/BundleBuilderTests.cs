@@ -6,6 +6,15 @@ namespace FalkForge.Compiler.Bundle.Tests.Builders;
 public sealed class BundleBuilderTests
 {
     [Fact]
+    public void ReproducibleIdentities_DistinguishDelimiterContainingFields()
+    {
+        var first = new BundleBuilder().Name("Foo::Bar").Manufacturer("Baz").Reproducible(0).Build();
+        var second = new BundleBuilder().Name("Foo").Manufacturer("Bar::Baz").Reproducible(0).Build();
+        Assert.NotEqual(first.BundleId, second.BundleId);
+        Assert.NotEqual(first.UpgradeCode, second.UpgradeCode);
+    }
+
+    [Fact]
     public void Build_SetsNameCorrectly()
     {
         var model = new BundleBuilder()

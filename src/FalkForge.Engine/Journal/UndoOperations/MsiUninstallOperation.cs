@@ -38,7 +38,7 @@ public sealed partial class MsiUninstallOperation : IUndoOperation
         try
         {
             var arguments = $"/x {productCode} /qn /norestart";
-            var exitCode = await _processRunner.RunAsync("msiexec.exe", arguments, ct);
+            var exitCode = await _processRunner.RunAsync(WindowsSystemExecutable.MsiExec, arguments, ct);
 
             return exitCode switch
             {

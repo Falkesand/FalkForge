@@ -566,11 +566,26 @@ public sealed class PackageBuilderTests
             p.Scope = InstallScope.PerMachine;
         });
 
-        var expectedProductCode = GuidUtility.CreateDeterministicGuid(
+        var expectedProductCode = GuidUtility.CreateFramedGuid(
             GuidUtility.FalkForgeNamespace,
-            $"App::Corp::{version.ToString(3)}::x64::machine");
+            "msi.product", "App", "Corp", version.ToString(3), "x64", "machine");
 
         Assert.Equal(expectedProductCode, package.ProductCode);
+    }
+
+    [Fact]
+    public void AutomaticIdentities_DistinguishDelimiterContainingFields()
+    {
+        var first = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "Foo::Bar"; p.Manufacturer = "Baz"; p.Version = new Version(1, 0, 0);
+        });
+        var second = InstallerTestHost.BuildPackage(p =>
+        {
+            p.Name = "Foo"; p.Manufacturer = "Bar::Baz"; p.Version = new Version(1, 0, 0);
+        });
+        Assert.NotEqual(first.ProductCode, second.ProductCode);
+        Assert.NotEqual(first.UpgradeCode, second.UpgradeCode);
     }
 
     // documentation.html:1168-1169 claims the derivation "applies identically in normal and

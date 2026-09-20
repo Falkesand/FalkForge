@@ -48,8 +48,16 @@ internal static class BrowseDlgBuilder
             new DialogControlEvent
             {
                 Control = "Cancel",
+                Event = "Reset",
+                Argument = "0",
+                Order = 1,
+            },
+            new DialogControlEvent
+            {
+                Control = "Cancel",
                 Event = "EndDialog",
                 Argument = "Return",
+                Order = 2,
             });
 
         return new DialogContent

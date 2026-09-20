@@ -65,6 +65,38 @@ public sealed class DialogSetInstallHandoffTests
     }
 
     [Theory]
+    [InlineData("Mondo")]
+    [InlineData("Advanced")]
+    public void Custom_setup_reaches_folder_selection_before_install(string templateName)
+    {
+        var dialogs = ComposeByName(templateName);
+        var setup = dialogs.Single(d => d.Name == "SetupTypeDlg");
+        Assert.Contains(setup.Events, e => e.ControlName == "CustomButton" && e.Argument == "CustomizeDlg");
+        var features = dialogs.Single(d => d.Name == "CustomizeDlg");
+        Assert.Contains(features.Events, e => e.Event.ToString() == "NewDialog" && e.Argument == "InstallDirDlg");
+        var folder = dialogs.Single(d => d.Name == "InstallDirDlg");
+        Assert.Contains(folder.Events, e => e.ControlName == "Back" && e.Argument == "CustomizeDlg");
+        Assert.Contains(folder.Events, e => e.ControlName == "Next" && e.Event.ToString() == "EndDialog" && e.Argument == "Return");
+    }
+
+    [Fact]
+    public void Install_label_override_takes_precedence_only_on_install_handoffs()
+    {
+        var package = new PackageModel
+        {
+            Name = "Test", Manufacturer = "Acme", Version = new Version(1, 0, 0),
+            DialogCustomization = new DialogCustomization()
+                .OverrideButtonLabel(DialogButton.Install, "Deploy")
+                .OverrideButtonLabel(DialogButton.Next, "Continue")
+                .ToModel()
+        };
+        var dialogs = new FeatureTreeDialogTemplate().GetDialogs(package);
+
+        Assert.Equal("Continue", dialogs.Single(d => d.Name == "WelcomeDlg").Controls.Single(c => c.Name == "Next").Text);
+        Assert.Equal("Deploy", dialogs.Single(d => d.Name == "CustomizeDlg").Controls.Single(c => c.Name == "Next").Text);
+    }
+
+    [Theory]
     [MemberData(nameof(AllTemplateNames))]
     public void No_control_event_navigates_into_progress_with_NewDialog(string templateName)
     {
@@ -84,13 +116,26 @@ public sealed class DialogSetInstallHandoffTests
     {
         var dialogs = ComposeByName(templateName);
 
-        var handoffEvents = dialogs
-            .Where(d => !NonHandoffDialogs.Contains(d.Name))
-            .SelectMany(d => d.Events)
-            .Where(e => e.Event.ToString() == "EndDialog" && e.Argument == "Return")
-            .ToArray();
+        var byName = dialogs.ToDictionary(d => d.Name, StringComparer.Ordinal);
+        var visited = new HashSet<string>(StringComparer.Ordinal);
+        var pending = new Queue<string>();
+        pending.Enqueue(dialogs.First(d => !NonHandoffDialogs.Contains(d.Name) && d.Name != "ProgressDlg").Name);
+        var handoffs = 0;
+        while (pending.TryDequeue(out var name))
+        {
+            if (!visited.Add(name) || NonHandoffDialogs.Contains(name))
+                continue;
+            Assert.True(byName.TryGetValue(name, out var dialog), $"Missing dialog '{name}'");
+            foreach (var controlEvent in dialog.Events)
+            {
+                if (controlEvent.Event.ToString() == "NewDialog")
+                    pending.Enqueue(controlEvent.Argument);
+                else if (controlEvent.Event.ToString() == "EndDialog" && controlEvent.Argument == "Return")
+                    handoffs++;
+            }
+        }
 
-        Assert.NotEmpty(handoffEvents);
+        Assert.True(handoffs > 0, $"{templateName} has no reachable installation handoff");
     }
 
     [Theory]
@@ -104,6 +149,7 @@ public sealed class DialogSetInstallHandoffTests
         // returns immediately and the sequence carries on.
         var progress = ComposeByName(templateName).Single(d => d.Name == "ProgressDlg");
 
+        Assert.False(progress.Attributes.HasFlag(MsiDialogAttributes.TrackDiskSpace));
         Assert.False(progress.Attributes.HasFlag(MsiDialogAttributes.Modal));
         Assert.True(progress.Attributes.HasFlag(MsiDialogAttributes.Visible));
     }
@@ -136,7 +182,8 @@ public sealed class DialogSetInstallHandoffTests
 
         foreach (var dialog in dialogs)
         {
-            var next = dialog.Events.SingleOrDefault(e => e.ControlName == "Next");
+            var next = dialog.Events.OrderBy(e => e.Ordering).LastOrDefault(e => e.ControlName == "Next" &&
+                (e.Event.ToString() == "NewDialog" || e.Event.ToString() == "EndDialog"));
             if (next is null)
             {
                 continue;

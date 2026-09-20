@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Elevation;
 
 using System.Collections.Concurrent;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Transport;
 
@@ -13,6 +14,7 @@ internal sealed class ElevationClient : IElevationClient
     private static readonly TimeSpan DefaultCommandTimeout = TimeSpan.FromMinutes(10);
 
     private readonly PipeServer _pipe;
+    private readonly IFalkLogger? _logger;
     private readonly TimeSpan _commandTimeout;
     private readonly ConcurrentDictionary<uint, (TaskCompletionSource<ElevateResultMessage> Tcs, IProgress<int>? Progress)> _pendingRequests = new();
     private uint _nextSequenceId;
@@ -23,21 +25,26 @@ internal sealed class ElevationClient : IElevationClient
     /// The caller must have already registered this instance's <see cref="HandleMessageAsync"/>
     /// as the pipe's message handler (or must route <see cref="ElevateResultMessage"/> to it).
     /// </summary>
-    public ElevationClient(PipeServer pipe, TimeSpan? commandTimeout = null)
+    public ElevationClient(PipeServer pipe, TimeSpan? commandTimeout = null, IFalkLogger? logger = null)
     {
         _pipe = pipe;
+        _logger = logger;
         _commandTimeout = commandTimeout ?? DefaultCommandTimeout;
     }
 
     /// <summary>
     /// Handles an incoming message from the elevated process pipe.
     /// Called by the <see cref="PipeServer"/> receive loop on its I/O thread.
-    /// Only processes <see cref="ElevateResultMessage"/>; other message types are ignored.
+    /// Processes command results, progress and companion log messages.
     /// </summary>
     public Task HandleMessageAsync(EngineMessage message)
     {
         switch (message)
         {
+            case LogMessage log:
+                _logger?.Log(log.Level, "Elevation", log.Text);
+                break;
+
             case ElevateResultMessage result
                 when _pendingRequests.TryRemove(result.SequenceId, out var entry):
                 entry.Tcs.TrySetResult(result);

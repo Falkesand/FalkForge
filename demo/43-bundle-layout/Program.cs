@@ -2,7 +2,8 @@ using FalkForge;
 using FalkForge.Compiler.Bundle.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
 
-// Group payloads into named containers for offline layout scenarios.
+// Record named container membership. Without DownloadUrl(), payloads remain embedded.
+// Offline /layout execution is not wired into the production engine yet.
 return Installer.BuildBundle(args, outputPath =>
 {
     var bundle = new BundleBuilder()

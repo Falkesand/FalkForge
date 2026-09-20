@@ -152,7 +152,7 @@ public sealed class DefaultRebuildRunnerRealProcessTests
     /// <see cref="TestTemp.TryDelete(string, TextWriter?)"/> call sites, instead of disappearing
     /// into the old bare <c>catch (Exception ex) when (...) { Thread.Sleep(200); }</c> with no
     /// logging at all. The trace sink is injected as a plain <see cref="StringWriter"/> argument
-    /// -- this assembly has no <c>[CollectionBehavior(DisableTestParallelization = true)]</c>, so
+    /// -- this assembly has no <c>[Parallelization(Mode = ParallelMode.None)]</c>, so
     /// redirecting the real, process-global <see cref="Console.Error"/> here would risk stealing
     /// a concurrently-running test's own stderr write into this test's capture buffer.
     /// </summary>

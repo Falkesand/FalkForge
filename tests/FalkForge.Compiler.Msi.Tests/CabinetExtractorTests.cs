@@ -76,11 +76,9 @@ public sealed class CabinetExtractorTests : IDisposable
     }
 
     [Fact]
-    public void Extract_DefaultOverload_IsUnbounded()
+    public void Extract_DefaultOverload_UsesFiniteLimits()
     {
-        // WHY (FIX 4): the original single-arg Extract must remain unbounded so existing
-        // callers (e.g. "forge extract") are unchanged by the new budget feature.
-        var content = "unbounded by default";
+        var content = "bounded by default";
         var cabPath = BuildCabinet(("payload.txt", content));
 
         using var cabStream = File.OpenRead(cabPath);
@@ -88,6 +86,59 @@ public sealed class CabinetExtractorTests : IDisposable
 
         Assert.True(result.IsSuccess, FailureMessage(result));
         Assert.Equal(content, System.Text.Encoding.UTF8.GetString(result.Value["payload.txt"]));
+        Assert.InRange(CabinetExtractor.MaximumTotalBytes, 1, long.MaxValue - 1);
+        Assert.InRange(CabinetExtractor.MaximumFileCount, 1, int.MaxValue - 1);
+    }
+
+    [Fact]
+    public void Extract_ManyZeroByteFiles_AbortsAtFileCountLimit()
+    {
+        var cabPath = BuildCabinet(
+            ("empty-1.bin", string.Empty),
+            ("empty-2.bin", string.Empty),
+            ("empty-3.bin", string.Empty));
+
+        using var cabStream = File.OpenRead(cabPath);
+        var result = CabinetExtractor.Extract(
+            cabStream,
+            CabinetExtractor.MaximumTotalBytes,
+            maxFileCount: 2);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.LayoutError, result.Error.Kind);
+        Assert.Contains("file count", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("2-entry", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExtractFromPath_ManyZeroByteFiles_AbortsAtFileCountLimit()
+    {
+        var cabPath = BuildCabinet(
+            ("empty-1.bin", string.Empty),
+            ("empty-2.bin", string.Empty));
+
+        var result = CabinetExtractor.ExtractFromPath(
+            cabPath,
+            CabinetExtractor.MaximumTotalBytes,
+            maxFileCount: 1);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.LayoutError, result.Error.Kind);
+        Assert.Contains("file count", result.Error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Extract_RejectsLimitsAboveSecurityMaximums()
+    {
+        using var stream = new MemoryStream();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CabinetExtractor.Extract(stream, long.MaxValue, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            CabinetExtractor.Extract(
+                stream,
+                CabinetExtractor.MaximumTotalBytes,
+                CabinetExtractor.MaximumFileCount + 1));
     }
 
     [Fact]

@@ -74,7 +74,7 @@ public sealed class ElevationCommandTests
     }
 
     [Fact]
-    public void FileWriteCommand_OverwritesExistingFile()
+    public void FileWriteCommand_RefusesExistingFile()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"falk-elev-{Guid.NewGuid():N}");
         try
@@ -85,7 +85,7 @@ public sealed class ElevationCommandTests
             // Write initial content
             File.WriteAllBytes(targetPath, [0x01, 0x02, 0x03]);
 
-            // Now overwrite via command
+            // Existing leaves must be refused, including potential hard links.
             var newContent = new byte[] { 0xAA, 0xBB, 0xCC, 0xDD, 0xEE };
             var executor = new ElevatedCommandExecutor([new FileWriteCommand()]);
 
@@ -99,8 +99,8 @@ public sealed class ElevationCommandTests
 
             var result = executor.Execute(message);
 
-            Assert.True(result.Success);
-            Assert.Equal(newContent, File.ReadAllBytes(targetPath));
+            Assert.False(result.Success);
+            Assert.Equal(new byte[] { 0x01, 0x02, 0x03 }, File.ReadAllBytes(targetPath));
         }
         finally
         {

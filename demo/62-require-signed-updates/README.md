@@ -8,12 +8,9 @@ actually landed in the shipped manifest, then narrates the runtime enforcement i
 
 ## What This Demonstrates (Authoring Side -- Actually Built and Run)
 
-- `IntegrityBuilder.Epoch(n)` -- bumps the key-epoch, cryptographically covered by the
-  signature, so a client refuses any future bundle whose epoch is lower than the highest it
-  has already accepted (anti-downgrade/replay)
-- `IntegrityBuilder.Revoke(fingerprint)` -- declares a retired publisher key's fingerprint
-  revoked by this release; once a client applies this verified update it records the
-  revocation and refuses any future bundle signed only by that key
+- `IntegrityBuilder.Epoch(n)` -- adds a key epoch that is cryptographically covered by the signature
+- `IntegrityBuilder.Revoke(fingerprint)` -- adds a retired publisher key's fingerprint to the signed revocation metadata
+- The current boundary: this metadata is verified, but the production bootstrapper does not persist accepted trust state yet, so cross-run anti-downgrade and revocation enforcement is dormant
 - `BundleBuilder.UpdateFeed(feedUrl, policy)` -- configures the update feed URL and policy
   carried in the manifest
 - Reading the compiled bundle's manifest back and confirming the epoch, revocation count, and
@@ -65,8 +62,7 @@ downloaded update is fetched from an attacker-controllable feed, and relaunching
 engine, which is free to ignore the flag. So the verification runs in the engine the user
 *already* trusts, over the staged bytes, before that engine ever launches the new one.
 
-`StagedUpdateVerifier` always verifies with `requireSigned: true` on the update path (unlike
-a fresh install, where an unsigned bundle is backward-compatible). It rejects:
+`StagedUpdateVerifier` verifies with `requireSigned: true` on the update path (unlike a fresh install, where an unsigned bundle is backward-compatible). Signature and payload checks are active. The epoch and locally persisted revocation checks below only become effective when a host loads and saves `TrustState`; the production bootstrapper does not do that yet.
 
 | Rejection | Error | Cause |
 |---|---|---|
@@ -75,12 +71,7 @@ a fresh install, where an unsigned bundle is backward-compatible). It rejects:
 | Downgrade or replay | `INT008` | The bundle's signed epoch is below the highest epoch this machine has already accepted -- exactly the anti-downgrade property `Epoch(n)` exists to enable |
 | Tampered payload | `INT006` | A payload's bytes no longer match the hash the signature covers |
 
-The trust set and the anti-downgrade epoch are not read from the bundle -- they come from the
-engine's own baked `-p:FalkForgeTrustedKey` set (see demo 60) plus a per-machine, ACL-validated
-`TrustStateStore` that persists the highest epoch accepted and any locally-applied
-revocations. A revocation declared via `Revoke(fingerprint)` in *this* release, once installed,
-is what causes a *future* download signed only by that now-retired key to be rejected on the
-next machine that applies this update.
+The verifier accepts an explicit trust set and `TrustState`, and `TrustStateStore` can persist the highest accepted epoch and locally applied revocations in an ACL-protected location. Those components are tested, but the production bootstrapper currently uses default in-memory state and never saves it. As a result, `INT008` and cross-run revocation enforcement are not active in shipped bundle execution yet.
 
 ## Notes
 

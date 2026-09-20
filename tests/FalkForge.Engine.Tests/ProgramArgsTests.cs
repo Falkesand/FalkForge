@@ -109,4 +109,26 @@ public sealed class ProgramArgsTests : IDisposable
         Assert.Equal("out.log", result.Value.LogPath);
         Assert.Equal(LogLevel.Verbose, result.Value.MinimumLogLevel);
     }
+
+    [Fact]
+    public void DirectManifestSession_DisablesAmbientElevationCompanion()
+    {
+        var parsed = ProgramArgs.Parse(["--log-level", "Warning"]);
+        Assert.True(parsed.IsSuccess, parsed.ErrorMessage);
+
+        var options = Program.CreateDirectManifestSessionOptions(
+            parsed.Value,
+            pipeOptions: null,
+            planOnly: true,
+            planOutputPath: "plan.json",
+            ignoreDependencies: true);
+
+        Assert.Equal(ElevationCompanionPolicy.NoneDeclared, options.ElevationCompanionPolicy);
+        Assert.Null(options.ElevationCompanionPath);
+        Assert.Null(options.ElevationCompanionSha256);
+        Assert.True(options.IsPlanOnly);
+        Assert.Equal("plan.json", options.PlanOnlyOutputPath);
+        Assert.True(options.IgnoreDependencies);
+        Assert.Equal(LogLevel.Warning, options.MinimumLogLevel);
+    }
 }

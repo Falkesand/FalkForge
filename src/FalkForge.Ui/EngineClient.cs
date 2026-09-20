@@ -7,7 +7,7 @@ using FalkForge.Ui.Abstractions;
 
 namespace FalkForge.Ui;
 
-public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IPackageMsiFeatureChannel, IAsyncDisposable
+public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IPackageMsiFeatureChannel, IBundleFeatureChannel, IAsyncDisposable
 {
     private readonly List<FeatureState> _features = [];
 
@@ -31,7 +31,10 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IP
     private bool? _licenseAccepted;
 
     private TaskCompletionSource<PlanResult>? _planTcs;
-    private TaskCompletionSource<int>? _shutdownTcs;
+    // The engine can finish before the window closes. Retain its terminal response so a later
+    // ShutdownAsync does not send to a closed pipe or discard the session's exit code.
+    private readonly TaskCompletionSource<int> _shutdownTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _shutdownRequested;
 
     // Sticky latch for the "pipe already closed" state. OnPipeClosed only completes whichever
     // TCS is armed *at the moment it fires*; without this latch, a disconnect that races ahead of
@@ -129,6 +132,22 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IP
             }
         }
 
+        // Await each feature update before requesting the plan. Include unchanged defaults
+        // so simply visiting (or skipping) the picker cannot drop selected packages.
+        foreach (var feature in _features.ToArray())
+        {
+            var featureSend = await _pipe.SendAsync(new SetFeatureSelectionMessage
+            {
+                FeatureId = feature.FeatureId,
+                IsSelected = feature.IsRequired || feature.IsSelected
+            }, ct);
+            if (featureSend.IsFailure)
+            {
+                _planTcs.TrySetException(new InvalidOperationException(featureSend.Error.Message));
+                return await _planTcs.Task;
+            }
+        }
+
         var sendResult = await _pipe.SendAsync(new RequestPlanMessage { Action = action }, ct);
         if (sendResult.IsFailure) _planTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
 
@@ -155,6 +174,22 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IP
     public void LaunchUpdate()
     {
         _ = _pipe.SendAsync(new LaunchUpdateMessage());
+    }
+
+    /// <inheritdoc/>
+    public void SetFeatureSelection(string featureId, bool isSelected)
+    {
+        for (var i = 0; i < _features.Count; i++)
+        {
+            var feature = _features[i];
+            if (!string.Equals(feature.FeatureId, featureId, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            _features[i] = feature with { IsSelected = feature.IsRequired || isSelected };
+            return;
+        }
+
+        throw new ArgumentException("The feature was not reported by detection.", nameof(featureId));
     }
 
     public void SetProperty(string name, string value)
@@ -193,11 +228,16 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IP
 
     public async Task<int> ShutdownAsync()
     {
-        _shutdownTcs = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-        FailIfPipeAlreadyClosed(_shutdownTcs);
-
-        var sendResult = await _pipe.SendAsync(new ShutdownRequestMessage());
-        if (sendResult.IsFailure) _shutdownTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
+        if (!_shutdownTcs.Task.IsCompleted && Interlocked.Exchange(ref _shutdownRequested, 1) == 0)
+        {
+            FailIfPipeAlreadyClosed(_shutdownTcs);
+            if (!_shutdownTcs.Task.IsCompleted)
+            {
+                var sendResult = await _pipe.SendAsync(new ShutdownRequestMessage());
+                if (sendResult.IsFailure)
+                    _shutdownTcs.TrySetException(new InvalidOperationException(sendResult.Error.Message));
+            }
+        }
 
         return await _shutdownTcs.Task;
     }
@@ -257,7 +297,22 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IP
                 break;
 
             case ShutdownResponseMessage shutdown:
-                _shutdownTcs?.TrySetResult(shutdown.ExitCode);
+                _shutdownTcs.TrySetResult(shutdown.ExitCode);
+                // Cancellation can end the session while a phase response is still pending.
+                // Complete those waiters now instead of depending on a later pipe disconnect.
+                if (shutdown.ExitCode is 0 or 3)
+                {
+                    _detectTcs?.TrySetCanceled();
+                    _planTcs?.TrySetCanceled();
+                    _applyTcs?.TrySetCanceled();
+                }
+                else
+                {
+                    var failure = new InvalidOperationException($"The installer stopped with exit code {shutdown.ExitCode}.");
+                    _detectTcs?.TrySetException(failure);
+                    _planTcs?.TrySetException(failure);
+                    _applyTcs?.TrySetException(failure);
+                }
                 break;
 
             case UpdateAvailableMessage m:
@@ -353,7 +408,6 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IP
         _detectTcs?.TrySetException(ex);
         _planTcs?.TrySetException(ex);
         _applyTcs?.TrySetException(ex);
-        _shutdownTcs?.TrySetException(ex);
         _statusMessage.OnNext($"Error: {error.Message}");
     }
 
@@ -378,7 +432,7 @@ public sealed class EngineClient : IInstallerEngine, IPackageLifecycleEvents, IP
         _detectTcs?.TrySetException(ex);
         _planTcs?.TrySetException(ex);
         _applyTcs?.TrySetException(ex);
-        _shutdownTcs?.TrySetException(ex);
+        _shutdownTcs.TrySetException(ex);
     }
 
     /// <summary>

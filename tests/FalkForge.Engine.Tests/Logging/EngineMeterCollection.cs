@@ -5,7 +5,7 @@
 // engine test suite is small enough that serial execution does not regress
 // wall-clock time meaningfully (~30 s on dev hardware).
 
-[assembly: Xunit.CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]
 
 namespace FalkForge.Engine.Tests.Logging;
 

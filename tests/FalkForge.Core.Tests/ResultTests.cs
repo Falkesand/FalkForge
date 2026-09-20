@@ -57,14 +57,19 @@ public sealed class ResultTests
     }
 
     [Fact]
-    public void ImplicitConversion_FromNullValue_CreatesSuccessResultCarryingNull()
+    public void ImplicitConversion_FromNullValue_RequiresExplicitSuccess()
     {
-        string? value = null;
+        static Result<string?> BareNull() => null;
+        Assert.Throws<ArgumentNullException>(() => BareNull());
+    }
 
-        Result<string?> result = value;
-
-        Assert.True(result.IsSuccess);
-        Assert.Null(result.Value);
+    [Fact]
+    public void ImplicitConversion_FromNullableStruct_RejectsNullButAcceptsValue()
+    {
+        static Result<int?> Convert(int? value) => value;
+        Assert.Throws<ArgumentNullException>(() => Convert(null));
+        Assert.Equal(42, Convert(42).Value);
+        Assert.Null(Result<int?>.Success(null).Value);
     }
 
     [Fact]

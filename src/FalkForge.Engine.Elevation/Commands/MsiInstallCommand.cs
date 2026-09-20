@@ -134,6 +134,15 @@ public sealed class MsiInstallCommand : IElevatedCommand
             secrets = secretsResult.Value;
         }
 
+        try
+        {
+            msiPath = Path.GetFullPath(msiPath);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
+        {
+            return Result<byte[]>.Failure(ErrorKind.SecurityError, "MSI path is invalid");
+        }
+
         if (msiPath.StartsWith(@"\\", StringComparison.Ordinal))
             return Result<byte[]>.Failure(ErrorKind.SecurityError, "UNC/network MSI paths are not allowed");
 

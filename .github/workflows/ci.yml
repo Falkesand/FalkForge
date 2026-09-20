@@ -18,14 +18,14 @@ jobs:
       # fetch-depth: 0 because the coverage gate below measures the lines this branch changed,
       # which needs `git merge-base origin/main HEAD`. A shallow clone has no merge base and the
       # gate would silently report nothing to measure.
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - name: Restore
         run: dotnet restore FalkForge.slnx
@@ -129,7 +129,7 @@ jobs:
         run: ./scripts/coverage-gate.ps1 -UseExisting -FailUnder -MinDiff 0 -BaseRef origin/main
 
       - name: Upload test results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         if: always()
         with:
           name: test-results
@@ -163,14 +163,14 @@ jobs:
         run: reportgenerator "-reports:TestResults\coverage\coverage.cobertura.xml" "-targetdir:CoverageReport-AllAssembly" "-reporttypes:JsonSummary;TextSummary"
 
       - name: Upload coverage report (src-only)
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: coverage-report
           path: CoverageReport/
           if-no-files-found: warn
 
       - name: Upload coverage report (all-assembly)
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: coverage-report-all-assembly
           path: CoverageReport-AllAssembly/
@@ -187,12 +187,12 @@ jobs:
   signserver-e2e:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       # Scoped to the one cross-platform e2e project — the full slnx does not build on Linux
       # (net10.0-windows projects). The project IS the filter: it contains exactly the two
@@ -207,22 +207,44 @@ jobs:
         run: dotnet test tests/FalkForge.SignServer.E2E.Tests/FalkForge.SignServer.E2E.Tests.csproj -c Release -v minimal -- --report-trx --report-trx-filename signserver-e2e.trx
 
       - name: Upload test results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         if: always()
         with:
           name: signserver-e2e-test-results
           path: tests/FalkForge.SignServer.E2E.Tests/bin/**/TestResults/**
           if-no-files-found: warn
 
+  engine-source-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+
+      - name: Pack managed dependencies
+        run: dotnet pack FalkForge.slnx -c Release -o artifacts/nuget -p:FalkForgePackEngine=false -p:RestoreLockedMode=true
+
+      - name: Pack engine sources
+        run: dotnet pack src/FalkForge.Engine.Sources/FalkForge.Engine.Sources.csproj -c Release -o artifacts/nuget -p:RestoreLockedMode=true
+
+      - name: Build integration test runner
+        run: dotnet build tests/FalkForge.Integration.Tests/FalkForge.Integration.Tests.csproj -c Release -p:RestoreLockedMode=true
+
+      - name: Restore and build the packaged engine and companion
+        env:
+          FALKFORGE_REQUIRE_SOURCE_FEED: '1'
+        run: ./tests/FalkForge.Integration.Tests/bin/Release/net10.0-windows/FalkForge.Integration.Tests.exe --filter-class FalkForge.Integration.Tests.Packaging.EngineSourcePackageTests
+
   code-quality:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - name: Build
         run: dotnet build FalkForge.slnx -c Release

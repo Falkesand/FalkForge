@@ -24,7 +24,7 @@ public sealed partial class MspExecutor
 
         try
         {
-            var exitCode = await _processRunner.RunAsync("msiexec.exe", args.Value, ct);
+            var exitCode = await _processRunner.RunAsync(WindowsSystemExecutable.MsiExec, args.Value, ct);
             var mapped = MapExitCode(exitCode);
             return mapped.IsFailure
                 ? Result<int>.Failure(mapped.Error)

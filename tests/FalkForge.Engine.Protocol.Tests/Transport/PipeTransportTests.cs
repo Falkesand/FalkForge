@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Security.Cryptography;
 using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol.Messages;
@@ -229,6 +230,45 @@ public class PipeTransportTests
     }
 
     [Fact]
+    public async Task Receive_buffer_is_cleared_before_return_to_pool()
+    {
+        var options = CreateOptions();
+        var pool = new RecordingArrayPool();
+        SetSecurePropertyMessage? received = null;
+
+        await using var server = new PipeServer(options, message =>
+        {
+            received = Assert.IsType<SetSecurePropertyMessage>(message);
+            return Task.CompletedTask;
+        }, pool);
+        var serverTask = server.StartAsync();
+
+        await using var client = new PipeClient(options, _ => Task.CompletedTask);
+        var clientResult = await client.ConnectAsync();
+        var serverResult = await serverTask;
+        Assert.True(clientResult.IsSuccess);
+        Assert.True(serverResult.IsSuccess);
+
+        using var outbound = new SetSecurePropertyMessage
+        {
+            SequenceId = 77,
+            PropertyName = "DB_PASSWORD",
+            SecureValue = SensitiveBytes.FromPlaintext("pool-secret"u8)
+        };
+        var sendResult = await client.SendAsync(outbound);
+        Assert.True(sendResult.IsSuccess);
+
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var returned = await pool.Returned.Task.WaitAsync(timeout.Token);
+
+        Assert.NotNull(received);
+        Assert.True(pool.HadNonZeroBytesBeforeReturn);
+        Assert.True(pool.ClearArrayRequested);
+        Assert.All(returned, value => Assert.Equal(0, value));
+        received.Dispose();
+    }
+
+    [Fact]
     public async Task Send_fails_when_not_connected()
     {
         var options = CreateOptions();
@@ -366,5 +406,26 @@ public class PipeTransportTests
 
         Assert.True(result.IsFailure);
         Assert.Equal(ErrorKind.TransportError, result.Error.Kind);
+    }
+
+    private sealed class RecordingArrayPool : ArrayPool<byte>
+    {
+        public TaskCompletionSource<byte[]> Returned { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool ClearArrayRequested { get; private set; }
+
+        public bool HadNonZeroBytesBeforeReturn { get; private set; }
+
+        public override byte[] Rent(int minimumLength) => new byte[minimumLength];
+
+        public override void Return(byte[] array, bool clearArray = false)
+        {
+            HadNonZeroBytesBeforeReturn = array.Any(value => value != 0);
+            ClearArrayRequested = clearArray;
+            if (clearArray)
+                Array.Clear(array);
+            Returned.TrySetResult(array);
+        }
     }
 }

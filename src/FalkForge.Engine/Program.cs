@@ -150,15 +150,8 @@ internal static partial class Program
         await using var session = EngineSession.BindToPipe(
             pipeName,
             manifestPath,
-            new EngineSessionOptions
-            {
-                PipeOptions = pipeOptions,
-                LogPath = programArgs.LogPath,
-                MinimumLogLevel = programArgs.MinimumLogLevel,
-                IsPlanOnly = planOnly,
-                PlanOnlyOutputPath = planOutputPath,
-                IgnoreDependencies = ignoreDependencies
-            });
+            CreateDirectManifestSessionOptions(
+                programArgs, pipeOptions, planOnly, planOutputPath, ignoreDependencies));
 
         // Print the session correlation id so operators can grep all three log files
         // (UI, Engine, Elevation) for the same id. Safe: Guid "D" format is fixed-length
@@ -168,5 +161,27 @@ internal static partial class Program
         var outcome = await session.RunUntilShutdown(cts.Token);
         return EngineProgramHelpers.ToExitCode(outcome.State);
     }
+
+    /// <summary>
+    /// Builds options for the unverified direct-manifest path. It must never probe for an ambient
+    /// elevation companion: a caller controls the manifest and may also control the engine directory,
+    /// so launching a neighboring executable elevated would turn one UAC consent into arbitrary code.
+    /// Bundle bootstrap uses its separate verified-path configuration in <see cref="BootstrapperRunner"/>.
+    /// </summary>
+    internal static EngineSessionOptions CreateDirectManifestSessionOptions(
+        ProgramArgs programArgs,
+        PipeConnectionOptions? pipeOptions,
+        bool planOnly,
+        string? planOutputPath,
+        bool ignoreDependencies) => new()
+        {
+            PipeOptions = pipeOptions,
+            LogPath = programArgs.LogPath,
+            MinimumLogLevel = programArgs.MinimumLogLevel,
+            IsPlanOnly = planOnly,
+            PlanOnlyOutputPath = planOutputPath,
+            IgnoreDependencies = ignoreDependencies,
+            ElevationCompanionPolicy = ElevationCompanionPolicy.NoneDeclared
+        };
 
 }

@@ -122,7 +122,7 @@ var knownRoles = new System.Collections.Generic.Dictionary<string, string>(Syste
     { "timestamp",       "FalkForge.Engine.Protocol.Integrity.TrustRole.Timestamp" },
 };
 
-// Normalizes a fingerprint-shaped value: strip common display separators, uppercase, drop non-hex chars.
+// Match runtime normalization: accept only hex digits and space/colon/hyphen/tab separators.
 Func<string, string> normalizeFp = raw =>
 {
     var norm = new StringBuilder((raw ?? string.Empty).Length);
@@ -130,6 +130,8 @@ Func<string, string> normalizeFp = raw =>
     {
         if (Uri.IsHexDigit(c))
             norm.Append(char.ToUpperInvariant(c));
+        else if (c != ' ' && c != ':' && c != '-' && c != '\t')
+            Log.LogError("FALKPQ006: Fingerprints may contain only hex digits and space, colon, hyphen or tab separators; found U+{0:X4}.", (int)c);
     }
     return norm.ToString();
 };
@@ -256,7 +258,7 @@ if (Fingerprints != null)
                 "fingerprint no real key can match, so every bundle from this signer would fail " +
                 "verification at the customer's install, not on the build box.",
                 item.ItemSpec, fp.Length);
-            continue;
+            // Still inspect PQ metadata so one build reports every malformed field.
         }
 
         // Resolve the Roles metadata (semicolon or comma separated) into an OR of TrustRole members.

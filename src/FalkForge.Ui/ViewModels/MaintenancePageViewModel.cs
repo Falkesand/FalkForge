@@ -5,6 +5,7 @@ using FalkForge.Engine.Protocol;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
 using ReactiveUI;
+using RxVoid = ReactiveUI.Primitives.RxVoid;
 
 namespace FalkForge.Ui.ViewModels;
 
@@ -76,9 +77,9 @@ public sealed class MaintenancePageViewModel : InstallerPageViewModel, IReactive
         private set => this.RaiseAndSetIfChanged(ref _errorMessage, value);
     }
 
-    public ReactiveCommand<System.Reactive.Unit, System.Reactive.Unit> ModifyCommand { get; }
-    public ReactiveCommand<System.Reactive.Unit, System.Reactive.Unit> RepairCommand { get; }
-    public ReactiveCommand<System.Reactive.Unit, System.Reactive.Unit> UninstallCommand { get; }
+    public ReactiveCommand<RxVoid, RxVoid> ModifyCommand { get; }
+    public ReactiveCommand<RxVoid, RxVoid> RepairCommand { get; }
+    public ReactiveCommand<RxVoid, RxVoid> UninstallCommand { get; }
 
     public void Dispose()
     {
@@ -142,6 +143,10 @@ public sealed class MaintenancePageViewModel : InstallerPageViewModel, IReactive
     /// </summary>
     private async Task PlanAndNavigateAsync(InstallAction action, CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
+        // Navigation awaits the progress page's complete plan/apply run. Forward command
+        // cancellation to the engine throughout that run, including while it is applying.
+        using var cancellation = ct.Register(Engine.Cancel);
         IsOperationInProgress = true;
         try
         {

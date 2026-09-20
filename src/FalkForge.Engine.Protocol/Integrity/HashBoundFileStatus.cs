@@ -7,11 +7,14 @@ namespace FalkForge.Engine.Protocol.Integrity;
 /// </summary>
 public enum HashBoundFileStatus
 {
+    /// <summary>No verification has taken place. Default results fail closed.</summary>
+    Unknown = 0,
+
     /// <summary>
     /// The file was opened, its bytes hashed, and the digest matched the expected value. This is
     /// the only status for which a stream is returned, and the caller owns disposing it.
     /// </summary>
-    Verified = 0,
+    Verified = 7,
 
     /// <summary>
     /// The expected hash was not 64 hexadecimal characters. Nothing was opened. A malformed hash

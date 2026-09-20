@@ -23,7 +23,7 @@ namespace FalkForge.Decompiler.Tests;
 ///   Then feed the file to BundleAccess.Open() / BundleReader.Extract().
 ///
 /// Scale up:
-///   FALKFORGE_FUZZ_ITERATIONS=10000 dotnet test --filter "BundleReaderFuzz"
+///   FALKFORGE_FUZZ_ITERATIONS=10000 dotnet test -- --filter-class FalkForge.Decompiler.Tests.BundleReaderFuzzTests
 /// </summary>
 public sealed class BundleReaderFuzzTests : IDisposable
 {

@@ -4,7 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- UI dependencies -->
-    <PackageVersion Include="ReactiveUI.WPF" Version="23.2.28" />
+    <PackageVersion Include="ReactiveUI.WPF" Version="24.2.0" />
     <PackageVersion Include="System.Reactive" Version="7.0.0" />
   </ItemGroup>
   <ItemGroup>
@@ -23,24 +23,23 @@
   </ItemGroup>
   <ItemGroup>
     <!-- Test dependencies -->
-    <PackageVersion Include="xunit.v3" Version="3.2.2" />
-    <PackageVersion Include="Xunit.StaFact" Version="3.0.13" />
+    <PackageVersion Include="xunit.v3" Version="4.0.1" />
+    <PackageVersion Include="Xunit.StaFact" Version="4.0.23" />
     <!-- MTP-native TRX reporter: enables the report-trx switch so CI can NAME a failing test
          (the classic VSTest trx logger is a silent no-op under Microsoft.Testing.Platform). -->
-    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="1.9.1" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.4.1" />
     <!-- MTP-native hang guard: dumps + kills a test host stuck past the configured timeout
          (wired for every test project in tests/Directory.Build.props). -->
-    <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="1.9.1" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="2.4.1" />
     <!-- Container-backed end-to-end tests (Keyfactor SignServer pod); test-only, Docker/Podman-gated -->
     <PackageVersion Include="Testcontainers" Version="4.15.0" />
     <!-- JSON Schema validator, used ONLY by FalkForge.Core.Tests to check emitted SPDX 2.3 against
          the official SPDX schema vendored under tests/FalkForge.Core.Tests/Assets. Test-only: it is
          never referenced by a src project, so it cannot reach the NativeAOT assemblies. -->
-    <PackageVersion Include="JsonSchema.Net" Version="9.4.0" />
+    <PackageVersion Include="NJsonSchema" Version="11.6.1" />
   </ItemGroup>
   <ItemGroup>
     <!-- Analyzers -->
-    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.34.0.3385" />
     <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.7.23" />
     <PackageVersion Include="IDisposableAnalyzers" Version="4.0.8" />
     <PackageVersion Include="Meziantou.Analyzer" Version="3.0.261" />

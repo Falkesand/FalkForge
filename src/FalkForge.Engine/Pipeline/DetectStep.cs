@@ -136,6 +136,15 @@ internal sealed class DetectStep : IDetectStep
                     ct);
             }
 
+            // PackageDetector reports package state; bundle feature selections also need
+            // persisted choices, authored defaults, and related-bundle migration.
+            ctx.Detection = detection with
+            {
+                Features = FeatureDetector.Detect(_manifest.Features, _registry,
+                    _manifest.BundleId, _manifest.Scope, detectedStates,
+                    relatedResult.IsSuccess ? relatedResult.Value : null)
+            };
+
             await _uiChannel.SendAsync(
                 new PipelineEvent.Log(LogLevel.Info,
                     $"Detection complete: state={detection.State}, version={detection.CurrentVersion ?? "none"}"),

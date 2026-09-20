@@ -34,7 +34,7 @@
 
         <!-- Content -->
         <Grid Margin="24,18,20,18">
-            <ListView ItemsSource="{Binding Features}"
+            <ListView ItemsSource="{Binding FeatureOptions}"
                       SelectionMode="Single"
                       FontFamily="Segoe UI Variable Text, Segoe UI"
                       FontSize="13">
@@ -43,8 +43,9 @@
                         <GridViewColumn Header="Selected" Width="70">
                             <GridViewColumn.CellTemplate>
                                 <DataTemplate>
-                                    <CheckBox IsChecked="{Binding IsSelected, Mode=OneWay}"
-                                              IsEnabled="False" />
+                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              IsEnabled="{Binding IsEnabled}"
+                                              ToolTip="{Binding Description}" />
                                 </DataTemplate>
                             </GridViewColumn.CellTemplate>
                         </GridViewColumn>

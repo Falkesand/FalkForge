@@ -16,6 +16,12 @@ public interface IUiChannel : IAsyncDisposable
     void SetSessionCorrelationId(Guid id);
 
     /// <summary>
+    /// Signals UI cancellation independently of the request queue, so an executing phase can
+    /// stop without first finishing its work. Channels without interactive cancellation use None.
+    /// </summary>
+    CancellationToken CancellationRequested => CancellationToken.None;
+
+    /// <summary>
     /// Sends an event to the connected UI process. Returns immediately when no UI
     /// is connected (headless/CLI mode).
     /// </summary>

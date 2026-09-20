@@ -39,7 +39,8 @@ public sealed class LicenseAcceptanceReachesPlanTests
         UpgradeCode = Guid.NewGuid(),
         Packages = [],
         Scope = InstallScope.PerUser,
-        LicenseFile = "Licence text the user has to accept."
+        LicenseFile = "license.txt",
+        LicenseContent = "Licence text the user has to accept."u8.ToArray()
     };
 
     /// <summary>

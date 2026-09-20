@@ -114,11 +114,25 @@ public static class MsiTransformGenerator
 
         try
         {
-            var existingResult = ReadExistingPropertyNames(db);
+            var existingResult = ReadExistingProperties(db);
             if (existingResult.IsFailure)
                 return Result<Unit>.Failure(existingResult.Error);
 
             var existing = existingResult.Value;
+            if (secrets.Keys.Contains("MsiHiddenProperties", StringComparer.OrdinalIgnoreCase))
+                return Result<Unit>.Failure(ErrorKind.SecurityError,
+                    "MsiHiddenProperties is reserved for secret logging protection.");
+
+            var hidden = new HashSet<string>(StringComparer.Ordinal);
+            if (existing.TryGetValue("MsiHiddenProperties", out var authoredHidden))
+                hidden.UnionWith(authoredHidden.Split(';', StringSplitOptions.RemoveEmptyEntries));
+            hidden.UnionWith(secrets.Keys);
+            var hiddenValue = string.Join(';', hidden.Order(StringComparer.Ordinal));
+            var hideResult = existing.ContainsKey("MsiHiddenProperties")
+                ? UpdateProperty(db, "MsiHiddenProperties", hiddenValue)
+                : InsertProperty(db, "MsiHiddenProperties", hiddenValue);
+            if (hideResult.IsFailure)
+                return hideResult;
 
             foreach (var (name, secret) in secrets)
             {
@@ -126,7 +140,7 @@ public static class MsiTransformGenerator
                 // be zeroed — an unavoidable residual of the msi.dll string-setting API.
                 var value = Encoding.UTF8.GetString(secret.Span);
 
-                var opResult = existing.Contains(name)
+                var opResult = existing.ContainsKey(name)
                     ? UpdateProperty(db, name, value)
                     : InsertProperty(db, name, value);
                 if (opResult.IsFailure)
@@ -146,34 +160,34 @@ public static class MsiTransformGenerator
         }
     }
 
-    private static Result<HashSet<string>> ReadExistingPropertyNames(nint db)
+    private static Result<Dictionary<string, string>> ReadExistingProperties(nint db)
     {
-        var view = OpenView(db, "SELECT `Property` FROM `Property`");
+        var view = OpenView(db, "SELECT `Property`, `Value` FROM `Property`");
         if (view.IsFailure)
-            return Result<HashSet<string>>.Failure(view.Error);
+            return Result<Dictionary<string, string>>.Failure(view.Error);
 
         try
         {
             var exec = NativeMethods.MsiViewExecute(view.Value, nint.Zero);
             if (exec != ErrorSuccess)
-                return Result<HashSet<string>>.Failure(ErrorKind.ExecutionError,
+                return Result<Dictionary<string, string>>.Failure(ErrorKind.ExecutionError,
                     $"Failed to enumerate the Property table. Error code: {exec}");
 
-            var names = new HashSet<string>(StringComparer.Ordinal);
+            var names = new Dictionary<string, string>(StringComparer.Ordinal);
             while (true)
             {
                 var fetch = NativeMethods.MsiViewFetch(view.Value, out var record);
                 if (fetch == NativeMethods.ErrorNoMoreItems)
                     break;
                 if (fetch != ErrorSuccess)
-                    return Result<HashSet<string>>.Failure(ErrorKind.ExecutionError,
+                    return Result<Dictionary<string, string>>.Failure(ErrorKind.ExecutionError,
                         $"Failed to fetch a Property row. Error code: {fetch}");
 
                 try
                 {
                     var name = ReadRecordString(record, 1);
                     if (name is not null)
-                        names.Add(name);
+                        names.Add(name, ReadRecordString(record, 2) ?? string.Empty);
                 }
                 finally
                 {
@@ -323,7 +337,7 @@ public static class MsiTransformGenerator
         }
 
         if (error != ErrorSuccess)
-            return null;
+            throw new InvalidOperationException($"Failed to read an MSI property field. Error code: {error}");
         return size == 0 ? null : new string(buffer, 0, (int)size);
     }
 

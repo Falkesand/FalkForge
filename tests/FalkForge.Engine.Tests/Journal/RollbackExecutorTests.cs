@@ -69,7 +69,8 @@ public sealed class RollbackExecutorTests : IDisposable
         var result = await executor.ExecuteAsync(entries, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("msiexec.exe", runner.LastFileName);
+        Assert.Equal(Path.Combine(Environment.SystemDirectory, "msiexec.exe"), runner.LastFileName);
+        Assert.True(Path.IsPathFullyQualified(runner.LastFileName!));
         Assert.Equal("/x {AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE} /qn /norestart", runner.LastArguments);
     }
 

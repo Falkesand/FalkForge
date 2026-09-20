@@ -17,8 +17,9 @@ using Xunit;
 /// <c>Initialize()</c>/<c>Shutdown()</c>, and capturing stderr means redirecting
 /// <c>Console.Error</c>, itself a process-global static the way
 /// <c>FalkForge.Integration.Tests</c> only does safely because that whole assembly disables test
-/// parallelization for it (see <c>IntegrationAssemblyParallelization.cs</c>). This assembly does
-/// not, so either mechanism risks interference with other tests running concurrently.
+/// parallelization for it (see <c>IntegrationAssemblyParallelization.cs</c>). This assembly now
+/// also disables parallelization: these host paths write the same static log even though this
+/// class does not assert on it. ElevationSecurityLogTests verifies that indirect access.
 /// </para>
 /// </summary>
 public class ElevatedHostFailureReportingTests

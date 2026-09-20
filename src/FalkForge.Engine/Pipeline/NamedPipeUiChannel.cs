@@ -22,6 +22,10 @@ public sealed class NamedPipeUiChannel : IUiChannel
 {
     private readonly PipeServer? _pipe;
     private readonly Channel<UiRequest> _requests;
+    private readonly CancellationTokenSource _cancellationRequested = new();
+    private int _disposeStarted;
+
+    public CancellationToken CancellationRequested => _cancellationRequested.Token;
 
     // Mutable pre-plan state accumulated from SetInstallDirectory / SetFeatureSelection messages
     private volatile string? _pendingInstallDirectory;
@@ -70,6 +74,7 @@ public sealed class NamedPipeUiChannel : IUiChannel
         NamedPipeUiChannel? ch = null;
         var pipe = new PipeServer(options, msg => ch!.HandleIncomingMessageAsync(msg));
         ch = new NamedPipeUiChannel(pipe);
+        pipe.PipeClosed += () => ch._requests.Writer.TryComplete();
         return ch;
     }
 
@@ -130,9 +135,13 @@ public sealed class NamedPipeUiChannel : IUiChannel
     /// <inheritdoc/>
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
+            return;
+
         _requests.Writer.TryComplete();
         if (_pipe is not null)
             await _pipe.DisposeAsync();
+        _cancellationRequested.Dispose();
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -175,6 +184,11 @@ public sealed class NamedPipeUiChannel : IUiChannel
         },
 
         PipelineEvent.Failed(var kind, var message) => new ErrorMessage { Kind = kind, Message = message },
+
+        PipelineEvent.DetectBegin => new DetectBeginMessage(),
+        PipelineEvent.PlanBegin(var action) => new PlanBeginMessage { Action = action },
+        PipelineEvent.ApplyBegin(var totalPackages) => new ApplyBeginMessage { TotalPackages = totalPackages },
+        PipelineEvent.ShutdownComplete(var exitCode) => new ShutdownResponseMessage { ExitCode = exitCode },
 
         PipelineEvent.DetectComplete(var state, var version, var features) => new DetectCompleteMessage
         {
@@ -325,6 +339,10 @@ public sealed class NamedPipeUiChannel : IUiChannel
 
     private Task HandleIncomingMessageAsync(EngineMessage message)
     {
+        // The runner may be awaiting Apply and cannot consume another queued request yet.
+        if (message is CancelMessage)
+            return _cancellationRequested.CancelAsync();
+
         // Accumulate pre-plan configuration messages
         if (message is SetInstallDirectoryMessage dirMsg)
         {

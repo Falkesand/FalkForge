@@ -18,12 +18,23 @@ public abstract class PipeTransportBase : IAsyncDisposable
     protected PipeStream? _pipe;
     private CancellationTokenSource? _cts;
     private Task? _receiveLoop;
+    private int _disposeStarted;
     private readonly Func<EngineMessage, Task> _messageHandler;
+    private readonly ArrayPool<byte> _bufferPool;
 
     protected PipeTransportBase(PipeConnectionOptions options, Func<EngineMessage, Task> messageHandler)
+        : this(options, messageHandler, ArrayPool<byte>.Shared)
+    {
+    }
+
+    private protected PipeTransportBase(
+        PipeConnectionOptions options,
+        Func<EngineMessage, Task> messageHandler,
+        ArrayPool<byte> bufferPool)
     {
         _options = options;
         _messageHandler = messageHandler;
+        _bufferPool = bufferPool;
     }
 
     public bool IsConnected => _pipe?.IsConnected ?? false;
@@ -55,7 +66,7 @@ public abstract class PipeTransportBase : IAsyncDisposable
         // BitConverter.GetBytes(...) 4-byte allocation and halves the pipe write syscalls.
         // The framing bytes on the wire are unchanged: [length:i32 little-endian][payload].
         var frameLength = sizeof(int) + data.Length;
-        var frame = ArrayPool<byte>.Shared.Rent(frameLength);
+        var frame = _bufferPool.Rent(frameLength);
         try
         {
             BinaryPrimitives.WriteInt32LittleEndian(frame, data.Length);
@@ -77,7 +88,7 @@ public abstract class PipeTransportBase : IAsyncDisposable
             // the secret is not left in a process-wide pooled buffer for the next Rent() —
             // anywhere in the process — to read. Mirrors SetSecurePropertyCodec's own
             // Return(scratch, clearArray: true) convention.
-            ArrayPool<byte>.Shared.Return(frame, clearArray: true);
+            _bufferPool.Return(frame, clearArray: true);
         }
     }
 
@@ -96,7 +107,7 @@ public abstract class PipeTransportBase : IAsyncDisposable
                 if (messageLength <= 0 || messageLength > _options.MaxMessageSize)
                     break;
 
-                var messageBuffer = ArrayPool<byte>.Shared.Rent(messageLength);
+                var messageBuffer = _bufferPool.Rent(messageLength);
                 try
                 {
                     if (!await ReadExactAsync(_pipe, messageBuffer, messageLength, ct))
@@ -114,7 +125,9 @@ public abstract class PipeTransportBase : IAsyncDisposable
                 }
                 finally
                 {
-                    ArrayPool<byte>.Shared.Return(messageBuffer);
+                    // SECURITY: received messages can contain plaintext secure-property values.
+                    // Clear the entire rented array before it re-enters the process-wide pool.
+                    _bufferPool.Return(messageBuffer, clearArray: true);
                 }
             }
             catch (OperationCanceledException)
@@ -151,6 +164,9 @@ public abstract class PipeTransportBase : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposeStarted, 1) != 0)
+            return;
+
         if (_cts is not null)
         {
             await _cts.CancelAsync();

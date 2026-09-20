@@ -117,6 +117,15 @@ public sealed class ElevatedHost : IAsyncDisposable
             // subsequent log entry carries the same id as the engine and UI logs.
             ElevationSecurityLog.SetCorrelationId(sessionStart.CorrelationId);
             ElevationSecurityLog.Info("Session", $"Session correlation id set: {sessionStart.CorrelationId:D}");
+            if (ElevationSecurityLog.TamperDetected && _pipe is not null)
+            {
+                await _pipe.SendAsync(new LogMessage
+                {
+                    Level = FalkForge.Diagnostics.LogLevel.Warning,
+                    Text = "Elevated security logging is unavailable: the log path failed a security check. Possible log-path tampering was detected.",
+                    SessionCorrelationId = sessionStart.CorrelationId
+                }, _cts?.Token ?? CancellationToken.None);
+            }
             return;
         }
 

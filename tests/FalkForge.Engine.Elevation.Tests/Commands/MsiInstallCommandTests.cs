@@ -161,6 +161,17 @@ public sealed class MsiInstallCommandTests : IDisposable
         Assert.Contains("1603", result.Error.Message);
     }
 
+    [Theory]
+    [InlineData(new byte[] { 255, 255, 255, 255, 255 })]
+    [InlineData(new byte[] { 255, 255, 255, 255, 15 })]
+    public void Execute_InvalidStringLengthReturnsTypedSecurityFailure(byte[] payload)
+    {
+        var result = _command.Execute(payload);
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal(0, _mockMsiApi.InstallProductCallCount);
+    }
+
     [Fact]
     public void Execute_Install_EmptyAdditionalArgs_PassesNullCommandLine()
     {
@@ -175,6 +186,8 @@ public sealed class MsiInstallCommandTests : IDisposable
     [InlineData(@"\\server\share\evil.msi")]
     [InlineData(@"\\.\pipe\evil")]
     [InlineData(@"\\?\UNC\server\share\evil.msi")]
+    [InlineData("//server/share/evil.msi")]
+    [InlineData(@"\/server/share/evil.msi")]
     public void Execute_RejectsUncPaths(string path)
     {
         var payload = BuildPayload(path, string.Empty);

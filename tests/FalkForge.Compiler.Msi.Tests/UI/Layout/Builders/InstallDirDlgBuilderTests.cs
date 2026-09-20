@@ -99,13 +99,12 @@ public sealed class InstallDirDlgBuilderTests
     [Fact]
     public void Build_emits_events_for_each_button()
     {
-        // Legacy BuildInstallDirDlg emits six ControlEvent rows: ChangeFolder x3 (SetProperty,
-        // SpawnDialog, SetProperty), Back NewDialog, Next EndDialog, Cancel SpawnDialog.
+        // Next validates the directory before handing off; ChangeFolder has three setup events.
         var ctx = new DialogFlowContext { BackDialog = "WelcomeDlg" };
 
         var content = InstallDirDlgBuilder.Build(ctx);
 
-        Assert.Equal(6, content.Events.Length);
+        Assert.Equal(7, content.Events.Length);
     }
 
     [Fact]
@@ -123,7 +122,12 @@ public sealed class InstallDirDlgBuilderTests
         Assert.Equal("SpawnDialog", cancel.Event);
         Assert.Equal("MyCancelDlg", cancel.Argument);
 
-        var next = content.Events.Single(e => e.Control == "Next");
+        var nextEvents = content.Events.Where(e => e.Control == "Next").OrderBy(e => e.Order).ToArray();
+        Assert.Equal(2, nextEvents.Length);
+        Assert.Equal("SetTargetPath", nextEvents[0].Event);
+        Assert.Equal("INSTALLDIR", nextEvents[0].Argument);
+        Assert.Equal("NOT Installed AND ProductState <> 5", nextEvents[0].Condition);
+        var next = nextEvents[1];
         Assert.Equal("EndDialog", next.Event);
         Assert.Equal("Return", next.Argument);
     }

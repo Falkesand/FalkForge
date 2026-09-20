@@ -12,6 +12,12 @@ namespace FalkForge.Compiler.Msi;
 [SupportedOSPlatform("windows")]
 public sealed partial class CabinetExtractor : IDisposable
 {
+    /// <summary>Maximum cumulative uncompressed-byte limit for one cabinet extraction.</summary>
+    public const long MaximumTotalBytes = 4L * 1024 * 1024 * 1024;
+
+    /// <summary>Maximum number of entries accepted from one cabinet extraction.</summary>
+    public const int MaximumFileCount = 65_536;
+
     // Extracted file data collected during FDICopy via notifications.
     private readonly Dictionary<string, byte[]> _extractedFiles = new();
 
@@ -31,12 +37,13 @@ public sealed partial class CabinetExtractor : IDisposable
     // Tracks the last callback error for diagnostic messages on failure.
     private string? _lastCallbackError;
 
-    // Decompression-bomb guard. Maximum cumulative uncompressed bytes this extractor will
-    // collect before aborting; the running total is summed as each file completes. Default is
-    // unbounded (long.MaxValue) so existing callers — notably "forge extract" — are unchanged.
-    private long _maxTotalBytes = long.MaxValue;
+    // Decompression-bomb guards. The file count is charged before an output stream is allocated;
+    // the byte total is checked against both the declared size and the completed output.
+    private long _maxTotalBytes = MaximumTotalBytes;
+    private int _maxFileCount = MaximumFileCount;
     private long _totalExtractedBytes;
-    private bool _budgetExceeded;
+    private int _fileCount;
+    private bool _limitExceeded;
 
     // Directory that contains the primary cabinet on disk. fdintNEXT_CABINET
     // resolves continuation names against this directory so span chains work.
@@ -65,14 +72,26 @@ public sealed partial class CabinetExtractor : IDisposable
     ///     <c>fdintNEXT_CABINET</c> chain for spanned cabs. Pass the path of
     ///     the first cab in the chain; continuation cabs must sit next to it.
     /// </summary>
-    public static Result<Dictionary<string, byte[]>> ExtractFromPath(string cabinetPath)
+    public static Result<Dictionary<string, byte[]>> ExtractFromPath(string cabinetPath) =>
+        ExtractFromPath(cabinetPath, MaximumTotalBytes, MaximumFileCount);
+
+    /// <summary>
+    ///     Extracts a cabinet from disk while enforcing cumulative byte and entry-count limits.
+    /// </summary>
+    public static Result<Dictionary<string, byte[]>> ExtractFromPath(
+        string cabinetPath, long maxTotalBytes, int maxFileCount)
     {
         ArgumentNullException.ThrowIfNull(cabinetPath);
+        ValidateLimits(maxTotalBytes, maxFileCount);
         if (!File.Exists(cabinetPath))
             return Result<Dictionary<string, byte[]>>.Failure(
                 ErrorKind.InvalidOperation, $"Cabinet file '{cabinetPath}' does not exist.");
 
-        using var extractor = new CabinetExtractor();
+        using var extractor = new CabinetExtractor
+        {
+            _maxTotalBytes = maxTotalBytes,
+            _maxFileCount = maxFileCount
+        };
         return extractor.ExtractFromPathCore(cabinetPath);
     }
 
@@ -101,7 +120,7 @@ public sealed partial class CabinetExtractor : IDisposable
     /// <param name="cabinetStream">The cabinet data stream. Must be readable.</param>
     /// <returns>A dictionary mapping file names to their extracted byte contents.</returns>
     public static Result<Dictionary<string, byte[]>> Extract(Stream cabinetStream) =>
-        Extract(cabinetStream, long.MaxValue);
+        Extract(cabinetStream, MaximumTotalBytes, MaximumFileCount);
 
     /// <summary>
     ///     Extracts all files from a cabinet stream into memory, aborting if the cumulative
@@ -110,19 +129,31 @@ public sealed partial class CabinetExtractor : IDisposable
     /// </summary>
     /// <param name="cabinetStream">The cabinet data stream. Must be readable.</param>
     /// <param name="maxTotalBytes">
-    ///     Maximum cumulative uncompressed bytes to collect. Use <see cref="long.MaxValue"/>
-    ///     for unbounded extraction (the historical behaviour).
+    ///     Maximum cumulative uncompressed bytes to collect. Must not exceed
+    ///     <see cref="MaximumTotalBytes"/>.
     /// </param>
     /// <returns>A dictionary mapping file names to their extracted byte contents.</returns>
-    public static Result<Dictionary<string, byte[]>> Extract(Stream cabinetStream, long maxTotalBytes)
+    public static Result<Dictionary<string, byte[]>> Extract(Stream cabinetStream, long maxTotalBytes) =>
+        Extract(cabinetStream, maxTotalBytes, MaximumFileCount);
+
+    /// <summary>
+    ///     Extracts all files while enforcing cumulative byte and entry-count limits.
+    /// </summary>
+    public static Result<Dictionary<string, byte[]>> Extract(
+        Stream cabinetStream, long maxTotalBytes, int maxFileCount)
     {
         ArgumentNullException.ThrowIfNull(cabinetStream);
+        ValidateLimits(maxTotalBytes, maxFileCount);
 
         if (!cabinetStream.CanRead)
             return Result<Dictionary<string, byte[]>>.Failure(
                 ErrorKind.InvalidOperation, "Cabinet stream must be readable.");
 
-        using var extractor = new CabinetExtractor { _maxTotalBytes = maxTotalBytes };
+        using var extractor = new CabinetExtractor
+        {
+            _maxTotalBytes = maxTotalBytes,
+            _maxFileCount = maxFileCount
+        };
         return extractor.ExtractCore(cabinetStream);
     }
 
@@ -236,7 +267,7 @@ public sealed partial class CabinetExtractor : IDisposable
 
             if (!success)
             {
-                failure = _budgetExceeded
+                failure = _limitExceeded
                     ? Result<Dictionary<string, byte[]>>.Failure(
                         ErrorKind.LayoutError,
                         $"Cabinet extraction aborted: {_lastCallbackError}")
@@ -264,6 +295,14 @@ public sealed partial class CabinetExtractor : IDisposable
             return failure.Value;
 
         return new Dictionary<string, byte[]>(_extractedFiles);
+    }
+
+    private static void ValidateLimits(long maxTotalBytes, int maxFileCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxTotalBytes);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxTotalBytes, MaximumTotalBytes);
+        ArgumentOutOfRangeException.ThrowIfNegative(maxFileCount);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxFileCount, MaximumFileCount);
     }
 
     private static string EnsureTrailingBackslash(string path)

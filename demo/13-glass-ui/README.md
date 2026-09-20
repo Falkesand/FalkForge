@@ -3,6 +3,8 @@
 A fully custom installer window with a translucent, rounded-corner "glass" aesthetic. This demo shows how to replace the
 default FalkForge window shell with a custom WPF `Window` subclass while still using the page navigation framework.
 
+> **Integration status:** running this project directly is a UI preview. It connects to an engine only when launched with valid engine pipe arguments. `UseCustomUI(projectPath)` does not build or embed the project yet.
+
 ## What This Demonstrates
 
 - Replacing the default installer window with a custom WPF Window via `CustomWindow<T>()`

@@ -86,6 +86,48 @@ public sealed class TrustedKeysTargetsValidationTests : IDisposable
         Assert.DoesNotContain("new(\"", generated, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("/")]
+    [InlineData("G")]
+    [InlineData("_")]
+    public void UnexpectedFingerprintCharacter_IsRejectedEvenWith64HexDigits(string invalid)
+    {
+        var result = RunGenerateTarget("-p:FalkForgeTrustedKey=" + new string('A', 64) + invalid);
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("FALKPQ006", result.Output, StringComparison.Ordinal);
+        Assert.False(File.Exists(GeneratedFilePath()));
+    }
+
+    [Fact]
+    public void MalformedClassicalAndPqFingerprints_ReportBothDiagnostics()
+    {
+        File.WriteAllText(Path.Combine(_projectDir, "Scratch.csproj"), $"""
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup><TargetFramework>net10.0</TargetFramework></PropertyGroup>
+              <ItemGroup>
+                <FalkForgeTrustedKey Include="ABCD"><PqFingerprint>1234</PqFingerprint></FalkForgeTrustedKey>
+              </ItemGroup>
+              <Import Project="{TargetsFilePath}" />
+            </Project>
+            """);
+
+        var result = RunGenerateTarget("-p:FalkForgeTrustedKey=");
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("FALKPQ004", result.Output, StringComparison.Ordinal);
+        Assert.Contains("FALKPQ002", result.Output, StringComparison.Ordinal);
+        Assert.False(File.Exists(GeneratedFilePath()));
+    }
+
+    [Fact]
+    public void DisplaySeparators_AreNormalized()
+    {
+        var fingerprint = string.Join(":-", Enumerable.Repeat("ab", 32));
+        var result = RunGenerateTarget("-p:FalkForgeTrustedKey=" + fingerprint);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(string.Concat(Enumerable.Repeat("AB", 32)),
+            File.ReadAllText(GeneratedFilePath()), StringComparison.Ordinal);
+    }
+
     private string GeneratedFilePath() =>
         Path.Combine(_projectDir, "obj", "Debug", "net10.0", "TrustedKeys.g.cs");
 

@@ -336,7 +336,9 @@ public static class MsiIntegrityVerifier
         if (mediaResult.IsFailure)
             return Result<(Dictionary<string, string>, List<string>)>.Failure(mediaResult.Error);
 
+        // Share both limits across cabinets so a multi-cab MSI cannot reset either budget.
         var remainingBudget = MsiStreamName.MaxTotalUncompressedCabinetBytes;
+        var remainingFileCount = CabinetExtractor.MaximumFileCount;
         var extractedEntries = new List<(string Name, string Hash)>();
 
         foreach (var mediaRow in mediaResult.Value)
@@ -356,9 +358,11 @@ public static class MsiIntegrityVerifier
                 continue; // Declared cabinet does not actually exist as a stream — skip gracefully.
 
             using var cabStream = new MemoryStream(streamResult.Value);
-            var extractResult = CabinetExtractor.Extract(cabStream, remainingBudget);
+            var extractResult = CabinetExtractor.Extract(cabStream, remainingBudget, remainingFileCount);
             if (extractResult.IsFailure)
                 return Result<(Dictionary<string, string>, List<string>)>.Failure(extractResult.Error);
+
+            remainingFileCount -= extractResult.Value.Count;
 
             foreach (var (cabFileKey, fileData) in extractResult.Value)
             {

@@ -16,6 +16,7 @@ public sealed class InstallerWindowBuilder
     private string? _iconPath;
     private bool _isBorderless;
     private string? _title;
+    private string? _titleLocalizationKey;
     private string? _watermarkImagePath;
     private double _width = 600;
 
@@ -53,6 +54,16 @@ public sealed class InstallerWindowBuilder
     public InstallerWindowBuilder Title(string title)
     {
         _title = title;
+        _titleLocalizationKey = null;
+        return this;
+    }
+
+    /// <summary>Resolves the window title from a localization key and updates it when culture changes.</summary>
+    public InstallerWindowBuilder TitleLocalized(string key)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(key);
+        _titleLocalizationKey = key;
+        _title = null;
         return this;
     }
 
@@ -110,6 +121,7 @@ public sealed class InstallerWindowBuilder
             BackgroundColor = _backgroundColor,
             AccentColor = _accentColor,
             Title = _title,
+            TitleLocalizationKey = _titleLocalizationKey,
             IconPath = _iconPath,
             CustomWindowFactory = _customWindowFactory,
             CustomWindowType = _customWindowType,

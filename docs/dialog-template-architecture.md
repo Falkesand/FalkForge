@@ -124,7 +124,7 @@ for these six regions.
 
 ## Authoring a New Dialog Step
 
-The following walkthrough uses `WelcomeDlgBuilder` as the reference.
+The following walkthrough uses `WelcomeDlgBuilder` as the reference. Use `DialogFooter.NextEvent(flow)` for forward navigation: when the target is `ProgressDlg`, it emits `EndDialog Return` so the MSI sequence can start installation. Opening Progress with `NewDialog` would leave the wizard's modal chain running.
 File: `src/FalkForge.Compiler.Msi/UI/Layout/Builders/WelcomeDlgBuilder.cs`
 
 **Step 1 — Declare the content.** Build a `DialogContent` that references regions by name.
@@ -138,12 +138,7 @@ internal static class WelcomeDlgBuilder
     public static DialogContent Build(DialogFlowContext flow)
     {
         var events = ImmutableArray.Create(
-            new DialogControlEvent
-            {
-                Control = "Next",
-                Event = "NewDialog",
-                Argument = flow.NextDialog ?? string.Empty,
-            },
+            DialogFooter.NextEvent(flow),
             new DialogControlEvent
             {
                 Control = "Cancel",
@@ -250,6 +245,8 @@ new PackageBuilder { Name = "MyApp", Manufacturer = "Acme Corp", Version = new V
     .Build();
 ```
 
+`DialogButton.Install` also targets a stock `Next` control when its event starts installation, and takes precedence over `DialogButton.Next` there. Other wizard pages keep the Next override. Setup-type choice buttons retain their distinct labels.
+
 `DialogCustomization` verbs. `key` in `BannerBitmap`/`DialogBitmap`/`HeaderIcon` is always a
 **Binary stream key** — the `Name` of a `PackageBuilder.Binary(name, sourcePath)` entry, never a
 raw file path. DLG003 fails the build if a key does not resolve to a registered `Binary`:
@@ -311,7 +308,7 @@ table.
 
 ## Extension Dialog Step Contribution
 
-Extensions contribute dialog steps in two parts:
+The following is an in-repository compiler extension example. The MSI step interface, context and model are internal; referencing the compiler package does not expose them to external extensions. External authors should use the public custom-dialog builders. Making this step API public requires a separate API design.
 
 **Part 1 — Register the step name** (required for DLG001 to pass):
 
@@ -328,13 +325,12 @@ public sealed class LicensingExtension : IFalkForgeExtension
 ```
 
 `IDialogStepBuilder` (in `FalkForge.Extensibility`) only requires `string Name { get; }`.
-This is sufficient for DLG001 name resolution. No MSI dialog is emitted unless the builder
-also implements `IMsiDialogStepBuilder`.
+This is sufficient for DLG001 name resolution. Inserting that name without an MSI-capable builder fails with DLG025. The builder must also implement `IMsiDialogStepBuilder` and emit a dialog whose name matches its registered name.
 
 **Part 2 — Implement `IMsiDialogStepBuilder`** (required to emit a dialog):
 
 ```csharp
-// Requires a project reference to FalkForge.Compiler.Msi
+// Compiler-internal code; not an out-of-tree extension API.
 internal sealed class LicenseKeyDlgBuilder : IMsiDialogStepBuilder
 {
     public string Name => "LicenseKeyDlg";
@@ -354,8 +350,20 @@ internal sealed class LicenseKeyDlgBuilder : IMsiDialogStepBuilder
                 DefaultControl = "Next",
                 CancelControl = "Cancel",
                 TitleLocKey = "[ProductName] License Key",
-                Placements = /* ... */,
-                Events = /* ... */,
+                Placements = ImmutableArray.Create(
+                    DialogFooter.BottomLine(),
+                    new RegionPlacement
+                    {
+                        RegionName = "ButtonRow",
+                        Controls = ImmutableArray.Create(
+                            DialogFooter.CancelButton(),
+                            DialogFooter.NextButton(next),
+                            DialogFooter.BackButton()),
+                    }),
+                Events = ImmutableArray.Create(
+                    next,
+                    DialogFooter.BackEvent(context.Flow),
+                    DialogFooter.CancelEvent(context.Flow)),
             },
             Layouts.Standard370x270,
             context.Customization);

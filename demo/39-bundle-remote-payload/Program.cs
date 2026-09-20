@@ -2,7 +2,8 @@ using FalkForge;
 using FalkForge.Compiler.Bundle.Builders;
 using FalkForge.Compiler.Bundle.Compilation;
 
-// Download a package from a URL at install time instead of embedding it.
+// Author remote-payload metadata without embedding a local MSI.
+// Current limitation: the ordinary chain runtime does not download this package yet.
 return Installer.BuildBundle(args, outputPath =>
 {
     var bundle = new BundleBuilder()

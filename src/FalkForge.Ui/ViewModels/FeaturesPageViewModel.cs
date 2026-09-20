@@ -9,6 +9,13 @@ namespace FalkForge.Ui.ViewModels;
 public sealed class FeaturesPageViewModel : InstallerPageViewModel, IReactiveObject
 {
     private IReadOnlyList<FeatureState> _features = [];
+    private IReadOnlyList<BundleFeatureViewModel> _featureOptions = [];
+
+    public IReadOnlyList<BundleFeatureViewModel> FeatureOptions
+    {
+        get => _featureOptions;
+        private set => this.RaiseAndSetIfChanged(ref _featureOptions, value);
+    }
 
     public FeaturesPageViewModel(IInstallerEngine engine, INavigationService navigation)
         : base(engine, navigation)
@@ -40,7 +47,17 @@ public sealed class FeaturesPageViewModel : InstallerPageViewModel, IReactiveObj
 
     public override Task OnNavigatedToAsync(CancellationToken ct = default)
     {
-        Features = Engine.Features;
+        ct.ThrowIfCancellationRequested();
+        Features = Engine.Features.ToArray();
+        var channel = Engine as IBundleFeatureChannel;
+        FeatureOptions = Features.Select(feature => new BundleFeatureViewModel(
+            feature, channel is not null, (id, selected) =>
+            {
+                channel?.SetFeatureSelection(id, selected);
+                Features = Features.Select(state => state.FeatureId == id
+                    ? state with { IsSelected = selected }
+                    : state).ToArray();
+            })).ToArray();
         return Task.CompletedTask;
     }
 }

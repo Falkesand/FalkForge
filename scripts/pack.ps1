@@ -96,16 +96,28 @@ elseif (-not $SkipEnginePublish) {
     if ($LASTEXITCODE -ne 0) { throw "UI publish failed" }
 }
 
-# Idempotent: clean the feed folder.
-if (Test-Path $Output) { Remove-Item -Recurse -Force $Output }
-New-Item -ItemType Directory -Force $Output | Out-Null
+# Clean only our package outputs. Never recursively delete a caller-supplied directory.
+$Output = [IO.Path]::GetFullPath($Output)
+New-Item -ItemType Directory -Force -Path $Output | Out-Null
+Get-ChildItem -LiteralPath $Output -File | Where-Object {
+    $_.Name -match '^FalkForge(?:\.[A-Za-z0-9_-]+)*\.[0-9]+\..*\.s?nupkg$'
+} | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Force }
 
-$packArgs = @($slnx, "-c", "Release", "-o", $Output)
+$packArgs = @($slnx, "-c", "Release", "-o", $Output, "-p:FalkForgePackEngineSources=false")
 if ($Version) { $packArgs += "-p:Version=$Version" }
 if ($NoEngine) { $packArgs += "-p:FalkForgePackEngine=false" }
 
 dotnet pack @packArgs
 if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed" }
+
+# Source locks include the hashes of these just-built sibling packages, so sources pack last.
+if (-not $NoEngine) {
+    $sourceProject = Join-Path $root 'src/FalkForge.Engine.Sources/FalkForge.Engine.Sources.csproj'
+    $sourceArgs = @($sourceProject, "-c", "Release", "-o", $Output, "-p:FalkForgeSourceLockFeed=$Output")
+    if ($Version) { $sourceArgs += "-p:Version=$Version" }
+    dotnet pack @sourceArgs
+    if ($LASTEXITCODE -ne 0) { throw "Engine source package and dependency locks failed" }
+}
 
 Write-Host ""
 Write-Host "Packed packages:" -ForegroundColor Green

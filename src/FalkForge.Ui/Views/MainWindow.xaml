@@ -1,7 +1,7 @@
 <Window x:Class="FalkForge.Ui.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="FalkForge" Height="420" Width="500"
+        Title="{DynamicResource Shell.Title}" Height="420" Width="500"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
         Background="{DynamicResource WindowBackgroundBrush}">
@@ -14,15 +14,15 @@
                 Padding="0,10,16,10">
             <StackPanel Orientation="Horizontal"
                         HorizontalAlignment="Right">
-                <Button Content="&lt; Back"
+                <Button Content="{DynamicResource Shell.Back}"
                         Style="{DynamicResource WizardButton}"
                         IsEnabled="{Binding CanGoBack}"
                         Click="OnBackClick" />
-                <Button Content="Next &gt;"
+                <Button Content="{DynamicResource Shell.Next}"
                         Style="{DynamicResource WizardButtonPrimary}"
                         IsEnabled="{Binding CanGoNext}"
                         Click="OnNextClick" />
-                <Button Content="Cancel"
+                <Button Content="{DynamicResource Shell.Cancel}"
                         Style="{DynamicResource WizardButton}"
                         Margin="12,0,0,0"
                         Click="OnCancelClick" />

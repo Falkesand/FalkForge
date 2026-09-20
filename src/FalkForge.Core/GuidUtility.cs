@@ -62,6 +62,26 @@ public static class GuidUtility
         }
     }
 
+    /// <summary>Derives an identity from a purpose and length-framed fields, avoiding delimiter collisions.</summary>
+    /// <remarks>This versioned format differs from legacy double-colon concatenation.</remarks>
+    public static Guid CreateFramedGuid(Guid namespaceId, string purpose, params string?[] fields)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(purpose);
+        ArgumentNullException.ThrowIfNull(fields);
+        var name = new StringBuilder("FalkForge.Identity.v2|");
+        AppendField(name, purpose);
+        foreach (var field in fields)
+            AppendField(name, field);
+        return CreateDeterministicGuid(namespaceId, name.ToString());
+    }
+
+    private static void AppendField(StringBuilder target, string? field)
+    {
+        target.Append((field?.Length ?? -1).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        target.Append(':');
+        target.Append(field);
+    }
+
     private static void SwapGuidByteOrder(Span<byte> guid)
     {
         // Swap first 4 bytes

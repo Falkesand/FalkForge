@@ -97,9 +97,10 @@ public static class MsiPayloadExtractor
 
         var payloads = new Dictionary<string, byte[]>(StringComparer.Ordinal);
 
-        // Cumulative uncompressed-byte budget shared across every embedded cabinet, so a
-        // multi-cab decompression bomb cannot bypass the cap by spreading bytes over cabs.
+        // Cumulative byte and entry-count budgets are shared across every embedded cabinet,
+        // so a multi-cab bomb cannot bypass either cap by spreading work over cabinets.
         var remainingBudget = MsiStreamName.MaxTotalUncompressedCabinetBytes;
+        var remainingFileCount = CabinetExtractor.MaximumFileCount;
 
         foreach (var mediaRow in mediaResult.Value)
         {
@@ -124,9 +125,11 @@ public static class MsiPayloadExtractor
                 continue; // Cabinet may not exist; skip gracefully.
 
             using var cabStream = new MemoryStream(streamResult.Value);
-            var extractResult = CabinetExtractor.Extract(cabStream, remainingBudget);
+            var extractResult = CabinetExtractor.Extract(cabStream, remainingBudget, remainingFileCount);
             if (extractResult.IsFailure)
                 return Result<IReadOnlyDictionary<string, byte[]>>.Failure(extractResult.Error);
+
+            remainingFileCount -= extractResult.Value.Count;
 
             foreach (var (cabFileKey, fileData) in extractResult.Value)
             {

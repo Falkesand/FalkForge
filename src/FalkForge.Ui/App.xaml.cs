@@ -28,7 +28,8 @@ public partial class App : Application
             return;
         }
 
-        var manifest = BuiltInUiHost.LoadManifest(resolved.Value.ManifestPath);
+        var manifest = BuiltInUiHost.LoadManifest(
+            resolved.Value.ManifestPath, resolved.Value.ManifestSha256);
         if (manifest.IsFailure)
         {
             FailLoud(manifest.Error.Message);

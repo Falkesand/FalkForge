@@ -299,6 +299,20 @@ internal static class DialogComposer
                 continue;
             }
 
+            // Install labels follow the handoff event even when the stock control is named Next.
+            // Resolve this before the generic Next override so dictionary iteration cannot decide.
+            if (control.Type == MsiControlType.PushButton
+                && control.Name == "Next"
+                && customization.ButtonLabelOverrides.TryGetValue(DialogButton.Install, out var installLabel)
+                && !content.Events.IsDefaultOrEmpty
+                && content.Events.Any(e => e.Control == control.Name
+                    && e.Event == "EndDialog" && e.Argument == "Return")
+                && content.Kind != "Exit" && content.Kind != "Cancel" && content.Kind != "Browse")
+            {
+                control.Text = installLabel;
+                continue;
+            }
+
             if (hasButtonOverrides
                 && control.Type == MsiControlType.PushButton
                 && buttonOverrides!.TryGetValue(control.Name, out var label))

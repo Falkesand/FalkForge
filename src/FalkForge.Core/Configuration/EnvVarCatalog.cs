@@ -71,6 +71,9 @@ public static class EnvVarCatalog
     /// <summary>SignServer auth mode: <c>none|clientcert|basic|bearer</c>.</summary>
     public const string SignServerAuth = "SIGNSERVER_AUTH";
 
+    /// <summary>Explicit opt-in for unauthenticated HTTP to a local development SignServer.</summary>
+    public const string SignServerAllowInsecureHttp = "SIGNSERVER_ALLOW_INSECURE_HTTP";
+
     /// <summary>Bearer token used when <see cref="SignServerAuth"/> is <c>bearer</c>.</summary>
     public const string SignServerBearerToken = "SIGNSERVER_BEARER_TOKEN";
 

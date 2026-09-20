@@ -36,15 +36,33 @@ public sealed partial class NoFollowFileWriterTests : IDisposable
     }
 
     [Fact]
-    public void Write_TruncatesExistingLongerFile()
+    public void Write_RefusesExistingFileWithoutChangingItsContents()
     {
         var targetPath = Path.Combine(_tempDir, "truncate.bin");
         File.WriteAllBytes(targetPath, "AAAAAAAAAAAAAAAA"u8.ToArray());
 
         var result = NoFollowFileWriter.Write(_tempDir, targetPath, "BB"u8.ToArray());
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal("BB"u8.ToArray(), File.ReadAllBytes(targetPath));
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal("AAAAAAAAAAAAAAAA"u8.ToArray(), File.ReadAllBytes(targetPath));
+    }
+
+    [Fact]
+    public void Write_RefusesHardLinkAndPreservesVictim()
+    {
+        var victim = Path.Combine(_tempDir, "write-victim.bin");
+        var link = Path.Combine(_tempDir, "write-link.bin");
+        File.WriteAllBytes(victim, "original"u8.ToArray());
+        if (!TryCreateHardLink(link, victim))
+            Assert.Skip("Hard link creation unavailable on this host/volume");
+
+        var result = NoFollowFileWriter.Write(_tempDir, link, "replacement"u8.ToArray());
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Equal("original"u8.ToArray(), File.ReadAllBytes(victim));
+        Assert.Equal("original"u8.ToArray(), File.ReadAllBytes(link));
     }
 
     [Fact]
@@ -186,11 +204,9 @@ public sealed partial class NoFollowFileWriterTests : IDisposable
     }
 
     [Fact]
-    public void Write_AcceptsTargetLeafGivenInShortForm()
+    public void Write_RefusesExistingTargetEvenWhenGivenInShortForm()
     {
-        // Same availability concern as above, but for the FINAL component: an existing file
-        // addressed via its 8.3 alias must be writable — the alias is an alternate name of
-        // the same file, not a redirect.
+        // An 8.3 alias still names an existing file and cannot bypass create-only semantics.
         var targetLong = Path.Combine(_tempDir, "LongFileNameWithAlias.bin");
         File.WriteAllBytes(targetLong, new byte[] { 9, 9, 9, 9, 9, 9 });
         var shortTarget = TryGetShortPath(targetLong);
@@ -201,8 +217,8 @@ public sealed partial class NoFollowFileWriterTests : IDisposable
 
         var result = NoFollowFileWriter.Write(_tempDir, shortTarget, content);
 
-        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
-        Assert.Equal(content, File.ReadAllBytes(targetLong));
+        Assert.True(result.IsFailure);
+        Assert.Equal(new byte[] { 9, 9, 9, 9, 9, 9 }, File.ReadAllBytes(targetLong));
     }
 
     // -------------------------------------------------------------------------
@@ -248,6 +264,7 @@ public sealed partial class NoFollowFileWriterTests : IDisposable
             _tempDir, linkPath, NativeFileMethods.FileShareRead, NativeFileMethods.CreateNew);
 
         Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
         // The victim's bytes are untouched — the write never followed the hard link.
         Assert.Equal(victimContent, File.ReadAllBytes(victimPath));
         // The pre-existing hard link this call did not create is still in place, resolving to

@@ -283,4 +283,62 @@ public sealed class SignServerSignatureProviderTests
         Assert.Throws<ArgumentException>(() =>
             new SignServerSignatureProvider(new SignServerConfig { BaseUrl = "https://x", Worker = "" }));
     }
+
+    [Fact]
+    public void Constructor_HttpWithoutDevelopmentOptIn_ThrowsSgn025()
+    {
+        var error = Assert.Throws<ArgumentException>(() =>
+            new SignServerSignatureProvider(new SignServerConfig
+            {
+                BaseUrl = "http://localhost:8080",
+                Worker = "w"
+            }));
+
+        Assert.Contains("SGN025", error.Message);
+    }
+
+    [Fact]
+    public void Constructor_HttpWithDevelopmentOptInAndNoAuth_Succeeds()
+    {
+        using var provider = new SignServerSignatureProvider(new SignServerConfig
+        {
+            BaseUrl = "http://localhost:8080",
+            Worker = "w",
+            AuthMode = SignServerAuthMode.None,
+            AllowInsecureHttpForDevelopment = true
+        });
+
+        Assert.NotNull(provider);
+    }
+
+    [Theory]
+    [InlineData(SignServerAuthMode.Basic)]
+    [InlineData(SignServerAuthMode.Bearer)]
+    [InlineData(SignServerAuthMode.ClientCert)]
+    public void Constructor_HttpDevelopmentOptInWithAuthentication_ThrowsSgn025(SignServerAuthMode authMode)
+    {
+        var error = Assert.Throws<ArgumentException>(() =>
+            new SignServerSignatureProvider(new SignServerConfig
+            {
+                BaseUrl = "http://localhost:8080",
+                Worker = "w",
+                AuthMode = authMode,
+                AllowInsecureHttpForDevelopment = true
+            }));
+
+        Assert.Contains("SGN025", error.Message);
+    }
+
+    [Fact]
+    public void Constructor_NonHttpScheme_ThrowsSgn025()
+    {
+        var error = Assert.Throws<ArgumentException>(() =>
+            new SignServerSignatureProvider(new SignServerConfig
+            {
+                BaseUrl = "ftp://sign.example.test",
+                Worker = "w"
+            }));
+
+        Assert.Contains("SGN025", error.Message);
+    }
 }

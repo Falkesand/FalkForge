@@ -15,7 +15,7 @@ public sealed class SignServerConfigTests : IDisposable
     [
         "SIGNSERVER_URL", "SIGNSERVER_WORKER", "SIGNSERVER_AUTH", "SIGNSERVER_BEARER_TOKEN",
         "SIGNSERVER_BASIC_USER", "SIGNSERVER_BASIC_PASS", "SIGNSERVER_CLIENT_CERT",
-        "SIGNSERVER_CLIENT_CERT_PASSWORD", "SIGNSERVER_KEY_ID"
+        "SIGNSERVER_CLIENT_CERT_PASSWORD", "SIGNSERVER_KEY_ID", "SIGNSERVER_ALLOW_INSECURE_HTTP"
     ];
 
     private readonly Dictionary<string, string?> _saved = new();
@@ -90,5 +90,62 @@ public sealed class SignServerConfigTests : IDisposable
         Assert.Equal(SignServerAuthMode.Bearer, result.Value.AuthMode);
         Assert.Equal("tok", result.Value.BearerToken);
         Assert.Equal("label", result.Value.KeyId);
+    }
+
+    [Fact]
+    public void FromEnvironment_HttpWithoutDevelopmentOptIn_FailsWithSgn025()
+    {
+        Environment.SetEnvironmentVariable("SIGNSERVER_URL", "http://localhost:8080");
+        Environment.SetEnvironmentVariable("SIGNSERVER_WORKER", "PlainECDSA");
+
+        var result = SignServerConfig.FromEnvironment();
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("SGN025", result.Error.Message);
+    }
+
+    [Fact]
+    public void FromEnvironment_HttpWithDevelopmentOptInAndNoAuth_BuildsConfig()
+    {
+        Environment.SetEnvironmentVariable("SIGNSERVER_URL", "http://localhost:8080");
+        Environment.SetEnvironmentVariable("SIGNSERVER_WORKER", "PlainECDSA");
+        Environment.SetEnvironmentVariable("SIGNSERVER_ALLOW_INSECURE_HTTP", "true");
+
+        var result = SignServerConfig.FromEnvironment();
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.True(result.Value.AllowInsecureHttpForDevelopment);
+        Assert.Equal(SignServerAuthMode.None, result.Value.AuthMode);
+    }
+
+    [Fact]
+    public void FromEnvironment_HttpOptInWithBearerAuth_FailsWithSgn025()
+    {
+        Environment.SetEnvironmentVariable("SIGNSERVER_URL", "http://localhost:8080");
+        Environment.SetEnvironmentVariable("SIGNSERVER_WORKER", "PlainECDSA");
+        Environment.SetEnvironmentVariable("SIGNSERVER_AUTH", "bearer");
+        Environment.SetEnvironmentVariable("SIGNSERVER_BEARER_TOKEN", "tok");
+        Environment.SetEnvironmentVariable("SIGNSERVER_ALLOW_INSECURE_HTTP", "true");
+
+        var result = SignServerConfig.FromEnvironment();
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("SGN025", result.Error.Message);
+    }
+
+    [Fact]
+    public void FromEnvironment_InvalidHttpOptIn_FailsWithSgn024()
+    {
+        Environment.SetEnvironmentVariable("SIGNSERVER_URL", "https://sign.example:8443");
+        Environment.SetEnvironmentVariable("SIGNSERVER_WORKER", "PlainECDSA");
+        Environment.SetEnvironmentVariable("SIGNSERVER_ALLOW_INSECURE_HTTP", "yes");
+
+        var result = SignServerConfig.FromEnvironment();
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Contains("SGN024", result.Error.Message);
     }
 }

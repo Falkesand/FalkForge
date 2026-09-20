@@ -1,9 +1,9 @@
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using FalkForge.Models;
 using FalkForge.Sbom;
-using Json.Schema;
+using NJsonSchema;
+using NJsonSchema.Validation;
 using Xunit;
 
 namespace FalkForge.Core.Tests.Sbom;
@@ -21,7 +21,7 @@ namespace FalkForge.Core.Tests.Sbom;
 /// no test author considered, and it keeps checking them after everyone has moved on.</para>
 ///
 /// <para>Offline: the schema declares no external <c>$ref</c>, so nothing here touches the network.
-/// The dependency (JsonSchema.Net) is referenced by this test project only and never by a src
+/// The dependency (NJsonSchema, MIT licensed) is referenced by this test project only and never by a src
 /// project, so it cannot reach the NativeAOT assemblies.</para>
 ///
 /// <para><b>A pass is not a conformance certificate.</b> A JSON schema constrains structure, types
@@ -37,15 +37,15 @@ public sealed class SpdxSchemaConformanceTests
     private const string Sha1A = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
     private const string Sha1B = "0123456789abcdef0123456789abcdef01234567";
 
-    private static readonly JsonSchema Schema = LoadSchema();
+    private static readonly Task<JsonSchema> Schema = LoadSchemaAsync();
 
-    private static JsonSchema LoadSchema()
+    private static Task<JsonSchema> LoadSchemaAsync()
     {
         var path = Path.Combine(AppContext.BaseDirectory, "Assets", "spdx-2.3-schema.json");
         Assert.True(File.Exists(path),
             $"Test setup invariant: the vendored SPDX 2.3 schema must be copied to the output at '{path}'. " +
             "Check the None/CopyToOutputDirectory item in FalkForge.Core.Tests.csproj.");
-        return JsonSchema.FromText(File.ReadAllText(path));
+        return JsonSchema.FromJsonAsync(File.ReadAllText(path));
     }
 
     private static SbomComponent FileComponent(string name, string sha256, string? sha1) => new()
@@ -76,56 +76,43 @@ public sealed class SpdxSchemaConformanceTests
     /// instance location — a bare "invalid" would send the next reader hunting through 200 lines of
     /// JSON for which field the spec rejected.
     /// </summary>
-    private static void AssertValidSpdx(SbomDocument document)
+    private static async Task AssertValidSpdxAsync(SbomDocument document)
     {
         var generated = SbomWriter.WriteToString(document, SbomFormat.Spdx);
         Assert.True(generated.IsSuccess, generated.IsFailure ? generated.Error.Message : "");
 
-        using var instance = JsonDocument.Parse(generated.Value);
-        var results = Schema.Evaluate(
-            instance.RootElement, new EvaluationOptions { OutputFormat = OutputFormat.List });
-
-        Assert.True(results.IsValid, DescribeViolations(results, generated.Value));
+        var schema = await Schema;
+        var errors = schema.Validate(generated.Value);
+        Assert.True(errors.Count == 0, DescribeViolations(errors, generated.Value));
     }
 
-    private static string DescribeViolations(EvaluationResults results, string document)
+    private static string DescribeViolations(IEnumerable<ValidationError> errors, string document)
     {
         var report = new StringBuilder("Emitted document does not conform to the SPDX 2.3 schema:");
-        foreach (var detail in results.Details ?? [])
-        {
-            if (detail.IsValid)
-                continue;
-
-            var errors = detail.Errors;
-            if (errors is null)
-                continue;
-
-            foreach (var error in errors)
-                report.Append("\n  ").Append(detail.InstanceLocation).Append(": ").Append(error.Value);
-        }
-
+        foreach (var error in errors)
+            report.Append("\n  ").Append(error.Path).Append(": ").Append(error);
         return report.Append("\n\nDocument:\n").Append(document).ToString();
     }
 
     [Fact]
-    public void EmittedSpdx_ForAFileOnlyPackage_ValidatesAgainstTheOfficialSpdx23Schema()
+    public async Task EmittedSpdx_ForAFileOnlyPackage_ValidatesAgainstTheOfficialSpdx23SchemaAsync()
     {
         // The shape every Integrity(i => i.Sbom(SbomFormat.Spdx)) MSI compile produces: payload files
         // inside one root package, no caller-supplied components.
-        AssertValidSpdx(MakeDocument(
+        await AssertValidSpdxAsync(MakeDocument(
             FileComponent("app.exe", Sha256A, Sha1A),
             FileComponent("data\\resources.dll", Sha256B, Sha1B)));
     }
 
     [Fact]
-    public void EmittedSpdx_WithCallerSuppliedNonFileComponents_ValidatesAgainstTheOfficialSpdx23Schema()
+    public async Task EmittedSpdx_WithCallerSuppliedNonFileComponents_ValidatesAgainstTheOfficialSpdx23SchemaAsync()
     {
         // SbomOptions.AddComponent contributions become SPDX *packages* the root package DEPENDS_ON
         // rather than files, because §7.10 leaves package checksums optional while §8.4 makes a file
         // SHA1 mandatory and a caller-supplied library has no SHA-1. That split is the one structural
         // decision in this writer a reviewer is most likely to get wrong by reading alone, so both
         // branches are put in front of the schema.
-        AssertValidSpdx(MakeDocument(
+        await AssertValidSpdxAsync(MakeDocument(
             FileComponent("app.exe", Sha256A, Sha1A),
             new SbomComponent
             {
@@ -138,7 +125,7 @@ public sealed class SpdxSchemaConformanceTests
     }
 
     [Fact]
-    public void TheSchemaHarnessItself_RejectsADocumentTheSpecForbids()
+    public async Task TheSchemaHarnessItself_RejectsADocumentTheSpecForbidsAsync()
     {
         // Without this, every assertion in this class could be vacuously true: a schema that silently
         // failed to load, an Evaluate call that never looked at the instance, a validator that
@@ -153,22 +140,53 @@ public sealed class SpdxSchemaConformanceTests
         var mutated = JsonNode.Parse(generated.Value)!.AsObject();
         Assert.True(mutated.Remove("spdxVersion"), "Setup invariant: the emitted document must have had a spdxVersion to remove.");
 
-        using var instance = JsonDocument.Parse(mutated.ToJsonString());
-        var results = Schema.Evaluate(
-            instance.RootElement, new EvaluationOptions { OutputFormat = OutputFormat.List });
+        var schema = await Schema;
+        var errors = schema.Validate(mutated.ToJsonString());
 
-        Assert.False(results.IsValid,
+        Assert.True(errors.Count > 0,
             "The vendored schema must reject a document missing the root-required spdxVersion. " +
             "If this passes, the schema is not actually being applied and every other assertion here is empty.");
     }
 
+    [Theory]
+    [InlineData("root-type")]
+    [InlineData("nested-required")]
+    [InlineData("nested-enum")]
+    [InlineData("unexpected-property")]
+    public async Task ReplacementValidator_RejectsStructuralViolationsAsync(string mutation)
+    {
+        var generated = SbomWriter.WriteToString(
+            MakeDocument(FileComponent("app.exe", Sha256A, Sha1A)), SbomFormat.Spdx);
+        Assert.True(generated.IsSuccess);
+        var document = JsonNode.Parse(generated.Value)!.AsObject();
+        switch (mutation)
+        {
+            case "root-type":
+                document["spdxVersion"] = 123;
+                break;
+            case "nested-required":
+                Assert.True(document["files"]![0]!.AsObject().Remove("fileName"));
+                break;
+            case "nested-enum":
+                document["files"]![0]!["checksums"]![0]!["algorithm"] = "NOT-A-HASH-ALGORITHM";
+                break;
+            case "unexpected-property":
+                document["unexpectedSpdxProperty"] = true;
+                break;
+        }
+        var schema = await Schema;
+        var errors = schema.Validate(document.ToJsonString());
+        Assert.NotEmpty(errors);
+        Assert.All(errors, error => Assert.False(string.IsNullOrWhiteSpace(error.Path)));
+    }
+
     [Fact]
-    public void EmittedSpdx_ForAPackageWithNoFiles_ValidatesAgainstTheOfficialSpdx23Schema()
+    public async Task EmittedSpdx_ForAPackageWithNoFiles_ValidatesAgainstTheOfficialSpdx23SchemaAsync()
     {
         // filesAnalyzed=false with no packageVerificationCode. The spec ties those together (§7.8/7.9)
         // and the writer branches on it, so the empty-payload branch gets its own check rather than
         // being assumed to follow from the populated one.
-        AssertValidSpdx(MakeDocument(new SbomComponent
+        await AssertValidSpdxAsync(MakeDocument(new SbomComponent
         {
             Name = "Some.Library",
             Version = "1.0.0",

@@ -13,7 +13,7 @@ this is maintained at hobby-project pace by one person.
 In the interest of transparency: FalkForge is built with substantial help from
 Anthropic's AI models (Claude). The design direction and decisions are mine, but a
 large share of the implementation, tests, and documentation is AI-assisted. Every
-change goes through the full automated test suite (zero-warning builds, ~8,000+
+change goes through the full automated test suite (zero-warning builds and thousands of
 tests) and review gates before it lands.
 
 This GitHub repository is the project's home page -- docs, demos, and releases all
@@ -24,14 +24,14 @@ live here.
 | Approach | Best For | How |
 |----------|----------|-----|
 | **C# Fluent API** | Developers who want full control | Define installers as C# programs with IntelliSense and type safety. `dotnet build` compiles them. |
-| **JSON Configuration** | Simple, no-compiler installers | Write a JSON file, build with `forge build config.json`. No C# required. *Work in progress — experimental subset; Firewall/IIS/SQL/.NET extensions are all emitted into the installer (the `dotnet` block now builds real MSI-native runtime detection), see [documentation.html](documentation.html#cli-json-config).* |
+| **JSON Configuration** | Simple, no-compiler installers | Write a JSON file, build with `forge build config.json`. No C# required. *Work in progress — experimental subset; Firewall, IIS, SQL, and .NET detection extensions are emitted into the MSI. See [documentation.html](documentation.html#cli-json-config).* |
 | **FalkForge Studio** | Visual designers, non-developers | WPF desktop IDE. Import from MSI/WiX, export to C# or CI/CD pipelines. *Work in progress — expect visual and functional rough edges during the beta.* |
 
 ## Why FalkForge?
 
 - **Self-contained compiler** -- Direct P/Invoke to `msi.dll`. No WiX, no InstallShield, no external tools.
 - **Six output formats** -- MSI, MSIX (experimental), MSM (merge modules), MSP (patches), MST (transforms), EXE bundles.
-- **NativeAOT engine** -- Sub-10ms startup bundle runtime. Three-process architecture with named-pipe IPC.
+- **NativeAOT engine** -- Fast-starting bundle runtime with a three-process architecture and named-pipe IPC.
 - **WPF custom UI** -- Page-based installer UI framework with ReactiveUI, DPAPI-secured passwords, and localization.
 - **Modern delivery** -- Delta updates (Octodiff), automatic update feeds, WinGet manifest generation.
 - **Provable installers** -- Reproducible builds, CycloneDX SBOM, ECDSA payload integrity, `forge verify`/`plan`/`plan-diff`.
@@ -45,7 +45,7 @@ Installer integrity is where FalkForge goes further than the mainstream installe
 - **Real payload integrity, not just a signed launcher** -- every payload is hashed into a signed manifest and verified before anything installs, so a swapped payload is caught even when the Authenticode signature on the outer `.exe` still looks valid.
 - **Post-quantum ready** -- optional hybrid signing adds an ML-DSA-65 (FIPS 204) signature alongside classical ECDSA-P256.
 - **A real trusted-key model** -- pin trusted keys in the engine, assign key roles with M-of-N quorum for sensitive operations, rotate and revoke keys safely.
-- **Secure updates** -- require-signed update feeds with key revocation and version epochs, so an update can't be rolled back to a revoked build.
+- **Signed update verification** -- update feeds can require trusted signatures before launch. Epoch and revocation metadata are signed, but persistent anti-downgrade enforcement is not active yet.
 - **Supply-chain transparency** -- reproducible builds, CycloneDX SBOM, and a provable pipeline (`forge plan` / `forge verify --rebuild`) to show what a bundle does and that it matches its source.
 - **Hardened install engine** -- the elevated helper is mutually authenticated (HMAC handshake, parent PID verification) and executes only a whitelisted command set.
 
@@ -54,7 +54,7 @@ Depth and how-tos: [documentation.html -- Bundle Signing, Trust & Key Rotation](
 ## Get Started in a Minute
 
 **0.5.0-beta.8.** The core compiler and engine are exercised
-by ~8,000+ tests and used on real installs, but APIs can still shift before 1.0
+by thousands of tests and used on real installs, but APIs can still shift before 1.0
 and a few features are intentionally incomplete -- see the
 [release notes](https://github.com/Falkesand/FalkForge/blob/main/docs/release-notes/v0.5.0-beta.8.md)
 for what's stable and what's flagged.
@@ -181,11 +181,11 @@ HMAC-SHA256 handshake security. MSI operations use direct `msi.dll` P/Invoke
 
 ```bash
 dotnet build                # 0 warnings required (TreatWarningsAsErrors)
-dotnet test                 # fast default: ~7,000+ tests, minutes; heavyweight e2e skipped
+dotnet test                 # fast default suite; heavyweight e2e skipped
 dotnet publish -c Release   # NativeAOT for Engine + Elevation
 ```
 
-**Requirements:** .NET 10 SDK (10.0.103+), Windows (for MSI compilation and P/Invoke)
+**Requirements:** .NET SDK 10.0.401 exactly (repository builds use `global.json`), Windows (for MSI compilation and P/Invoke). Restores default to locked mode; intentional dependency updates require `-p:RestoreLockedMode=false` and review of the resulting lock-file changes.
 
 ### Running the full end-to-end suite
 

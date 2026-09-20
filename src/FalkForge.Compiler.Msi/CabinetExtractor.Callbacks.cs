@@ -148,6 +148,19 @@ public sealed partial class CabinetExtractor
                     if (fileName is null)
                         return nint.Zero; // Skip
 
+                    // Charge the entry before allocating its output stream. Empty files consume
+                    // no byte budget, so a separate count is required to bound per-entry CPU,
+                    // handles, dictionaries, and allocations.
+                    if (_fileCount >= _maxFileCount)
+                    {
+                        _limitExceeded = true;
+                        _lastCallbackError =
+                            $"Cabinet file count exceeds the {_maxFileCount}-entry limit.";
+                        return -1;
+                    }
+
+                    _fileCount++;
+
                     // pfdin.cb is only a capacity HINT — the stream grows automatically as
                     // real bytes arrive via CbWrite — so a wrong/hostile hint must never
                     // drive the initial allocation. Enforce the decompression-bomb budget
@@ -157,13 +170,11 @@ public sealed partial class CabinetExtractor
                     var declaredSize = pfdin.cb;
                     if (declaredSize > 0)
                     {
-                        var remainingBudget = _maxTotalBytes == long.MaxValue
-                            ? long.MaxValue
-                            : Math.Max(0, _maxTotalBytes - _totalExtractedBytes);
+                        var remainingBudget = Math.Max(0, _maxTotalBytes - _totalExtractedBytes);
 
                         if (declaredSize > remainingBudget)
                         {
-                            _budgetExceeded = true;
+                            _limitExceeded = true;
                             _lastCallbackError =
                                 $"Declared uncompressed size {declaredSize} for '{fileName}' exceeds the remaining {remainingBudget}-byte budget.";
                             return -1; // Abort FDICopy before allocating.
@@ -202,7 +213,7 @@ public sealed partial class CabinetExtractor
                             _totalExtractedBytes += bytes.LongLength;
                             if (_totalExtractedBytes > _maxTotalBytes)
                             {
-                                _budgetExceeded = true;
+                                _limitExceeded = true;
                                 _lastCallbackError =
                                     $"Cumulative uncompressed size exceeded the {_maxTotalBytes}-byte budget.";
                                 ms.Dispose();

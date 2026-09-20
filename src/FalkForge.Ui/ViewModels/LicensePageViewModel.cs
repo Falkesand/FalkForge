@@ -15,10 +15,36 @@ public sealed class LicensePageViewModel : InstallerPageViewModel, IReactiveObje
         ReactiveNotifications.Enable(this);
     }
 
+    public override bool IsSkippedInLinearFlow =>
+        Engine.Manifest.LicenseFile is null && LicenseContent is null;
+
     public override string Title => "License Agreement";
     public override string Description => "Please review and accept the license agreement.";
 
-    public string LicenseText => Engine.Manifest.LicenseFile ?? "No license text available.";
+    public byte[]? LicenseContent => Engine.Manifest.LicenseContent;
+
+    public string LicenseText
+    {
+        get
+        {
+            if (LicenseContent is not { Length: > 0 } content)
+                return "No license text available.";
+
+            using var stream = new System.IO.MemoryStream(content, writable: false);
+            using var reader = new System.IO.StreamReader(stream);
+            return reader.ReadToEnd();
+        }
+    }
+
+    private bool _displayFailed;
+    public bool CanAccept => !_displayFailed && LicenseContent is { Length: > 0 };
+
+    internal void RejectUnreadableLicense()
+    {
+        _displayFailed = true;
+        IsAccepted = false;
+        this.RaisePropertyChanged(nameof(CanAccept));
+    }
 
     /// <summary>
     /// Whether the user ticked the accept checkbox. Setting it tells the engine, which refuses to
@@ -31,8 +57,9 @@ public sealed class LicensePageViewModel : InstallerPageViewModel, IReactiveObje
         get => _isAccepted;
         set
         {
-            this.RaiseAndSetIfChanged(ref _isAccepted, value);
-            Engine.SetLicenseAccepted(value);
+            var accepted = value && CanAccept;
+            this.RaiseAndSetIfChanged(ref _isAccepted, accepted);
+            Engine.SetLicenseAccepted(accepted);
         }
     }
 
@@ -51,6 +78,6 @@ public sealed class LicensePageViewModel : InstallerPageViewModel, IReactiveObje
 
     public override bool CanNavigateNext()
     {
-        return IsAccepted;
+        return IsAccepted && CanAccept;
     }
 }

@@ -47,6 +47,33 @@ public sealed partial class EngineSession
     {
         options ??= new EngineSessionOptions();
 
+        // A bundle that declared an elevation companion must either bind the exact verified bytes
+        // or abort. Open it before constructing the rest of the session and keep the handle until
+        // the gateway is disposed; silently continuing per-user produces a successful but partial
+        // install when privileged packages are conditioned on the Privileged built-in.
+        FileStream? companionHandle = null;
+        string? companionExePath = null;
+        InvalidOperationException? optionalCompanionFailure = null;
+        if (options.ElevationCompanionPath is { } suppliedCompanionPath)
+        {
+            try
+            {
+                (companionHandle, companionExePath) = ResolveVerifiedCompanion(
+                    suppliedCompanionPath, options.ElevationCompanionSha256);
+            }
+            catch (InvalidOperationException ex)
+            {
+                if (options.ElevationCompanionPolicy == ElevationCompanionPolicy.VerifiedPath)
+                    throw new InvalidOperationException(
+                        $"{ex.Message} The install is aborted.", ex);
+                optionalCompanionFailure = ex;
+            }
+        }
+        else if (options.ElevationCompanionPolicy == ElevationCompanionPolicy.VerifiedPath)
+            throw new InvalidOperationException(
+                "The bundle declared an elevation companion, but no verified path was supplied. " +
+                "The install is aborted.");
+
         // ── Logger ──────────────────────────────────────────────────────────
         // The callback fans every accepted log entry out to the UI channel. It is
         // wired at construction so EngineLogger.Log() can invoke it directly.
@@ -82,6 +109,10 @@ public sealed partial class EngineSession
             logFilePath = resolvedPath;
         }
 
+        if (optionalCompanionFailure is not null)
+            logger.Error("Security",
+                $"{optionalCompanionFailure.Message} Refusing the supplied path and continuing per-user.");
+
         // Assign a unique correlation id for this session so log entries from all
         // three processes (UI, Engine, Elevation) can be correlated.
         StampCorrelationId(logger);
@@ -116,6 +147,7 @@ public sealed partial class EngineSession
             }
             catch (Exception ex)
             {
+                companionHandle?.Dispose();
                 // Dispose the logger before surfacing the exception so no file handle leaks.
                 // CA1508: IFalkLogger extends IDisposable, so this cast can never be null.
                 logger.Dispose();
@@ -131,6 +163,7 @@ public sealed partial class EngineSession
         var bundleId = manifest.BundleId.ToString("N");
         if (!InstanceLock.TryAcquire(bundleId, out instanceLock))
         {
+            companionHandle?.Dispose();
             // CA1508: IFalkLogger extends IDisposable, so this cast can never be null.
             logger.Dispose();
             throw new InvalidOperationException(
@@ -303,34 +336,10 @@ public sealed partial class EngineSession
         // the pipeline skips the Elevating phase, and the install proceeds per-user. Say so in the
         // log rather than degrading silently.
         IElevatedCommandGateway? elevationGateway = null;
-        string? companionExePath = null;
-        FileStream? companionHandle = null;
         try
         {
-            if (options.ElevationCompanionPath is { } verifiedCompanion)
-            {
-                // The bootstrapper proved these bytes while it was unpacking the bundle. Since
-                // then the pre-UI bootstrap has run, the UI process has started, and the user has
-                // worked through the wizard. The extraction directory is under %TEMP% and belongs
-                // to the user, so any process running as that user has had that whole time to
-                // overwrite the file or to drop a directory junction in the path. So open it, hash
-                // it, and start the process from the path Windows reports for the handle that was
-                // hashed.
-                //
-                // The handle must stay open, and this is the part that is easy to get wrong. The
-                // companion is NOT launched here. This method only builds the gateway;
-                // NamedPipeElevationGateway.StartAsync calls the process launcher, and the
-                // pipeline does not reach that until the Elevating phase, after the user has
-                // cleared the wizard and the UAC prompt. Verifying here and closing the handle
-                // here would therefore close nothing. Instead the handle is handed to the gateway,
-                // which holds it until the session disposes, so write, rename and delete on that
-                // file are refused for the whole of the window that matters.
-                var bound = ResolveVerifiedCompanion(
-                    verifiedCompanion, options.ElevationCompanionSha256, logger);
-                companionHandle = bound.Stream;
-                companionExePath = bound.ResolvedPath;
-            }
-            else if (options.ElevationCompanionPolicy == ElevationCompanionPolicy.AmbientAllowed)
+            if (options.ElevationCompanionPolicy == ElevationCompanionPolicy.AmbientAllowed
+                && options.ElevationCompanionPath is null)
             {
                 // Plain engine run: the companion ships beside the engine in the install
                 // directory and no manifest declares a hash for it, so there is nothing to check
@@ -344,7 +353,7 @@ public sealed partial class EngineSession
             if (OperatingSystem.IsWindows() && companionExePath is not null)
             {
                 elevationGateway = new NamedPipeElevationGateway(
-                    new ProcessLauncher(), companionExePath, companionHandle);
+                    new ProcessLauncher(), companionExePath, companionHandle, logger);
                 companionHandle = null; // ownership transferred to the gateway
             }
         }
@@ -506,37 +515,25 @@ public sealed partial class EngineSession
     /// The digest it proved that file against, as 64 hexadecimal characters, or
     /// <see langword="null"/> when the caller supplied none.
     /// </param>
-    /// <param name="logger">Records why a companion was refused.</param>
     /// <returns>
-    /// The open handle and the path to start the process from, or <c>(null, null)</c> when the
-    /// companion could not be proven. Every failure returns <c>(null, null)</c>: the caller then
-    /// runs the session with no elevation gateway. It never degrades to the caller's own path or
-    /// to the probe beside the engine, because doing either would launch, elevated, a file nothing
-    /// checked.
+    /// The open handle and the path to start the process from. A declared companion that cannot be
+    /// proven throws: continuing per-user would silently omit privileged packages.
     /// </returns>
     private static (FileStream? Stream, string? ResolvedPath) ResolveVerifiedCompanion(
-        string companionPath, string? expectedHashHex, IFalkLogger logger)
+        string companionPath, string? expectedHashHex)
     {
-        const string Category = "Security";
-
         if (expectedHashHex is not { } expectedHash)
-        {
-            logger.Error(Category,
-                $"An elevation companion path was supplied ('{companionPath}') with no expected " +
-                "SHA-256, so its bytes cannot be proven at launch. Refusing to launch it elevated; " +
-                "continuing per-user.");
-            return (null, null);
-        }
+            throw new InvalidOperationException(
+                $"The elevation companion at '{companionPath}' has no expected SHA-256, so its " +
+                "bytes cannot be proven.");
 
         var bound = FalkForge.Engine.Protocol.Integrity.HashBoundFile.Open(companionPath, expectedHash);
         if (bound.Status != FalkForge.Engine.Protocol.Integrity.HashBoundFileStatus.Verified)
         {
-            logger.Error(Category,
+            throw new InvalidOperationException(
                 $"The elevation companion at '{companionPath}' did not verify " +
                 $"({bound.Status}{(bound.Detail is null ? string.Empty : $": {bound.Detail}")}). " +
-                "It runs as SYSTEM, so this is treated as tampering. Refusing to launch it " +
-                "elevated; continuing per-user.");
-            return (null, null);
+                "It runs as SYSTEM, so this is treated as tampering.");
         }
 
         var stream = bound.Stream!;
@@ -552,11 +549,9 @@ public sealed partial class EngineSession
             || resolvedPath.Length > FalkForge.Engine.Protocol.Integrity.HashBoundFile.MaxLegacyPathLength)
         {
             stream.Dispose();
-            logger.Error(Category,
+            throw new InvalidOperationException(
                 $"The elevation companion at '{companionPath}' resolves to '{resolvedPath}', which " +
-                "is either on a network path or too long to launch. Refusing to launch it elevated; " +
-                "continuing per-user.");
-            return (null, null);
+                "is either on a network path or too long to launch.");
         }
 
         return (stream, resolvedPath);

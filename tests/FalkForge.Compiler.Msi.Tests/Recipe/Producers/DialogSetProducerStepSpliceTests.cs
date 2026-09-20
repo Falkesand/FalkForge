@@ -105,7 +105,8 @@ public sealed class DialogSetProducerStepSpliceTests
     private static (string Event, string Argument) NextEventOf(ImmutableArray<RecipeTable> tables, string dialog)
     {
         RecipeTable table = tables.First(t => t.Name.Value == "ControlEvent");
-        RecipeRow row = table.Rows.Single(r => Str(r.Cells[0]) == dialog && Str(r.Cells[1]) == "Next");
+        RecipeRow row = table.Rows.Single(r => Str(r.Cells[0]) == dialog && Str(r.Cells[1]) == "Next"
+            && Str(r.Cells[2]) is "NewDialog" or "EndDialog");
         return (Str(row.Cells[2]), Str(row.Cells[3]));
     }
 
@@ -180,14 +181,9 @@ public sealed class DialogSetProducerStepSpliceTests
             // it too. Asserting only the step's own event would pass while that hole was open.
             // Only reachable wizard pages count. ExitDlg's Finish and the support modals also
             // publish EndDialog/Return, legitimately, because they end a dialog AFTER the install
-            // or return from a spawned child. InstallDirDlg is excluded for a different and less
-            // comfortable reason: the Mondo and Advanced sets compose it and nothing ever
-            // navigates to it, so it publishes the handoff from a page the user cannot reach.
-            // That is a separate open defect, not something this splice introduced, and excluding
-            // it here records it rather than hiding it. If that dialog ever becomes reachable,
-            // this list must shrink and this assertion must start covering it.
+            // or return from a spawned child. Folder selection is reachable and must not bypass the step.
             string[] notReachableWizardPages =
-                ["ExitDlg", "CancelDlg", "BrowseDlg", "MsiRMFilesInUse", "InstallDirDlg"];
+                ["ExitDlg", "CancelDlg", "BrowseDlg", "MsiRMFilesInUse"];
             RecipeTable events = tables.First(t => t.Name.Value == "ControlEvent");
             foreach (RecipeRow row in events.Rows)
             {
@@ -252,7 +248,7 @@ public sealed class DialogSetProducerStepSpliceTests
     }
 
     private static Result<ImmutableArray<RecipeTable>> ProduceRaw(
-        MsiDialogSet set, IMsiDialogStepBuilder builder, params (string Step, DialogStepAnchor Anchor)[] steps)
+        MsiDialogSet set, IMsiDialogStepBuilder? builder, params (string Step, DialogStepAnchor Anchor)[] steps)
     {
         var customization = new DialogCustomization();
         foreach ((string step, DialogStepAnchor anchor) in steps)
@@ -273,7 +269,7 @@ public sealed class DialogSetProducerStepSpliceTests
             new ResolvedPackage { Package = package, Components = [], Files = [] },
             new DictionaryStreamRegistry());
 
-        return new DialogSetProducer([builder]).Produce(ctx);
+        return new DialogSetProducer(builder is null ? [] : [builder]).Produce(ctx);
     }
 
     [Fact]
@@ -415,7 +411,110 @@ public sealed class DialogSetProducerStepSpliceTests
         Assert.Equal(("NewDialog", "LicenseAgreementDlg"), (Str(middle.Cells[2]), Str(middle.Cells[3])));
     }
 
-    private sealed class NamedProbeStepBuilder(string name) : IMsiDialogStepBuilder
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_missing_or_misnamed_step_reports_the_registered_step(bool misnamed)
+    {
+        var result = ProduceRaw(MsiDialogSet.Minimal,
+            misnamed ? new NamedProbeStepBuilder("ProbeStep", emittedName: "WrongName") : null,
+            ("ProbeStep", DialogStepAnchor.BeforeInstall));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("DLG025", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("ProbeStep", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("1", 3, false)]
+    [InlineData(null, 3, false)]
+    [InlineData(null, 1, true)]
+    [InlineData("0", 3, true)]
+    public void A_fallback_forward_event_must_not_be_suppressed(string? siblingCondition, int siblingOrder, bool accepted)
+    {
+        var result = ProduceRaw(MsiDialogSet.Minimal,
+            new NamedProbeStepBuilder("ProbeStep", siblingCondition: siblingCondition, siblingOrder: siblingOrder),
+            ("ProbeStep", DialogStepAnchor.BeforeInstall));
+
+        Assert.Equal(accepted, result.IsSuccess);
+        if (!accepted)
+            Assert.Contains("DLG025", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(MsiDialogSet.Mondo)]
+    [InlineData(MsiDialogSet.Advanced)]
+    public void Direct_install_routes_visit_every_trailing_step(MsiDialogSet set)
+    {
+        var package = new PackageModel
+        {
+            Name = "App", Manufacturer = "M", Version = new Version(1, 0, 0),
+            DialogSet = set,
+            DialogCustomization = new DialogCustomization()
+                .InsertStep("FirstStep", DialogStepAnchor.BeforeInstall)
+                .InsertStep("LastStep", DialogStepAnchor.BeforeInstall).ToModel()
+        };
+        var context = new RecipeBuildContext(
+            new ResolvedPackage { Package = package, Components = [], Files = [] },
+            new DictionaryStreamRegistry());
+        var result = new DialogSetProducer(
+            [new NamedProbeStepBuilder("FirstStep"), new NamedProbeStepBuilder("LastStep")]).Produce(context);
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        var events = result.Value.First(t => t.Name.Value == "ControlEvent").Rows;
+        var directRoutes = events.Where(r => Str(r.Cells[0]) == "SetupTypeDlg"
+            && Str(r.Cells[2]) == "NewDialog" && Str(r.Cells[3]) == "FirstStep").ToArray();
+        Assert.Equal(2, directRoutes.Length);
+        Assert.Contains(events, r => Str(r.Cells[0]) == "FirstStep"
+            && Str(r.Cells[2]) == "NewDialog" && Str(r.Cells[3]) == "LastStep");
+        Assert.Contains(events, r => Str(r.Cells[0]) == "LastStep"
+            && Str(r.Cells[2]) == "EndDialog" && Str(r.Cells[3]) == "Return");
+    }
+
+    [Theory]
+    [InlineData(true, "EndDialog", "Return", false)]
+    [InlineData(true, " enddialog ", " return ", false)]
+    [InlineData(false, "EndDialog", "Return", true)]
+    [InlineData(true, "EndDialog", "Exit", true)]
+    public void Custom_install_handoffs_cannot_bypass_before_install(
+        bool insertStep, string eventName, string argument, bool accepted)
+    {
+        var package = new PackageModel
+        {
+            Name = "App", Manufacturer = "M", Version = new Version(1, 0, 0),
+            DialogSet = MsiDialogSet.Minimal,
+            DialogCustomization = insertStep
+                ? new DialogCustomization().InsertStep("ProbeStep", DialogStepAnchor.BeforeInstall).ToModel()
+                : null,
+            CustomDialogs =
+            [
+                new CustomDialogModel
+                {
+                    Id = "CustomPage",
+                    Controls =
+                    [
+                        new CustomDialogControlModel
+                        {
+                            Name = "Go", Type = CustomControlType.PushButton, Width = 66, Height = 17,
+                            Events = [new CustomDialogControlEventModel { Event = eventName, Argument = argument }]
+                        }
+                    ]
+                }
+            ]
+        };
+        var context = new RecipeBuildContext(
+            new ResolvedPackage { Package = package, Components = [], Files = [] },
+            new DictionaryStreamRegistry());
+        var result = new DialogSetProducer([new ProbeStepBuilder()]).Produce(context);
+        Assert.Equal(accepted, result.IsSuccess);
+        if (!accepted)
+        {
+            Assert.Contains("DLG029", result.Error.Message, StringComparison.Ordinal);
+            Assert.Contains("CustomPage", result.Error.Message, StringComparison.Ordinal);
+        }
+    }
+
+    private sealed class NamedProbeStepBuilder(
+        string name, string? emittedName = null, string? siblingCondition = null, int? siblingOrder = null) : IMsiDialogStepBuilder
     {
         public string Name => name;
 
@@ -424,7 +523,7 @@ public sealed class DialogSetProducerStepSpliceTests
             ArgumentNullException.ThrowIfNull(context);
 
             DialogControlEvent next = DialogFooter.NextEvent(context.Flow);
-            var model = new MsiDialogModel { Name = name, FirstControl = "Go" };
+            var model = new MsiDialogModel { Name = emittedName ?? name, FirstControl = "Go" };
             model.Controls.Add(new MsiControlModel
             {
                 Name = "Go", Type = MsiControlType.PushButton,
@@ -436,7 +535,15 @@ public sealed class DialogSetProducerStepSpliceTests
                 ControlName = "Go",
                 Event = MsiControlEvent.Parse(next.Event),
                 Argument = next.Argument,
+                Ordering = 2,
             });
+            if (siblingOrder is { } order)
+                model.Events.Add(new MsiControlEventModel
+                {
+                    DialogName = model.Name, ControlName = "Go",
+                    Event = MsiControlEvent.Parse("[PROBE]"), Argument = "1",
+                    Condition = siblingCondition, Ordering = order
+                });
             return model;
         }
     }

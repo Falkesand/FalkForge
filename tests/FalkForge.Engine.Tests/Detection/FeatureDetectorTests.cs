@@ -32,6 +32,32 @@ public sealed class FeatureDetectorTests
         Assert.Empty(result);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Detect_FreshPackageBackedFeatures_UseDefaults(bool unrelatedPackageInstalled)
+    {
+        var packages = new Dictionary<string, InstallState>
+        {
+            ["main"] = InstallState.NotInstalled,
+            ["optional"] = InstallState.NotInstalled
+        };
+        if (unrelatedPackageInstalled)
+            packages["prerequisite"] = InstallState.Installed;
+        var features = new[]
+        {
+            MakeFeature("main", isDefault: true, packageIds: ["main"]),
+            MakeFeature("optional", isDefault: false, packageIds: ["optional"])
+        };
+
+        var result = FeatureDetector.Detect(features, new MockRegistry(), TestBundleId,
+            InstallScope.PerUser, packages);
+
+        Assert.True(result[0].IsSelected);
+        Assert.False(result[1].IsSelected);
+        Assert.All(result, feature => Assert.False(feature.WasPreviouslyInstalled));
+    }
+
     [Fact]
     public void Detect_FreshInstall_UsesDefaults()
     {

@@ -86,7 +86,7 @@ public sealed class TestTempTests : IDisposable
     // The two tests below replace a prior version of this file that proved the "leaves a
     // trace" contract by redirecting the real, process-global Console.Error via
     // Console.SetError. This assembly (FalkForge.Core.Tests) carries no
-    // [assembly: CollectionBehavior(DisableTestParallelization = true)] -- unlike
+    // [assembly: Parallelization(Mode = ParallelMode.None)] -- unlike
     // FalkForge.Integration.Tests, FalkForge.Compiler.Msi.Tests, FalkForge.Engine.Tests and
     // FalkForge.Platform.Windows.Tests, which all disable parallelization for exactly this
     // reason (see tests/FalkForge.Integration.Tests/IntegrationAssemblyParallelization.cs).

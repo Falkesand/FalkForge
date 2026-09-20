@@ -13,4 +13,4 @@
 // Disabling assembly-level parallelization makes every test in this assembly run one at a time, so a
 // set/assert/restore sequence against msi.dll's process-global UI state always completes before any
 // other test in this assembly can observe or mutate it.
-[assembly: Xunit.CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]

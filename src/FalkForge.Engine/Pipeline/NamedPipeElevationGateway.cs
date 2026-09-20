@@ -3,6 +3,7 @@ namespace FalkForge.Engine.Pipeline;
 using System.IO.Pipes;
 using System.Runtime.Versioning;
 using System.Security.Cryptography;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Elevation;
 using FalkForge.Engine.Protocol.Messages;
 using FalkForge.Engine.Protocol.Transport;
@@ -29,6 +30,7 @@ public sealed class NamedPipeElevationGateway : IElevatedCommandGateway
     private const int SecretLength = 32;
 
     private readonly IProcessLauncher _launcher;
+    private readonly IFalkLogger? _logger;
     private readonly string _companionExePath;
     private readonly IDisposable? _companionHandle;
 
@@ -60,10 +62,13 @@ public sealed class NamedPipeElevationGateway : IElevatedCommandGateway
     /// overwrite and a delete of the same file are refused. The gateway takes ownership and
     /// disposes it in <see cref="DisposeAsync"/>.
     /// </param>
+    /// <param name="logger">Receives authenticated companion diagnostics.</param>
     public NamedPipeElevationGateway(
-        IProcessLauncher launcher, string companionExePath, IDisposable? companionHandle = null)
+        IProcessLauncher launcher, string companionExePath, IDisposable? companionHandle = null,
+        IFalkLogger? logger = null)
     {
         _launcher = launcher;
+        _logger = logger;
         _companionExePath = companionExePath;
         _companionHandle = companionHandle;
     }
@@ -96,7 +101,7 @@ public sealed class NamedPipeElevationGateway : IElevatedCommandGateway
         ElevationClient? client = null;
         var pipe = new PipeServer(pipeOptions, msg =>
             client?.HandleMessageAsync(msg) ?? Task.CompletedTask);
-        client = new ElevationClient(pipe);
+        client = new ElevationClient(pipe, logger: _logger);
 
         // Create-before-spawn: reserve the main pipe name NOW, before the companion is launched,
         // so a same-user rogue process cannot pre-create a server on the (previously logged) pipe

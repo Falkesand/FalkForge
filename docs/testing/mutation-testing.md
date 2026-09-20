@@ -57,7 +57,7 @@ automatically by `scripts/mutation.ps1`, is `--msbuild-path` pointed at the SDK 
 "no project found" symptom again, check this first: run `dotnet --version` from the
 repo root and confirm that exact SDK folder exists under `C:\Program Files\dotnet\sdk`.
 
-**2. The test-runner trap.** All test projects here are xunit.v3 3.2.2 running on
+**2. The test-runner trap.** All test projects here are xunit.v3 4.x running on
 Microsoft.Testing.Platform (MTP), not classic VSTest. Stryker's default `vstest`
 runner is unreliable against xunit.v3 (open upstream issue,
 [stryker-mutator/stryker-net#3117](https://github.com/stryker-mutator/stryker-net/issues/3117)).

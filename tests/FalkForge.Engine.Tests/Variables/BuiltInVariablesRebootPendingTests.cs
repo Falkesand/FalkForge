@@ -74,6 +74,42 @@ public sealed class BuiltInVariablesRebootPendingTests
         Assert.Equal(1L, rebootPending.Value);
     }
 
+    [Theory]
+    [InlineData("NEW", "OLD", 1L)]
+    [InlineData("SAME", "SAME", 0L)]
+    [InlineData("same", "SAME", 0L)]
+    [InlineData(null, null, 0L)]
+    [InlineData("NEW", null, 1L)]
+    [InlineData(null, "OLD", 1L)]
+    public void Populate_ComputerRename_ComparedAgainstActiveName(string? configured, string? active, long expected)
+    {
+        const string root = @"SYSTEM\CurrentControlSet\Control\ComputerName\";
+        var registry = new MockRegistry();
+        if (configured is not null)
+            registry.SetStringValue(RegistryRoot.LocalMachine, root + "ComputerName", "ComputerName", configured);
+        if (active is not null)
+            registry.SetStringValue(RegistryRoot.LocalMachine, root + "ActiveComputerName", "ComputerName", active);
+        var store = new VariableStore();
+
+        BuiltInVariables.Populate(store, new FakePlatformServices(registry));
+
+        Assert.Equal(expected, store.TryGet<long>(BuiltInVariableNames.RebootPending).Value);
+    }
+
+    [Theory]
+    [InlineData("ComputerName")]
+    [InlineData("ActiveComputerName")]
+    public void Populate_ComputerNameUnreadable_RebootPendingIsOne(string child)
+    {
+        var registry = new MockRegistry().FailReadsUnder(
+            @"SYSTEM\CurrentControlSet\Control\ComputerName\" + child);
+        var store = new VariableStore();
+
+        BuiltInVariables.Populate(store, new FakePlatformServices(registry));
+
+        Assert.Equal(1L, store.TryGet<long>(BuiltInVariableNames.RebootPending).Value);
+    }
+
     [Fact]
     public void Populate_NoRebootSignalsPresent_RebootPendingIsZero()
     {

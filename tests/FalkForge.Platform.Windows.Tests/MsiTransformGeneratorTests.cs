@@ -25,7 +25,7 @@ public sealed class MsiTransformGeneratorTests : IDisposable
 
     public void Dispose() => TestTemp.TryDelete(_tempDir);
 
-    private string CompileBaseMsi()
+    private string CompileBaseMsi(bool withHiddenProperty = false)
     {
         var sourceDir = Path.Combine(_tempDir, "src");
         Directory.CreateDirectory(sourceDir);
@@ -40,6 +40,8 @@ public sealed class MsiTransformGeneratorTests : IDisposable
             p.Name = "SecretApp";
             p.Manufacturer = "TestCorp";
             p.Version = new Version(1, 0, 0);
+            if (withHiddenProperty)
+                p.Property("LEGACYSECRET", "placeholder", property => property.IsHidden = true);
             p.Files(f => f.Add(sourceFile).To(KnownFolder.ProgramFiles / "TestCorp" / "SecretApp"));
         });
 
@@ -48,13 +50,15 @@ public sealed class MsiTransformGeneratorTests : IDisposable
         return result.Value;
     }
 
-    [Fact]
-    public void GenerateSecretTransform_SpecialCharacterPassword_SetsPropertyReadableAfterApply()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GenerateSecretTransform_SpecialCharacterPassword_SetsPropertyReadableAfterApply(bool withHiddenProperty)
     {
         if (!OperatingSystem.IsWindows())
             Assert.Skip("Windows only");
 
-        var baseMsi = CompileBaseMsi();
+        var baseMsi = CompileBaseMsi(withHiddenProperty);
         var staging = Path.Combine(_tempDir, "staging");
         Directory.CreateDirectory(staging);
 
@@ -86,6 +90,13 @@ public sealed class MsiTransformGeneratorTests : IDisposable
             "SELECT `Value` FROM `Property` WHERE `Property` = 'SQLPASSWORD'", 1);
         Assert.True(rows.IsSuccess, rows.IsFailure ? rows.Error.Message : null);
         Assert.Equal(password, Assert.Single(rows.Value)[0]);
+        var hidden = db.QueryRows(
+            "SELECT `Value` FROM `Property` WHERE `Property` = 'MsiHiddenProperties'", 1);
+        Assert.True(hidden.IsSuccess);
+        var hiddenNames = Assert.Single(hidden.Value)[0]!.Split(';');
+        Assert.Contains("SQLPASSWORD", hiddenNames);
+        if (withHiddenProperty)
+            Assert.Contains("LEGACYSECRET", hiddenNames);
     }
 
     [Fact]
@@ -118,6 +129,22 @@ public sealed class MsiTransformGeneratorTests : IDisposable
             "SELECT `Value` FROM `Property` WHERE `Property` = 'Manufacturer'", 1);
         Assert.True(rows.IsSuccess, rows.IsFailure ? rows.Error.Message : null);
         Assert.Equal("OverwrittenCorp", Assert.Single(rows.Value)[0]);
+    }
+
+    [Fact]
+    public void GenerateSecretTransform_RefusesOverridingHiddenPropertyPolicy()
+    {
+        var baseMsi = CompileBaseMsi();
+        var staging = Path.Combine(_tempDir, "reserved");
+        Directory.CreateDirectory(staging);
+        using var secret = new SensitiveBytes("override"u8.ToArray());
+        var secrets = new Dictionary<string, SensitiveBytes> { ["MsiHiddenProperties"] = secret };
+
+        var result = MsiTransformGenerator.GenerateSecretTransform(baseMsi, secrets, staging);
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, result.Error.Kind);
+        Assert.Empty(Directory.GetFiles(staging));
     }
 
     [Fact]

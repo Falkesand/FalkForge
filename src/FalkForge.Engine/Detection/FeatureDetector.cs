@@ -48,7 +48,10 @@ public static class FeatureDetector
         // Phase 2: If no registry entries found, fall back to MSI detection
         var msiInferredSelections = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
-        if (!anyFoundInRegistry)
+        var hasInstalledFeaturePackages = features.Any(feature => feature.PackageIds.Any(
+            id => packageResults.TryGetValue(id, out var state) &&
+                  state is InstallState.Installed or InstallState.OlderVersion));
+        if (!anyFoundInRegistry && hasInstalledFeaturePackages)
         {
             foreach (var feature in features)
             {

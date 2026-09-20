@@ -51,12 +51,16 @@ public sealed class PipelineRunner
     /// </summary>
     public async Task<int> RunAsync(CancellationToken ct)
     {
+        using var runCancellation = CancellationTokenSource.CreateLinkedTokenSource(ct, _uiChannel.CancellationRequested);
+        ct = runCancellation.Token;
+
         _logger?.Info("PipelineRunner", "Session started");
 
         // Tracks whether Apply was actually dispatched; used to decide whether
         // a token-cancellation OCE should trigger rollback. If the token is cancelled
         // before Apply starts, no packages have been touched and rollback is pointless.
         var applyDispatched = false;
+        var totalPackages = 0;
 
         try
         {
@@ -66,6 +70,7 @@ public sealed class PipelineRunner
                 {
                     case UiRequest.Detect:
                         _logger?.Info("PipelineRunner", "Detect requested");
+                        await _uiChannel.SendAsync(new PipelineEvent.DetectBegin(), ct);
                         var detectResult = await _pipeline.DetectAsync(ct);
                         if (detectResult.IsFailure)
                         {
@@ -73,7 +78,7 @@ public sealed class PipelineRunner
                             EngineMeter.RecordError(detectResult.Error.Kind);
                             await _uiChannel.SendAsync(
                                 new PipelineEvent.Failed(detectResult.Error.Kind, detectResult.Error.Message), ct);
-                            await SendShutdownAsync(ct);
+                            await SendShutdownAsync(1, ct);
                             return 1;
                         }
 
@@ -87,6 +92,7 @@ public sealed class PipelineRunner
 
                     case UiRequest.Plan planReq:
                         _logger?.Info("PipelineRunner", $"Plan requested: action={planReq.Action}");
+                        await _uiChannel.SendAsync(new PipelineEvent.PlanBegin(planReq.Action), ct);
                         var planResult = await _pipeline.PlanAsync(planReq, ct);
                         if (planResult.IsFailure)
                         {
@@ -94,7 +100,7 @@ public sealed class PipelineRunner
                             EngineMeter.RecordError(planResult.Error.Kind);
                             await _uiChannel.SendAsync(
                                 new PipelineEvent.Failed(planResult.Error.Kind, planResult.Error.Message), ct);
-                            await SendShutdownAsync(ct);
+                            await SendShutdownAsync(1, ct);
                             return 1;
                         }
 
@@ -102,6 +108,7 @@ public sealed class PipelineRunner
                         // (optional) elevation phase runs — matching the legacy EngineHost order so the
                         // UI's PlanAsync returns and the user can proceed to confirm the install.
                         var plan = planResult.Value;
+                        totalPackages = plan.Actions.Count;
                         var packageIds = new string[plan.Actions.Count];
                         for (var i = 0; i < plan.Actions.Count; i++)
                             packageIds[i] = plan.Actions[i].PackageId;
@@ -119,13 +126,13 @@ public sealed class PipelineRunner
                                 EngineMeter.RecordError(exportResult.Error.Kind);
                                 await _uiChannel.SendAsync(
                                     new PipelineEvent.Failed(exportResult.Error.Kind, exportResult.Error.Message), ct);
-                                await SendShutdownAsync(ct);
+                                await SendShutdownAsync(1, ct);
                                 return 1;
                             }
 
                             await _uiChannel.SendAsync(
                                 new PipelineEvent.PhaseChanged(EnginePhase.Completing), ct);
-                            await SendShutdownAsync(ct);
+                            await SendShutdownAsync(0, ct);
                             _logger?.Info("PipelineRunner", "Plan-only session completed");
                             return 0;
                         }
@@ -139,7 +146,7 @@ public sealed class PipelineRunner
                             EngineMeter.RecordError(elevateResult.Error.Kind);
                             await _uiChannel.SendAsync(
                                 new PipelineEvent.Failed(elevateResult.Error.Kind, elevateResult.Error.Message), ct);
-                            await SendShutdownAsync(ct);
+                            await SendShutdownAsync(1, ct);
                             return 1;
                         }
 
@@ -147,6 +154,7 @@ public sealed class PipelineRunner
 
                     case UiRequest.Apply:
                         _logger?.Info("PipelineRunner", "Apply requested");
+                        await _uiChannel.SendAsync(new PipelineEvent.ApplyBegin(totalPackages), ct);
                         applyDispatched = true;
                         var applyResult = await _pipeline.ApplyAsync(ct);
                         if (applyResult.IsFailure)
@@ -155,7 +163,7 @@ public sealed class PipelineRunner
                             EngineMeter.RecordError(applyResult.Error.Kind);
                             await _uiChannel.SendAsync(
                                 new PipelineEvent.Failed(applyResult.Error.Kind, applyResult.Error.Message), ct);
-                            await SendShutdownAsync(ct);
+                            await SendShutdownAsync(1, ct);
                             return 1;
                         }
 
@@ -165,7 +173,7 @@ public sealed class PipelineRunner
                             new PipelineEvent.ApplyComplete(0, null), ct);
                         await _uiChannel.SendAsync(
                             new PipelineEvent.PhaseChanged(EnginePhase.Completing), ct);
-                        await SendShutdownAsync(ct);
+                        await SendShutdownAsync(0, ct);
                         _logger?.Info("PipelineRunner", "Installation completed successfully");
                         return 0;
 
@@ -189,13 +197,13 @@ public sealed class PipelineRunner
                         // down through the normal shutdown path so log/journal flush runs and the
                         // two installers do not fight over the same bundle.
                         _logger?.Info("PipelineRunner", "Update launched — shutting down for handoff");
-                        await SendShutdownAsync(ct);
+                        await SendShutdownAsync(0, ct);
                         return 0;
 
                     case UiRequest.Cancel:
                     case UiRequest.Shutdown:
                         _logger?.Info("PipelineRunner", $"Shutdown requested ({request.GetType().Name})");
-                        await SendShutdownAsync(ct);
+                        await SendShutdownAsync(0, ct);
                         return 0;
                 }
             }
@@ -220,8 +228,7 @@ public sealed class PipelineRunner
 
                 try
                 {
-                    await _uiChannel.SendAsync(
-                        new PipelineEvent.PhaseChanged(EnginePhase.Shutdown), CancellationToken.None);
+                    await SendShutdownAsync(3, CancellationToken.None);
                 }
                 catch
                 {
@@ -243,7 +250,7 @@ public sealed class PipelineRunner
                 await _uiChannel.SendAsync(
                     new PipelineEvent.Failed(ErrorKind.EngineError, ex.Message),
                     CancellationToken.None);
-                await SendShutdownAsync(CancellationToken.None);
+                await SendShutdownAsync(1, CancellationToken.None);
             }
             catch
             {
@@ -253,15 +260,17 @@ public sealed class PipelineRunner
         }
 
         // Channel closed without explicit Shutdown (headless / EOF)
-        await SendShutdownAsync(CancellationToken.None);
+        await SendShutdownAsync(0, CancellationToken.None);
         _logger?.Info("PipelineRunner", "Session ended (channel closed)");
         return 0;
     }
 
-    private async Task SendShutdownAsync(CancellationToken ct)
+    private async Task SendShutdownAsync(int exitCode, CancellationToken ct)
     {
         try
         {
+            // Send the outcome before the phase notification: a UI may close on Shutdown.
+            await _uiChannel.SendAsync(new PipelineEvent.ShutdownComplete(exitCode), ct);
             await _uiChannel.SendAsync(new PipelineEvent.PhaseChanged(EnginePhase.Shutdown), ct);
         }
         catch
