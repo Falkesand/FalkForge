@@ -481,6 +481,72 @@ public sealed class PayloadIntegrityGateTests
         Assert.Contains("INT002", result.Error.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("prerequisite")]
+    [InlineData("companion")]
+    [InlineData("ui")]
+    [InlineData("transform")]
+    public void Verify_AddedUnsignedPayload_ReturnsInt004(string kind)
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var sig = SignEnvelope(key, ("A", "AABB"));
+        var manifest = ManifestWithCoveredExtras(sig,
+            companionSha256: kind == "companion" ? "BEEF" : null,
+            uiSha256: kind == "ui" ? "BEEF" : null,
+            preUIPackages: kind == "prerequisite" ? [PreUI("Extra", "BEEF")] : [],
+            packages: PackageWithTransforms("A", "AABB",
+                kind == "transform" ? [new PackageTransformInfo { Id = "Extra", Sha256Hash = "BEEF" }] : []));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("INT004", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("A", true)]
+    [InlineData("a", true)]
+    [InlineData("A", false)]
+    [InlineData("a", false)]
+    public void Verify_DuplicatePackageId_IsRejectedEvenWhenUnsigned(string secondId, bool signed)
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var manifest = ManifestWith(signed ? SignEnvelope(key, ("A", "AABB")) : null,
+            Package("A", "AABB"), Package(secondId, "BEEF"));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("INT003", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("prerequisite")]
+    [InlineData("companion")]
+    [InlineData("ui")]
+    [InlineData("transform")]
+    public void Verify_DuplicateIdAcrossPayloadKinds_IsRejected(string kind)
+    {
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var id = kind switch
+        {
+            "companion" => FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId,
+            "ui" => FalkForge.Engine.Protocol.Bundle.UiPayload.PackageId,
+            _ => "A"
+        };
+        var manifest = ManifestWithCoveredExtras(SignEnvelope(key, (id, "AABB")),
+            companionSha256: kind == "companion" ? "BEEF" : null,
+            uiSha256: kind == "ui" ? "BEEF" : null,
+            preUIPackages: kind == "prerequisite" ? [PreUI(id, "BEEF")] : [],
+            packages: PackageWithTransforms(id, "AABB",
+                kind == "transform" ? [new PackageTransformInfo { Id = id, Sha256Hash = "BEEF" }] : []));
+
+        var result = PayloadIntegrityGate.Verify(manifest, Pinned(key));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("INT003", result.Error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Verify_HashComparisonIsCaseInsensitive()
     {

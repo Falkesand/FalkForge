@@ -52,6 +52,18 @@ internal static class PayloadIntegrityGate
     {
         ArgumentNullException.ThrowIfNull(manifest);
 
+        // Windows payload paths cannot safely distinguish IDs by case. Reject ambiguity
+        // even for unsigned bundles, before any consumer resolves an ID to its first match.
+        var payloads = new Dictionary<string, string>(StringComparer.Ordinal);
+        var payloadIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (id, hash) in EnumeratePayloads(manifest))
+        {
+            if (string.IsNullOrWhiteSpace(id) || !payloadIds.Add(id))
+                return Result<Unit>.Failure(ErrorKind.IntegrityError,
+                    $"INT003: Manifest payload ID '{id}' is empty or duplicated.");
+            payloads.Add(id, hash);
+        }
+
         var trustedFingerprints = policy.TrustedFingerprints ?? TrustPolicy.ConsistencyOnly.TrustedFingerprints;
 
         if (manifest.ManifestSignature is null)
@@ -150,8 +162,7 @@ internal static class PayloadIntegrityGate
                 return Result<Unit>.Failure(ErrorKind.IntegrityError,
                     "INT003: Manifest integrity envelope has an entry with an empty name.");
 
-            var manifestHash = FindCoveredPayloadHash(manifest, entry.Name);
-            if (manifestHash is null)
+            if (!payloads.TryGetValue(entry.Name, out var manifestHash))
                 return Result<Unit>.Failure(ErrorKind.IntegrityError,
                     $"INT002: Signed integrity entry '{entry.Name}' has no matching package in the manifest.");
 
@@ -164,12 +175,12 @@ internal static class PayloadIntegrityGate
         // package that will execute must be in the signed set. Otherwise an attacker could
         // append an unsigned package to a validly signed bundle and have it run alongside the
         // signed ones. An unsigned-extra package is an IntegrityError, not a silent pass.
-        foreach (var package in manifest.Packages)
+        foreach (var id in payloads.Keys)
         {
-            if (!IsInSignedSet(envelope, package.Id))
+            if (!IsInSignedSet(envelope, id))
                 return Result<Unit>.Failure(ErrorKind.IntegrityError,
-                    $"INT004: Manifest package '{package.Id}' is not covered by the integrity signature. " +
-                    "Every package in a signed manifest must be signed.");
+                    $"INT004: Manifest payload '{id}' is not covered by the integrity signature. " +
+                    "Every payload in a signed manifest must be signed.");
         }
 
         return Result<Unit>.Success(default);
@@ -187,49 +198,25 @@ internal static class PayloadIntegrityGate
     }
 
     /// <summary>
-    /// Resolves the manifest-declared hash for a signed payload id across every place the
-    /// manifest carries one: installable packages, pre-UI prerequisites, the elevation
-    /// companion (whose reserved id binds to <see cref="InstallerManifest.EngineCompanionSha256"/>),
-    /// the UI executable (<see cref="InstallerManifest.EngineUiSha256"/>), and per-package MSI
-    /// transforms (carried under <see cref="PackageInfo.Transforms"/>).
-    /// A transform is a signed payload but not an installable package, so it is resolved here for the
-    /// Direction 1 binding without ever entering <see cref="InstallerManifest.Packages"/> — the
-    /// Direction 2 coverage loop and the S4 install guard both key off that list, so a transform id
-    /// stays non-installable. Returns null when the manifest carries no payload under that id.
+    /// Enumerates every declared payload for both uniqueness and signature coverage.
+    /// Transforms remain payloads of their owning package, never installable packages.
     /// </summary>
-    private static string? FindCoveredPayloadHash(InstallerManifest manifest, string id)
+    private static IEnumerable<(string Id, string Hash)> EnumeratePayloads(InstallerManifest manifest)
     {
         foreach (var package in manifest.Packages)
         {
-            if (string.Equals(package.Id, id, StringComparison.Ordinal))
-                return package.Sha256Hash;
+            yield return (package.Id, package.Sha256Hash);
+            foreach (var transform in package.Transforms)
+                yield return (transform.Id, transform.Sha256Hash);
         }
 
-        foreach (var preUI in manifest.PreUIPackages)
-        {
-            if (string.Equals(preUI.Id, id, StringComparison.Ordinal))
-                return preUI.Sha256Hash;
-        }
+        foreach (var package in manifest.PreUIPackages)
+            yield return (package.Id, package.Sha256Hash);
 
-        if (string.Equals(id, FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId, StringComparison.Ordinal))
-            return manifest.EngineCompanionSha256;
+        if (manifest.EngineCompanionSha256 is { } companionHash)
+            yield return (FalkForge.Engine.Protocol.Bundle.EngineCompanionPayload.PackageId, companionHash);
 
-        if (string.Equals(id, FalkForge.Engine.Protocol.Bundle.UiPayload.PackageId, StringComparison.Ordinal))
-            return manifest.EngineUiSha256;
-
-        // Per-package MSI transforms: a declared transform is a signed payload keyed by its id,
-        // carried under the owning package's Transforms. Resolve it here so its signed entry binds
-        // (Direction 1) without the transform ever being an installable package.
-        foreach (var package in manifest.Packages)
-        {
-            var transforms = package.Transforms;
-            for (var i = 0; i < transforms.Count; i++)
-            {
-                if (string.Equals(transforms[i].Id, id, StringComparison.Ordinal))
-                    return transforms[i].Sha256Hash;
-            }
-        }
-
-        return null;
+        if (manifest.EngineUiSha256 is { } uiHash)
+            yield return (FalkForge.Engine.Protocol.Bundle.UiPayload.PackageId, uiHash);
     }
 }

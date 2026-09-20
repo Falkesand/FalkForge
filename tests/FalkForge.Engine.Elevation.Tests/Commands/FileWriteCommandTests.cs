@@ -249,18 +249,18 @@ public sealed class FileWriteCommandTests : IDisposable
     }
 
     [Fact]
-    public void Execute_OverwritesExistingFileWithShorterContent()
+    public void Execute_RefusesExistingFileWithoutChangingContent()
     {
-        // Overwrite semantics: an existing regular file is replaced entirely — a shorter
-        // second write must not leave trailing bytes from the first write.
+        // Create-only semantics refuse any pre-existing name without modifying its contents.
         var targetPath = Path.Combine(_tempDir, "overwrite.txt");
         var first = _command.Execute(BuildPayload(targetPath, "AAAAAAAAAAAAAAAA"u8.ToArray()));
         Assert.True(first.IsSuccess);
 
         var second = _command.Execute(BuildPayload(targetPath, "BB"u8.ToArray()));
 
-        Assert.True(second.IsSuccess);
-        Assert.Equal("BB"u8.ToArray(), File.ReadAllBytes(targetPath));
+        Assert.True(second.IsFailure);
+        Assert.Equal(ErrorKind.SecurityError, second.Error.Kind);
+        Assert.Equal("AAAAAAAAAAAAAAAA"u8.ToArray(), File.ReadAllBytes(targetPath));
     }
 
     private static bool TryCreateFileSymlink(string linkPath, string linkTarget)

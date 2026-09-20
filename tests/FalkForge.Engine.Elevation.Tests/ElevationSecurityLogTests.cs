@@ -62,6 +62,68 @@ public sealed class ElevationSecurityLogTests : IDisposable
         TestTemp.TryDelete(_tempDir);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SessionStart_ReportsTamperingOverAuthenticatedPipe(bool tampered)
+    {
+        TamperField.SetValue(null, tampered);
+        InitializedField.SetValue(null, true);
+        var options = new FalkForge.Engine.Protocol.Transport.PipeConnectionOptions
+        {
+            PipeName = $"log_tamper_{Guid.NewGuid():N}",
+            SharedSecret = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)
+        };
+        var logs = new System.Collections.Concurrent.ConcurrentQueue<FalkForge.Engine.Protocol.Messages.LogMessage>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var server = new FalkForge.Engine.Protocol.Transport.PipeServer(options, message =>
+        {
+            if (message is FalkForge.Engine.Protocol.Messages.LogMessage log)
+                logs.Enqueue(log);
+            if (message is FalkForge.Engine.Protocol.Messages.ElevateResultMessage)
+                completed.TrySetResult();
+            return Task.CompletedTask;
+        });
+        var listening = server.StartAsync(timeout.Token);
+        await using var host = new ElevatedHost(options, Environment.ProcessId);
+        var running = host.RunAsync(timeout.Token);
+        try
+        {
+            Assert.True((await listening).IsSuccess);
+            Assert.Empty(logs);
+            var correlation = Guid.NewGuid();
+            Assert.True((await server.SendAsync(new FalkForge.Engine.Protocol.Messages.SessionStartMessage
+            {
+                CorrelationId = correlation,
+                StartedUtc = DateTimeOffset.UtcNow
+            }, timeout.Token)).IsSuccess);
+            Assert.True((await server.SendAsync(new FalkForge.Engine.Protocol.Messages.ElevateExecuteMessage
+            {
+                SequenceId = 1,
+                CommandName = "UnknownTestCommand",
+                CommandPayload = []
+            }, timeout.Token)).IsSuccess);
+            await completed.Task.WaitAsync(timeout.Token);
+            if (tampered)
+            {
+                var warning = Assert.Single(logs);
+                Assert.Equal(FalkForge.Diagnostics.LogLevel.Warning, warning.Level);
+                Assert.Equal(correlation, warning.SessionCorrelationId);
+                Assert.Contains("tampering", warning.Text);
+            }
+            else
+            {
+                Assert.Empty(logs);
+            }
+        }
+        finally
+        {
+            await timeout.CancelAsync();
+            await running;
+        }
+    }
+
     /// <summary>
     /// Shuts down any existing writer, then injects a fresh StreamWriter over
     /// a new temp file. Returns the file path for assertion.
@@ -135,6 +197,22 @@ public sealed class ElevationSecurityLogTests : IDisposable
     // -------------------------------------------------------------------------
     // Format tests
     // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task HostConnectionFailure_WritesToTheSameStaticLogAsync()
+    {
+        InjectFreshWriter();
+        var options = new FalkForge.Engine.Protocol.Transport.PipeConnectionOptions
+        {
+            PipeName = $"test-log-absent-{Guid.NewGuid():N}",
+            SharedSecret = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32),
+            ConnectionTimeout = TimeSpan.FromMilliseconds(250)
+        };
+        await using var host = new ElevatedHost(options, Environment.ProcessId);
+        Assert.Equal(1, await host.RunAsync());
+        var lines = ReadLogLines();
+        Assert.Contains(lines, line => line.Contains("Failed to connect to engine pipe", StringComparison.Ordinal));
+    }
 
     [Fact]
     public void SecurityEvent_WritesTabDelimitedLineWithWarningSeverity()

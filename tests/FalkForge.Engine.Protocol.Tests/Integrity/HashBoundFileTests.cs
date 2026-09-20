@@ -40,6 +40,35 @@ public sealed class HashBoundFileTests : IDisposable
         return path;
     }
 
+    [Fact]
+    public void DefaultResult_DoesNotReportVerification()
+    {
+        HashBoundFileResult result = default;
+        Assert.Equal(HashBoundFileStatus.Unknown, result.Status);
+        Assert.Null(result.Stream);
+    }
+
+    [Fact]
+    public void Open_DeviceHandleFailsClosed()
+    {
+        var result = HashBoundFile.Open("NUL", HashOf([]));
+        using var stream = result.Stream;
+        Assert.NotEqual(HashBoundFileStatus.Verified, result.Status);
+        Assert.Null(stream);
+        Assert.Null(result.ResolvedPath);
+    }
+
+    [Theory]
+    [InlineData(@"\\?\C:\payload.msi", @"C:\payload.msi")]
+    [InlineData(@"\\?\UNC\server\share\payload.msi", @"\\server\share\payload.msi")]
+    [InlineData(@"\\?\Volume{00000000-0000-0000-0000-000000000000}\payload.msi", null)]
+    [InlineData(@"relative\payload.msi", null)]
+    [InlineData(@"C:payload.msi", null)]
+    public void FinalPath_MustRemainFullyQualified(string path, string? expected)
+    {
+        Assert.Equal(expected, HashBoundFile.StripExtendedLengthPrefix(path));
+    }
+
     private static string HashOf(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes));
 
     [Fact]

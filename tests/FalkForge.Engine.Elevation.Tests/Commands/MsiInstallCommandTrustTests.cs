@@ -146,19 +146,14 @@ public sealed class MsiInstallCommandTrustTests
     [Fact]
     public void Execute_NamesTheUiExecutable_Rejected_NeverInstalls()
     {
-        // Once the compiler appends the UI to the signed set, a forged Packages entry named
-        // FalkForge.Ui.exe carrying the REAL signed hash passes the whole integrity gate: the
-        // signed entry binds (Direction 1 walks Packages first), and set coverage (Direction 2)
-        // holds because the id genuinely is in the signed set. The gate proves authorship and
-        // bytes; it never proves the named payload is an installable MSI, because the signed
-        // envelope carries only name and sha256 and the type field lives in the unsigned
-        // manifest. Nothing but this explicit refusal stops the companion handing the UI
-        // executable to msiexec as SYSTEM.
+        // A signed UI declaration is not an installable MSI. Keep the manifest valid so this
+        // specifically exercises the reserved UI target guard, independently of duplicate-ID
+        // rejection in the integrity gate.
         using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var uiHash = new string('D', 64);
         var manifestJson = SignedManifestPayload.ManifestJson(
             envelopeEntries: [(PackageId, new string('A', 64)), (UiPayload.PackageId, uiHash)],
-            packages: [(PackageId, new string('A', 64)), (UiPayload.PackageId, uiHash)],
+            packages: [(PackageId, new string('A', 64))],
             preUI: [], companionSha256: null, signingKey: key, uiSha256: uiHash);
         var payload = SignedManifestPayload.Build(
             MsiPath, string.Empty, UiPayload.PackageId, manifestJson);

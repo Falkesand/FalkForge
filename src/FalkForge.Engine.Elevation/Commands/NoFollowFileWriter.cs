@@ -21,11 +21,10 @@ namespace FalkForge.Engine.Elevation.Commands;
 /// <item>The parent handle is verified: not a reparse point, and its true path (via
 /// <c>GetFinalPathNameByHandle</c>) equals the expected path — this detects a path that
 /// resolved THROUGH an ancestor junction planted after the policy walk.</item>
-/// <item>The target is opened with <c>FILE_FLAG_OPEN_REPARSE_POINT</c> and <c>OPEN_ALWAYS</c>
-/// (no truncation at open), then verified the same way: a file symlink at the leaf — dangling
-/// or not — is opened as itself, detected via its reparse attribute, and rejected; a final-path
-/// mismatch is rejected before any byte is written.</item>
-/// <item>Only after both verifications do content write + truncate + flush happen, all through
+/// <item>The target is opened with <c>FILE_FLAG_OPEN_REPARSE_POINT</c> and <c>CREATE_NEW</c>.
+/// Existing files, hard links and symlinks are rejected atomically. A final-path mismatch
+/// is rejected before any byte is written.</item>
+/// <item>Only after both verifications do content write and flush happen, all through
 /// the verified handle. Path strings are never re-resolved after verification.</item>
 /// </list>
 /// HONEST RESIDUAL: the leaf open is still path-based (not relative to the pinned parent
@@ -40,11 +39,10 @@ internal static class NoFollowFileWriter
 {
     internal static Result<Unit> Write(string parentDirectory, string targetPath, byte[] content)
     {
-        // Overwrite semantics: OPEN_ALWAYS never truncates at open time, and shareMode 0 denies
-        // any concurrent access for the write's duration. SetLength below drops any trailing
-        // bytes from a pre-existing longer file.
+        // Create-only: an existing directory entry may be an attacker-planted hard link.
+        // Refuse it atomically rather than opening and truncating an existing file as SYSTEM.
         var open = OpenVerifiedNoFollowLeaf(
-            parentDirectory, targetPath, shareMode: 0, NativeFileMethods.OpenAlways);
+            parentDirectory, targetPath, shareMode: 0, NativeFileMethods.CreateNew);
         if (open.IsFailure)
             return Result<Unit>.Failure(open.Error);
 
@@ -52,7 +50,6 @@ internal static class NoFollowFileWriter
         using var fileHandle = open.Value;
         using var stream = new FileStream(fileHandle, FileAccess.Write);
         stream.Write(content);
-        stream.SetLength(content.Length); // Overwrite semantics: drop any trailing old bytes.
         stream.Flush(flushToDisk: true);
         return Unit.Value;
     }
@@ -152,8 +149,13 @@ internal static class NoFollowFileWriter
             var createError = Marshal.GetLastPInvokeError();
 
             if (fileHandle.IsInvalid)
+            {
+                if (creationDisposition == NativeFileMethods.CreateNew && createError is 80 or 183)
+                    return Result<SafeFileHandle>.Failure(ErrorKind.SecurityError,
+                        "File write refused an existing file, hard link or symbolic link at the target path.");
                 return Result<SafeFileHandle>.Failure(ErrorKind.ElevationError,
                     $"File write failed: cannot open target file (Win32 error {createError})");
+            }
 
             // OPEN_ALWAYS sets ERROR_ALREADY_EXISTS when the file pre-existed; anything else means
             // this call created it and may safely delete it again on rejection. CREATE_NEW never

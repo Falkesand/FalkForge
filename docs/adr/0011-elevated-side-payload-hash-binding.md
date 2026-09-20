@@ -116,7 +116,7 @@ The reasons to reject this alternative still stand, on different grounds:
   controls regardless of any DACL FalkForge places on the leaf.
 - `TrustStateStore`'s directory is created and hardened by the *elevated* companion
   (`EnsureSecuredDirectory` seizes ownership to `BUILTIN\Administrators`,
-  `TrustStateStore.cs:319-323, 469-507`), so its owner is never the same-user attacker. The MSI
+  `TrustStateStore.cs`, `EnsureSecuredDirectory` and its owner-seizure implementation (formerly lines 469-507)), so its owner is never the same-user attacker. The MSI
   cache and the pre-UI extraction directory are created by the engine while it is still running
   unelevated, as the same account the attacker is assumed to control, so the comparison to
   `TrustStateStore` does not transfer without first re-parenting the directory to an elevated owner

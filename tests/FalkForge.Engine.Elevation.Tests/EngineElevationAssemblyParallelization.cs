@@ -26,6 +26,13 @@
 // hypothesis confirmed by code inspection (a genuine process-global singleton with opt-in-only
 // protection), not by a caught failure.
 //
+// Identified 2026-09-20: the untagged ElevatedHostFailureReportingTests calls RunAsync,
+// whose failed-connect path invokes ElevationSecurityLog.SecurityEvent. The new
+// HostConnectionFailure_WritesToTheSameStaticLogAsync regression injects a writer and
+// observes that exact write. Thus the three tagged classes were not the only users;
+// assembly serialization covers this positively identified competing writer.
+// The original intermittent failure itself was not captured.
+//
 // Measured A/B on this exact test population (dev hardware, this project's csproj run standalone,
 // three `dotnet test` runs each way, 205 passed / 0 failed both ways): parallel (this line
 // absent) reported test duration 3.244s / 0.707s / 0.702s, wall-clock 8.41s / 5.71s / 6.07s;
