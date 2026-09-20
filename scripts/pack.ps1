@@ -82,18 +82,24 @@ elseif (-not $SkipEnginePublish) {
 
     Write-Host "Publishing NativeAOT engine (this takes a few minutes)..." -ForegroundColor Yellow
     dotnet publish (Join-Path $root "src/FalkForge.Engine/FalkForge.Engine.csproj") `
-        -c Release -r win-x64 -o $engineDir
+        -c Release -r win-x64 -p:RestoreLockedMode=false -o $engineDir
     if ($LASTEXITCODE -ne 0) { throw "Engine publish failed" }
 
     Write-Host "Publishing NativeAOT elevation companion..." -ForegroundColor Yellow
     dotnet publish (Join-Path $root "src/FalkForge.Engine.Elevation/FalkForge.Engine.Elevation.csproj") `
-        -c Release -r win-x64 -o $engineDir
+        -c Release -r win-x64 -p:RestoreLockedMode=false -o $engineDir
     if ($LASTEXITCODE -ne 0) { throw "Engine.Elevation publish failed" }
 
     Write-Host "Publishing UI (framework-dependent single-file)..." -ForegroundColor Yellow
     dotnet publish (Join-Path $root "src/FalkForge.Ui/FalkForge.Ui.csproj") `
-        -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o $engineDir
+        -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:RestoreLockedMode=false -o $engineDir
     if ($LASTEXITCODE -ne 0) { throw "UI publish failed" }
+
+    # RID-specific restores rewrite shared lock files. Return them to the repository's
+    # RID-neutral graph before the locked solution pack validates them.
+    Write-Host "Restoring RID-neutral package locks..." -ForegroundColor Yellow
+    dotnet restore $slnx -p:RestoreLockedMode=false
+    if ($LASTEXITCODE -ne 0) { throw "RID-neutral restore failed" }
 }
 
 # Clean only our package outputs. Never recursively delete a caller-supplied directory.
