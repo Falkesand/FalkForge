@@ -4,6 +4,7 @@ using FalkForge.Engine.Protocol;
 using FalkForge.Ui.Abstractions;
 using FalkForge.Ui.Abstractions.ViewModels;
 using ReactiveUI;
+using ReactiveUI.Primitives;
 
 namespace FalkForge.Ui.ViewModels;
 
@@ -109,15 +110,15 @@ public sealed class ProgressPageViewModel : InstallerPageViewModel, IReactiveObj
     {
         _progressSubscription = Engine.Progress
             .ObserveOn(RxSchedulers.MainThreadScheduler)
-            .Subscribe(OnProgress);
+            .Subscribe(System.Reactive.Observer.Create<InstallProgress>(OnProgress));
 
         _statusSubscription = Engine.StatusMessage
             .ObserveOn(RxSchedulers.MainThreadScheduler)
-            .Subscribe(msg => StatusText = msg);
+            .Subscribe(System.Reactive.Observer.Create<string>(msg => StatusText = msg));
 
         _phaseSubscription = Engine.Phase
             .ObserveOn(RxSchedulers.MainThreadScheduler)
-            .Subscribe(OnPhaseChanged);
+            .Subscribe(System.Reactive.Observer.Create<EnginePhase>(OnPhaseChanged));
 
         await RunAsync(ct);
     }
