@@ -8,15 +8,6 @@
         "resolved": "4.0.8",
         "contentHash": "vNi4NMG0CcJyjXxiNDcQ21FwV/whM9o9OEZKD+oP7tuxAqFEzX/x5OhC3OZJqW/w+8GOtCmJPBquYgMWgz0rfQ=="
       },
-      "JsonSchema.Net": {
-        "type": "Direct",
-        "requested": "[9.4.0, )",
-        "resolved": "9.4.0",
-        "contentHash": "muE4nPuzbD9x5XA1mkXJNqX4mhz47oF3EY8qFLY1pyUY7lhXFKq65t/dSKIHeNSLBV17zwZuq24MD1em90rMNg==",
-        "dependencies": {
-          "JsonPointer.Net": "7.0.2"
-        }
-      },
       "Meziantou.Analyzer": {
         "type": "Direct",
         "requested": "[3.0.261, )",
@@ -61,6 +52,17 @@
         "resolved": "18.7.23",
         "contentHash": "dyj6z8m+LFjpeH69hdnciCcRCmD0YgMlvuQEywiEshjqj/blgQ+PuWX8Vd5gkWQFoBN4e+TFxx6DvGNSv/gIKg=="
       },
+      "NJsonSchema": {
+        "type": "Direct",
+        "requested": "[11.6.1, )",
+        "resolved": "11.6.1",
+        "contentHash": "miqvNY4OSXCWVqaMqt0A8VUkij0UH1oPosHMLP+t6/nWNSSzWDPmm7G2DjVW7M9evy0x5DE2pS/DDTtKCpbzSQ==",
+        "dependencies": {
+          "NJsonSchema.Annotations": "11.6.1",
+          "Namotion.Reflection": "3.5.0",
+          "Newtonsoft.Json": "13.0.3"
+        }
+      },
       "SecurityCodeScan.VS2019": {
         "type": "Direct",
         "requested": "[5.6.7, )",
@@ -80,25 +82,6 @@
         "contentHash": "L+4/4y0Uqcg8/d6hfnxhnwh4j9FaeULvefTwrk30rr1o4n/vdPfyUQ8k0yzH8VJx7bmFEkDdcRfbtbjEHlaYcA==",
         "dependencies": {
           "xunit.v3.mtp-v1": "[3.2.2]"
-        }
-      },
-      "Humanizer.Core": {
-        "type": "Transitive",
-        "resolved": "3.0.10",
-        "contentHash": "yZIhtw8sYuvsONzQbZxWpR60tMWYHXoo0DL6nyOqSFiU5POjBTSEyWFpTQtJEZuy+oqiYTXKXY/Mjx7KnqIQFw=="
-      },
-      "Json.More.Net": {
-        "type": "Transitive",
-        "resolved": "3.0.1",
-        "contentHash": "fRctF2J2SILYG6wqP21drmeEODmCVkVQ/b3MndDu2fT1swfySyUgq7ePCk+aENGlDcIm05fyfjh9vcuqDEfv3w=="
-      },
-      "JsonPointer.Net": {
-        "type": "Transitive",
-        "resolved": "7.0.2",
-        "contentHash": "oClYHv2ooeRrtPZyC9sb/Za/ie5pGhjTbNHlAyFg4XOCyU+606FdoZKS7UdaWvtsPlrF+U2w0Ja3TRvn5+spyA==",
-        "dependencies": {
-          "Humanizer.Core": "3.0.10",
-          "Json.More.Net": "3.0.1"
         }
       },
       "Microsoft.ApplicationInsights": {
@@ -189,6 +172,21 @@
         "type": "Transitive",
         "resolved": "5.0.0",
         "contentHash": "dDoKi0PnDz31yAyETfRntsLArTlVAVzUzCIvvEDsDsucrl33Dl8pIJG06ePTJTI3tGpeyHS9Cq7Foc/s4EeKcg=="
+      },
+      "Namotion.Reflection": {
+        "type": "Transitive",
+        "resolved": "3.5.0",
+        "contentHash": "FnASiAaTGSmB4SaSroIwnK4ph9noFIXZpPOMezDqWw5S/TNakzSnawPeM7u0Auq1/EqJXeqG4s6UjfrGBH33Ow=="
+      },
+      "Newtonsoft.Json": {
+        "type": "Transitive",
+        "resolved": "13.0.3",
+        "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
+      },
+      "NJsonSchema.Annotations": {
+        "type": "Transitive",
+        "resolved": "11.6.1",
+        "contentHash": "WA4z8iK+0SOh2/qoo7rtEanj/LjJZ8oWWoXI8u1xcYMk6VzHONqpabJBYGrzqDO41ld+VQHOFL+B8MXncIVSSA=="
       },
       "xunit.analyzers": {
         "type": "Transitive",
