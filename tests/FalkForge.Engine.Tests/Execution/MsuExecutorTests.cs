@@ -38,7 +38,8 @@ public sealed class MsuExecutorTests
 
         await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
-        Assert.Equal("wusa.exe", runner.LastFileName);
+        Assert.Equal(Path.Combine(Environment.SystemDirectory, "wusa.exe"), runner.LastFileName);
+        Assert.True(Path.IsPathFullyQualified(runner.LastFileName!));
         Assert.Equal(@"""C:\updates\KB12345.msu"" /quiet /norestart", runner.LastArguments);
     }
 
@@ -51,7 +52,8 @@ public sealed class MsuExecutorTests
 
         await executor.ExecuteAsync(action, CancellationToken.None, new Progress<int>(_ => { }));
 
-        Assert.Equal("wusa.exe", runner.LastFileName);
+        Assert.Equal(Path.Combine(Environment.SystemDirectory, "wusa.exe"), runner.LastFileName);
+        Assert.True(Path.IsPathFullyQualified(runner.LastFileName!));
         Assert.Equal("/uninstall /kb:12345 /quiet /norestart", runner.LastArguments);
     }
 

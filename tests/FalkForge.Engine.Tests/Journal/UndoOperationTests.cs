@@ -42,7 +42,8 @@ public sealed class UndoOperationTests
         var result = await op.ExecuteAsync(entry, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal("msiexec.exe", runner.LastFileName);
+        Assert.Equal(Path.Combine(Environment.SystemDirectory, "msiexec.exe"), runner.LastFileName);
+        Assert.True(Path.IsPathFullyQualified(runner.LastFileName!));
         Assert.Equal("/x {12345678-1234-1234-1234-123456789ABC} /qn /norestart", runner.LastArguments);
     }
 
