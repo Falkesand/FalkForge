@@ -12,7 +12,7 @@ FalkForge's current licence is **FSL-1.1-ALv2 with an Additional Grant**, as set
 | SecurityCodeScan.VS2019 5.6.7 | LGPL-3.0-or-later | Build analyzer only. Both root and packaged-source Directory.Build.props restrict assets to analyzers/build and mark them PrivateAssets=all. Its assemblies are not runtime references or public NuGet dependencies. |
 | JsonSchema.Net 9.4.0 | MIT source; custom Open Source Maintenance Fee Agreement for the supplied binary | Removed at the owner's request. Test-only use did not establish an exemption from the binary agreement. Replaced with NJsonSchema 11.6.1. |
 | NETStandard.Library 2.0.3 | MIT | Reference/framework dependency. Preserve its notices if redistributing its files. Its legacy licenseUrl is not evidence of an unknown licence. |
-| SonarAnalyzer.CSharp 10.34.0.3385 | SONAR Source-Available License v1.0; no SPDX identifier asserted here | Build analyzer only, with the same private analyzer/build asset restrictions. The actual terms include an external-AI-use exclusion; unresolved replacement is tracked separately as D137. It is not LGPL or MIT. |
+| SonarAnalyzer.CSharp 10.34.0.3385 | SONAR Source-Available License v1.0; no SPDX identifier asserted here | Removed from both repository and packaged-source builds on 2026-09-20 (D137) because the external-AI-use exclusion is incompatible with this workflow. It is not LGPL or MIT. |
 
 The replacement **NJsonSchema 11.6.1** and its dependencies
 **NJsonSchema.Annotations 11.6.1**, **Namotion.Reflection 3.5.0**, and
@@ -25,13 +25,20 @@ The LGPL analyzer is run as a build tool, rather than linked into FalkForge's ru
 The packaged engine source references the analyzer for consumers to restore, but does
 not bundle the analyzer binary. This conclusion depends on retaining the asset filters.
 If a future package distributes analyzer binaries, modifies them, or links their code,
-reassess the corresponding licence and source/notice obligations. Likewise, build-only
-placement does not resolve the Sonar use restriction in D137.
+reassess the corresponding licence and source/notice obligations. SonarAnalyzer is no
+longer referenced by the repository or the packaged engine-source build.
 
-Validation of the replacement: the Core suite passed **1,259 tests, 1 skipped** with
-locked restore. Schema checks include valid SPDX examples and rejection of missing
-required fields, wrong types, invalid nested enum values and unexpected properties.
-The vendored SPDX schema remains unchanged and has no external references.
+Validation of the schema-validator replacement: the Core suite passed **1,259 tests,
+1 skipped** with locked restore. Schema checks include valid SPDX examples and rejection
+of missing required fields, wrong types, invalid nested enum values and unexpected
+properties. The vendored SPDX schema remains unchanged and has no external references.
+
+Validation of the SonarAnalyzer removal: the full solution and all demos build with zero
+warnings under locked restore; the full suite passed **8,960 tests, 511 skipped**, and the
+five packaged-engine-source integration tests passed without skips. The repository keeps
+the .NET SDK's `latest-all` rules plus Microsoft.VisualStudio.Threading.Analyzers,
+IDisposableAnalyzers, Meziantou.Analyzer, SecurityCodeScan.VS2019, and WpfAnalyzers for
+WPF projects.
 
 Sources:
 

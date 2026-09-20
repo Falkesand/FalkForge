@@ -72,10 +72,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="SonarAnalyzer.CSharp">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>analyzers; build</IncludeAssets>
-        </PackageReference>
         <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>analyzers; build</IncludeAssets>

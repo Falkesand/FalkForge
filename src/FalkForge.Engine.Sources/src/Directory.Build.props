@@ -29,15 +29,11 @@
     <RestoreLockedMode>true</RestoreLockedMode>
   </PropertyGroup>
 
-  <!-- Same five analyzers the repository root pins, at the same versions, since
+  <!-- Same four third-party analyzers the repository root pins, at the same versions, since
        ManagePackageVersionsCentrally is off for this tree (see Directory.Packages.props) and each
        PackageReference needs its own explicit Version. WpfAnalyzers is left out: neither shipped
        project sets UseWPF, matching the repository root's own condition for it. -->
   <ItemGroup>
-    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.34.0.3385">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>analyzers; build</IncludeAssets>
-    </PackageReference>
     <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.7.23">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>analyzers; build</IncludeAssets>

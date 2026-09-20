@@ -183,7 +183,7 @@ public sealed class EngineSourcePackageTests
         // not only that the props file exists. project.assets.json records every package that was
         // resolved for the project, analyzers included.
         var engineAssets = File.ReadAllText(Path.Combine(objDir, "engine", "project.assets.json"));
-        Assert.Contains("SonarAnalyzer.CSharp", engineAssets, StringComparison.Ordinal);
+        Assert.DoesNotContain("SonarAnalyzer.CSharp", engineAssets, StringComparison.Ordinal);
         Assert.Contains("SecurityCodeScan.VS2019", engineAssets, StringComparison.Ordinal);
         Assert.Contains("IDisposableAnalyzers", engineAssets, StringComparison.Ordinal);
         Assert.Contains("Meziantou.Analyzer", engineAssets, StringComparison.Ordinal);
