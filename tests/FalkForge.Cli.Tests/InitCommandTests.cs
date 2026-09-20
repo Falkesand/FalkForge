@@ -90,9 +90,15 @@ public sealed class InitCommandTests : IDisposable
         Assert.True(reference.Success, $"csproj must reference the FalkForge meta-package: {csprojContent}");
         Assert.DoesNotContain("FalkForge.Core", csprojContent, StringComparison.Ordinal);
 
-        // The referenced version is the single-source version the CLI itself carries
-        // (build metadata stripped — NuGet versions never include +metadata).
-        var expectedVersion = VersionInfo.CliVersion.Split('+')[0];
+        // Read the repository's source of truth independently of the CLI assembly constant.
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !File.Exists(Path.Combine(root.FullName, "FalkForge.slnx")))
+            root = root.Parent;
+        Assert.NotNull(root);
+        var props = System.Xml.Linq.XDocument.Load(Path.Combine(root.FullName, "Directory.Build.props"));
+        var prefix = props.Descendants("VersionPrefix").Single().Value;
+        var suffix = props.Descendants("VersionSuffix").SingleOrDefault()?.Value;
+        var expectedVersion = string.IsNullOrEmpty(suffix) ? prefix : $"{prefix}-{suffix}";
         Assert.Equal(expectedVersion, reference.Groups[1].Value);
 
         var program = File.ReadAllText(Path.Combine(_tempDir, "Program.cs"));

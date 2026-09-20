@@ -23,12 +23,10 @@
          MSBuild global property set that way cannot be overridden by the plain assignment below. -->
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
 
-    <!-- Lost the same way as everything else here. A lock file is created next to each shipped
-         csproj on first restore and consulted on every restore after that, so a later restore
-         that resolves differently is visible instead of silent. This alone does not protect the
-         FIRST restore against a compromised transitive dependency. Shipping a pre-built,
-         enforced lock file for the packaged tree is a follow-up, not done here. -->
+    <!-- Pack generates reviewed, hash-pinned dependency closures for both projects.
+         The first consumer restore must obey those locks too. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode>true</RestoreLockedMode>
   </PropertyGroup>
 
   <!-- Same five analyzers the repository root pins, at the same versions, since

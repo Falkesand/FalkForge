@@ -6,11 +6,13 @@
          Everything else the engine needs is already on NuGet as a library, so this package is
          under a megabyte. -->
     <TargetFramework>net10.0</TargetFramework>
-    <IsPackable Condition="'$(FalkForgePackEngine)' != 'false'">true</IsPackable>
+    <IsPackable Condition="'$(FalkForgePackEngine)' != 'false' and '$(FalkForgePackEngineSources)' != 'false'">true</IsPackable>
     <PackageId>FalkForge.Engine.Sources</PackageId>
     <Description>FalkForge bundle engine and elevation companion, as source. The bundle compiler rebuilds both with the publisher's key fingerprint baked in, which is what lets a per-machine install verify who authored the bundle. Restored automatically by the FalkForge SDK and meta-package.</Description>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <!-- Required for the explicitly included .editorconfig policy file. -->
+    <NoDefaultExcludes>true</NoDefaultExcludes>
     <NoWarn>$(NoWarn);NU5128</NoWarn>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
@@ -35,6 +37,10 @@
          are packed from a generated copy rather than directly. -->
     <None Include="src\Directory.Build.props;src\Directory.Build.targets;src\Directory.Packages.props;src\NuGet.config"
           Pack="true" PackagePath="tools/src" />
+
+    <!-- Ship the same root analyzer policy used to validate these sources. -->
+    <None Include="..\..\.editorconfig" Pack="true" PackagePath="tools/src/.editorconfig" Visible="false" />
+    <None Include="..\..\global.json" Pack="true" PackagePath="tools/src/global.json" Visible="false" />
 
     <None Include="build\FalkForge.Engine.Sources.props" Pack="true" PackagePath="build" />
     <None Include="build\FalkForge.Engine.Sources.props" Pack="true" PackagePath="buildTransitive" />
@@ -140,8 +146,12 @@ File.WriteAllText(ProjectFileToEdit, substituted);
        static ones above. -->
   <Target Name="_FalkForgeGenerateVersionedProjectFiles" BeforeTargets="_GetPackageFiles">
     <PropertyGroup>
-      <_FalkForgeEngineCsprojOut>$(IntermediateOutputPath)PackagedSrc\FalkForge.Engine\FalkForge.Engine.csproj</_FalkForgeEngineCsprojOut>
-      <_FalkForgeElevationCsprojOut>$(IntermediateOutputPath)PackagedSrc\FalkForge.Engine.Elevation\FalkForge.Engine.Elevation.csproj</_FalkForgeElevationCsprojOut>
+      <_FalkForgePackagedRoot>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)PackagedSrc'))</_FalkForgePackagedRoot>
+      <FalkForgeSourceLockFeed Condition="'$(FalkForgeSourceLockFeed)' == ''">$(PackageOutputPath)</FalkForgeSourceLockFeed>
+      <FalkForgeSourceLockFeed Condition="'$(MSBuildStartupDirectory)' != ''">$([System.IO.Path]::GetFullPath('$(FalkForgeSourceLockFeed)', '$(MSBuildStartupDirectory)'))</FalkForgeSourceLockFeed>
+      <FalkForgeSourceLockFeed Condition="'$(MSBuildStartupDirectory)' == ''">$([System.IO.Path]::GetFullPath('$(FalkForgeSourceLockFeed)', '$(MSBuildProjectDirectory)'))</FalkForgeSourceLockFeed>
+      <_FalkForgeEngineCsprojOut>$(_FalkForgePackagedRoot)\FalkForge.Engine\FalkForge.Engine.csproj</_FalkForgeEngineCsprojOut>
+      <_FalkForgeElevationCsprojOut>$(_FalkForgePackagedRoot)\FalkForge.Engine.Elevation\FalkForge.Engine.Elevation.csproj</_FalkForgeElevationCsprojOut>
     </PropertyGroup>
 
     <_FalkForgeSubstitutePackageVersion
@@ -167,7 +177,17 @@ File.WriteAllText(ProjectFileToEdit, substituted);
         ProjectFileToEdit="$(_FalkForgeElevationCsprojOut)"
         PlaceholderToken="&lt;!--FALKFORGE_COMPILE_ITEMS--&gt;" />
 
+    <Copy SourceFiles="src\Directory.Build.props;src\Directory.Build.targets;src\Directory.Packages.props;..\..\global.json"
+          DestinationFolder="$(_FalkForgePackagedRoot)" />
+    <Copy SourceFiles="..\FalkForge.Engine\TrustedKeys.targets;..\FalkForge.Engine\NativeAotPublishDiagnostics.targets;..\FalkForge.Engine\app.manifest"
+          DestinationFolder="$(_FalkForgePackagedRoot)\FalkForge.Engine" />
+    <Copy SourceFiles="..\FalkForge.Engine.Elevation\app.manifest"
+          DestinationFolder="$(_FalkForgePackagedRoot)\FalkForge.Engine.Elevation" />
+    <Exec Command="pwsh -NoProfile -File &quot;$(MSBuildThisFileDirectory)..\..\scripts\Generate-EngineSourceLocks.ps1&quot; -SourceRoot &quot;$(_FalkForgePackagedRoot)&quot; -Feed &quot;$(FalkForgeSourceLockFeed)&quot; -RepositoryRoot &quot;$(MSBuildThisFileDirectory)..\..&quot;" />
+
     <ItemGroup>
+      <None Include="$(_FalkForgePackagedRoot)\FalkForge.Engine\packages.lock.json" Pack="true" PackagePath="tools/src/FalkForge.Engine" />
+      <None Include="$(_FalkForgePackagedRoot)\FalkForge.Engine.Elevation\packages.lock.json" Pack="true" PackagePath="tools/src/FalkForge.Engine.Elevation" />
       <None Include="$(_FalkForgeEngineCsprojOut)" Pack="true" PackagePath="tools/src/FalkForge.Engine" />
       <None Include="$(_FalkForgeElevationCsprojOut)" Pack="true" PackagePath="tools/src/FalkForge.Engine.Elevation" />
       <FileWrites Include="$(_FalkForgeEngineCsprojOut);$(_FalkForgeElevationCsprojOut)" />

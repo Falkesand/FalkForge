@@ -81,7 +81,13 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
+
+      - name: Verify release tag matches package version
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: ./scripts/Assert-ReleaseVersion.ps1 -Tag $env:RELEASE_TAG
 
       - name: Restore
         run: dotnet restore FalkForge.slnx
@@ -305,7 +311,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       # Packs all 29 packable FalkForge projects (Core, both compilers, extensions,
       # plugins, Sdk, the FalkForge meta-package, the FalkForge.Templates template pack,
@@ -315,7 +321,8 @@ jobs:
       #
       # No -Version override: package version comes from the single-sourced
       # VersionPrefix/VersionSuffix in the root Directory.Build.props, independent of the
-      # git tag that triggered this workflow (see FalkForge.Templates' single-source
+      # git tag that triggered this workflow; the release job verifies equality before building.
+      # (See FalkForge.Templates' single-source
       # version pinning, enforced by TemplatePackTests).
       #
       # No symbol packages (.snupkg) are produced today (no IncludeSymbols/

@@ -185,7 +185,7 @@ dotnet test                 # fast default: ~7,000+ tests, minutes; heavyweight 
 dotnet publish -c Release   # NativeAOT for Engine + Elevation
 ```
 
-**Requirements:** .NET 10 SDK (10.0.103+), Windows (for MSI compilation and P/Invoke)
+**Requirements:** .NET SDK 10.0.401 exactly (repository builds use `global.json`), Windows (for MSI compilation and P/Invoke). Restores default to locked mode; intentional dependency updates require `-p:RestoreLockedMode=false` and review of the resulting lock-file changes.
 
 ### Running the full end-to-end suite
 

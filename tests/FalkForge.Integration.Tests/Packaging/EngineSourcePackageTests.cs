@@ -12,6 +12,8 @@ using Xunit;
 /// </summary>
 public sealed class EngineSourcePackageTests
 {
+    private static readonly Lazy<string> PackedPackage = new(PackSourcePackage);
+
     private const string SourcesPackageId = "FalkForge.Engine.Sources";
 
     [Fact]
@@ -50,6 +52,13 @@ public sealed class EngineSourcePackageTests
         Assert.Contains("tools/src/Directory.Build.targets", entries);
         Assert.Contains("tools/src/Directory.Packages.props", entries);
         Assert.Contains("tools/src/NuGet.config", entries);
+        Assert.Equal(File.ReadAllText(Path.Combine(RepoRoot(), "global.json")),
+            ReadPackedEntry(package, "tools/src/global.json"));
+        Assert.Contains("tools/src/FalkForge.Engine/packages.lock.json", entries);
+        Assert.Contains("tools/src/FalkForge.Engine.Elevation/packages.lock.json", entries);
+        var analyzerPolicy = ReadPackedEntry(package, "tools/src/.editorconfig");
+        Assert.Equal(File.ReadAllText(Path.Combine(RepoRoot(), ".editorconfig")), analyzerPolicy);
+        Assert.Contains("root = true", analyzerPolicy, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -121,9 +130,12 @@ public sealed class EngineSourcePackageTests
     public void PackagedSource_RestoresAndBuildsAgainstItsRealSiblingPackages()
     {
         var feed = FindLocalFeedWithSourcesPackage();
+        if (Environment.GetEnvironmentVariable("FALKFORGE_REQUIRE_SOURCE_FEED") == "1")
+            Assert.NotNull(feed);
         Assert.SkipUnless(feed is not null, FeedSkipReason);
 
-        var nupkg = Directory.GetFiles(feed, SourcesPackageId + ".*.nupkg").Single();
+        // Always rebuild the source package from this checkout; the feed supplies dependencies only.
+        var nupkg = PackedNupkgPath();
         var extractDir = Path.Combine(Path.GetTempPath(), "fk-srcbuild-" + Guid.NewGuid().ToString("N"));
         ZipFile.ExtractToDirectory(nupkg, extractDir);
 
@@ -146,6 +158,7 @@ public sealed class EngineSourcePackageTests
                 $"-p:BaseIntermediateOutputPath={Path.Combine(objDir, "engine")}{Path.DirectorySeparatorChar}",
                 $"-p:RestoreConfigFile={testNuGetConfig}",
                 $"-p:RestorePackagesPath={packagesPath}",
+                "-p:TreatWarningsAsErrors=true",
             ],
             out var engineOutput);
         Assert.True(engineExit == 0, $"packaged engine source failed to build:\n{engineOutput}");
@@ -156,6 +169,7 @@ public sealed class EngineSourcePackageTests
                 $"-p:BaseIntermediateOutputPath={Path.Combine(objDir, "elevation")}{Path.DirectorySeparatorChar}",
                 $"-p:RestoreConfigFile={testNuGetConfig}",
                 $"-p:RestorePackagesPath={packagesPath}",
+                "-p:TreatWarningsAsErrors=true",
             ],
             out var elevationOutput);
         Assert.True(elevationExit == 0, $"packaged elevation companion source failed to build:\n{elevationOutput}");
@@ -174,6 +188,24 @@ public sealed class EngineSourcePackageTests
         Assert.Contains("IDisposableAnalyzers", engineAssets, StringComparison.Ordinal);
         Assert.Contains("Meziantou.Analyzer", engineAssets, StringComparison.Ordinal);
         Assert.Contains("Microsoft.VisualStudio.Threading.Analyzers", engineAssets, StringComparison.Ordinal);
+
+        // A changed dependency declaration must fail, not rewrite the publisher's first lock.
+        var lockPath = Path.Combine(Path.GetDirectoryName(engineCsproj)!, "packages.lock.json");
+        var originalLock = File.ReadAllText(lockPath);
+        var projectText = File.ReadAllText(engineCsproj);
+        var projectDocument = System.Xml.Linq.XDocument.Parse(projectText);
+        projectDocument.Descendants("PackageReference").First()
+            .SetAttributeValue("Version", "[0.0.0-ledger-drift]");
+        var mutatedProject = projectDocument.ToString();
+        Assert.NotEqual(projectText, mutatedProject);
+        File.WriteAllText(engineCsproj, mutatedProject);
+        var driftExit = ProcessRunner.Run("dotnet",
+            ["restore", engineCsproj, "--force",
+             $"-p:RestoreConfigFile={testNuGetConfig}", $"-p:RestorePackagesPath={packagesPath}"],
+            out var driftOutput);
+        Assert.NotEqual(0, driftExit);
+        Assert.Contains("NU1004", driftOutput, StringComparison.Ordinal);
+        Assert.Equal(originalLock, File.ReadAllText(lockPath));
     }
 
     /// <summary>
@@ -249,16 +281,23 @@ public sealed class EngineSourcePackageTests
         }
     }
 
-    private static string PackedNupkgPath()
+    private static string PackedNupkgPath() => PackedPackage.Value;
+
+    private static string PackSourcePackage()
     {
-        // Packs into a temp folder so the test never depends on a prior scripts/pack.ps1 run.
+        var feed = FindLocalFeedWithSourcesPackage();
+        if (Environment.GetEnvironmentVariable("FALKFORGE_REQUIRE_SOURCE_FEED") == "1")
+            Assert.NotNull(feed);
+        Assert.SkipUnless(feed is not null, FeedSkipReason);
+        // Packs fresh source into a temp folder; the matching sibling feed supplies lock inputs.
         var outDir = Path.Combine(Path.GetTempPath(), "fk-srcpack-" + Guid.NewGuid().ToString("N"));
         var objDir = Path.Combine(Path.GetTempPath(), "fk-srcpack-obj-" + Guid.NewGuid().ToString("N"));
         var project = Path.Combine(
             RepoRoot(), "src", "FalkForge.Engine.Sources", "FalkForge.Engine.Sources.csproj");
         var exit = ProcessRunner.Run("dotnet",
             ["pack", project, "--nologo", "-o", outDir,
-             $"-p:BaseIntermediateOutputPath={objDir}{Path.DirectorySeparatorChar}"],
+             $"-p:BaseIntermediateOutputPath={objDir}{Path.DirectorySeparatorChar}",
+             $"-p:FalkForgeSourceLockFeed={feed}"],
             out var output);
         Assert.True(exit == 0, $"pack failed:\n{output}");
         return Directory.GetFiles(outDir, "*.nupkg").Single();
@@ -271,12 +310,16 @@ public sealed class EngineSourcePackageTests
     /// </summary>
     private static string? FindLocalFeedWithSourcesPackage()
     {
-        var feed = Path.Combine(RepoRoot(), "artifacts", "nuget");
+        var feed = Environment.GetEnvironmentVariable("FALKFORGE_SOURCE_TEST_FEED")
+            ?? Path.Combine(RepoRoot(), "artifacts", "nuget");
         if (!Directory.Exists(feed))
             return null;
 
-        var sources = Directory.GetFiles(feed, SourcesPackageId + ".*.nupkg").SingleOrDefault();
-        return sources is null ? null : feed;
+        var properties = System.Xml.Linq.XDocument.Load(Path.Combine(RepoRoot(), "Directory.Build.props"));
+        var prefix = properties.Descendants("VersionPrefix").Single().Value;
+        var suffix = properties.Descendants("VersionSuffix").Single().Value;
+        var version = string.IsNullOrEmpty(suffix) ? prefix : $"{prefix}-{suffix}";
+        return File.Exists(Path.Combine(feed, $"FalkForge.Engine.Protocol.{version}.nupkg")) ? feed : null;
     }
 
     private const string FeedSkipReason =
@@ -304,6 +347,7 @@ public sealed class EngineSourcePackageTests
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
+                WorkingDirectory = Path.GetDirectoryName(arguments[1])!,
             };
             foreach (var argument in arguments)
                 psi.ArgumentList.Add(argument);

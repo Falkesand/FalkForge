@@ -25,7 +25,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - name: Restore
         run: dotnet restore FalkForge.slnx
@@ -192,7 +192,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       # Scoped to the one cross-platform e2e project — the full slnx does not build on Linux
       # (net10.0-windows projects). The project IS the filter: it contains exactly the two
@@ -214,6 +214,28 @@ jobs:
           path: tests/FalkForge.SignServer.E2E.Tests/bin/**/TestResults/**
           if-no-files-found: warn
 
+  engine-source-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Pack managed dependencies
+        run: dotnet pack FalkForge.slnx -c Release -o artifacts/nuget -p:FalkForgePackEngine=false -p:RestoreLockedMode=true
+
+      - name: Pack engine sources
+        run: dotnet pack src/FalkForge.Engine.Sources/FalkForge.Engine.Sources.csproj -c Release -o artifacts/nuget -p:RestoreLockedMode=true
+
+      - name: Build integration test runner
+        run: dotnet build tests/FalkForge.Integration.Tests/FalkForge.Integration.Tests.csproj -c Release -p:RestoreLockedMode=true
+
+      - name: Restore and build the packaged engine and companion
+        env:
+          FALKFORGE_REQUIRE_SOURCE_FEED: '1'
+        run: ./tests/FalkForge.Integration.Tests/bin/Release/net10.0-windows/FalkForge.Integration.Tests.exe -class FalkForge.Integration.Tests.Packaging.EngineSourcePackageTests
+
   code-quality:
     runs-on: windows-latest
     steps:
@@ -222,7 +244,7 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - name: Build
         run: dotnet build FalkForge.slnx -c Release
