@@ -51,6 +51,52 @@ public sealed class WindowsRegistryTests : IDisposable
     }
 
     [Fact]
+    public void KeyExists_ValueNameIsNotAChildKey()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        _registry.SetStringValue(RegistryRoot.CurrentUser, _subKey, "ValueOnly", "x");
+
+        Assert.True(_registry.KeyExists(RegistryRoot.CurrentUser, _subKey));
+        Assert.False(_registry.KeyExists(RegistryRoot.CurrentUser, _subKey + @"\ValueOnly"));
+        Assert.True(_registry.TryValueExists(RegistryRoot.CurrentUser, _subKey, "ValueOnly").Value);
+    }
+
+    [Fact]
+    public void TryGetStringValue_MissingKey_ReturnsSuccessWithNull()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        var result = _registry.TryGetStringValue(RegistryRoot.CurrentUser, _subKey, "Missing");
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
+    public void TryGetStringValue_AfterWrite_ReturnsValue()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        _registry.SetStringValue(RegistryRoot.CurrentUser, _subKey, "Name", "hello");
+
+        var result = _registry.TryGetStringValue(RegistryRoot.CurrentUser, _subKey, "Name");
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("hello", result.Value);
+    }
+
+    [Fact]
+    public void TryGetStringValue_DWord_ReturnsSuccessWithNull()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
+        using (var key = Registry.CurrentUser.CreateSubKey(_subKey))
+            key.SetValue("Number", 42, RegistryValueKind.DWord);
+
+        var result = _registry.TryGetStringValue(RegistryRoot.CurrentUser, _subKey, "Number");
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value);
+    }
+
+    [Fact]
     public void GetStringValue_MissingKey_ReturnsNull()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsOnlyReason);
