@@ -201,7 +201,21 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
 
         for (int cd = 0; cd < package.CustomDialogs.Count; cd++)
         {
-            dialogs.Add(CustomDialogTranslator.Translate(package.CustomDialogs[cd]));
+            CustomDialogModel custom = package.CustomDialogs[cd];
+            if (package.DialogCustomization?.InsertedSteps.Any(
+                    s => s.After == DialogStepAnchor.BeforeInstall) == true
+                && custom.Controls.Any(c => c.Events.Any(e =>
+                    string.Equals(e.Event.Trim(), "EndDialog", StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(e.Argument.Trim(), "Return", StringComparison.OrdinalIgnoreCase))))
+            {
+                return Result<ImmutableArray<RecipeTable>>.Failure(ErrorKind.Validation,
+                    $"DLG029: custom dialog '{custom.Id}' publishes EndDialog Return while a BeforeInstall "
+                    + "step owns the install handoff. This combination can bypass that step. "
+                    + "Author this page as an inserted IMsiDialogStepBuilder using DialogBuildContext.Flow, "
+                    + "or remove the conflicting BeforeInstall insertion. This restriction also applies "
+                    + "to custom child dialogs because Return depends on how the dialog is opened.");
+            }
+            dialogs.Add(CustomDialogTranslator.Translate(custom));
         }
 
         // The splice derives every Back and Next from StockChain, so a chain entry naming a dialog
@@ -280,13 +294,6 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
     }
 
 
-    // Dialogs InstallUISequence schedules for a stock set, mirroring
-    // InstallUISequenceTableProducer.GetDialogFlowRows. Progress is modeless and Exit ends the
-    // sequence itself, so in practice Welcome is the root that matters, but listing all three
-    // keeps this honest if the flow rows change.
-    private static readonly string[] StockScheduledDialogs =
-        [DialogNames.Welcome, DialogNames.Progress, DialogNames.Exit];
-
     /// <summary>
     /// Fails the build when a modal dialog that <c>InstallUISequence</c> schedules cannot reach an
     /// <c>EndDialog</c>.
@@ -318,10 +325,15 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
         var byName = new Dictionary<string, MsiDialogModel>(StringComparer.Ordinal);
         for (int i = 0; i < dialogs.Count; i++)
         {
-            byName[dialogs[i].Name] = dialogs[i];
+            if (!byName.TryAdd(dialogs[i].Name, dialogs[i]))
+                return Result<Unit>.Failure(ErrorKind.Validation,
+                    $"DLG012: Dialog ID '{dialogs[i].Name}' collides with another composed dialog. " +
+                    "Choose a unique custom dialog ID that does not match a stock dialog.");
         }
 
-        var roots = new HashSet<string>(StockScheduledDialogs, StringComparer.Ordinal);
+        var roots = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in InstallUISequenceTableProducer.GetDialogFlowRows(package))
+            roots.Add(row.Action);
         for (int c = 0; c < package.CustomDialogs.Count; c++)
         {
             CustomDialogModel custom = package.CustomDialogs[c];
@@ -359,7 +371,8 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
                     $"DLG024: dialog '{root.Name}' is scheduled in InstallUISequence and is modal, but no dialog "
                     + "reachable from it by NewDialog publishes EndDialog, so the installer waits on it and the "
                     + "sequence never resumes. Publish EndDialog with argument Return on the control that continues "
-                    + "the install, or clear the Modal attribute bit (0x2) if the dialog is meant to be modeless. "
+                    + "the install. For a custom dialog intended to be modeless, CustomDialogBuilder.Attributes "
+                    + "can instead clear the Modal bit (0x2). Stock dialog attributes require a template fix. "
                     + "An EndDialog inside a dialog opened with SpawnDialog does not count, because control returns "
                     + "to the spawning dialog rather than to the sequence.");
             }
@@ -386,6 +399,11 @@ internal sealed partial class DialogSetProducer : IMultiTableProducer
             for (int e = 0; e < dialog.Events.Count; e++)
             {
                 MsiControlEventModel controlEvent = dialog.Events[e];
+                // A null condition is MSI's fallback event, not a false expression.
+                if (controlEvent.Condition is { Length: > 0 } condition &&
+                    (string.IsNullOrWhiteSpace(condition) || condition.Trim() == "0"))
+                    continue;
+
                 // The argument matters as much as the verb. EndDialog Exit terminates the UI
                 // without running the install, so a wizard whose only exit is Exit can be closed
                 // but can never install. Only Return hands control back to InstallUISequence so it

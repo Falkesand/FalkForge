@@ -93,9 +93,10 @@ internal sealed class DialogFlowSplice
         // can start the install: the setup-type dialog's Typical and Complete buttons begin it
         // directly, so without this a user choosing Typical would skip the step entirely.
         ImmutableArray<string> spliced = chain.ToImmutable();
-        string? installTarget = spliced.Length > 0 && !stockChain.Contains(spliced[^1])
-            ? spliced[^1]
-            : null;
+        int trailingStart = spliced.Length;
+        while (trailingStart > 0 && !stockChain.Contains(spliced[trailingStart - 1]))
+            trailingStart--;
+        string? installTarget = trailingStart < spliced.Length ? spliced[trailingStart] : null;
 
         return new DialogFlowSplice(spliced, installTarget);
     }

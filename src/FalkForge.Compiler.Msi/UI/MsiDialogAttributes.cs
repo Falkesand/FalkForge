@@ -18,6 +18,6 @@ internal enum MsiDialogAttributes
     RightToLeftReadingOrder = 0x00000080,
     RightAligned = 0x00000100,
     LeftScroll = 0x00000200,
-    BiDi = 0x00000400,
-    Error = 0x00000800,
+    BiDi = RightToLeftReadingOrder | RightAligned | LeftScroll,
+    Error = 0x00010000,
 }

@@ -76,14 +76,14 @@ public sealed class MondoDialogTemplateTests
     }
 
     [Fact]
-    public void InstallDir_back_returns_to_setup_type()
+    public void InstallDir_back_returns_to_feature_selection()
     {
         var installDir = Compose().Single(d => d.Name == "InstallDirDlg");
 
         var back = installDir.Events.Single(e =>
             e.ControlName == "Back" && e.Event.ToString() == "NewDialog");
 
-        Assert.Equal("SetupTypeDlg", back.Argument);
+        Assert.Equal("CustomizeDlg", back.Argument);
     }
 
     [Fact]

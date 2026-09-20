@@ -94,6 +94,12 @@ public sealed class CustomDialogBuilder
     /// Places the dialog in the <c>InstallUISequence</c> table at <paramref name="sequenceNumber"/>
     /// so it shows as an install-UI screen. The standard first-dialog slot is 1100.
     /// </summary>
+    /// <remarks>
+    /// Dialogs are modal by default. A scheduled modal dialog must reach a control publishing
+    /// <c>EndDialog</c> with argument <c>Return</c>, directly or through <c>NewDialog</c> navigation,
+    /// so installation can continue. A deliberately modeless dialog can instead clear the Modal
+    /// bit (0x2) with <see cref="Attributes"/>. A spawned child's EndDialog does not end its parent.
+    /// </remarks>
     public CustomDialogBuilder Sequence(int sequenceNumber)
     {
         _sequenceNumber = sequenceNumber;

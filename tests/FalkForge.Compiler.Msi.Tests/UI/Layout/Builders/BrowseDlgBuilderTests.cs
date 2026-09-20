@@ -85,11 +85,10 @@ public sealed class BrowseDlgBuilderTests
     [Fact]
     public void Build_emits_directory_navigation_and_close_events()
     {
-        // Legacy BuildBrowseDlg emits four ControlEvent rows: Up DirectoryListUp,
-        // NewFolder DirectoryListNew, OK EndDialog Return, Cancel EndDialog Return.
+        // Cancel restores the entry state before returning to the caller.
         var content = BrowseDlgBuilder.Build();
 
-        Assert.Equal(4, content.Events.Length);
+        Assert.Equal(5, content.Events.Length);
 
         var up = content.Events.Single(e => e.Control == "Up");
         Assert.Equal("DirectoryListUp", up.Event);
@@ -103,7 +102,11 @@ public sealed class BrowseDlgBuilderTests
         Assert.Equal("EndDialog", ok.Event);
         Assert.Equal("Return", ok.Argument);
 
-        var cancel = content.Events.Single(e => e.Control == "Cancel");
+        var cancelEvents = content.Events.Where(e => e.Control == "Cancel").OrderBy(e => e.Order).ToArray();
+        Assert.Equal(2, cancelEvents.Length);
+        Assert.Equal("Reset", cancelEvents[0].Event);
+        Assert.Equal("0", cancelEvents[0].Argument);
+        var cancel = cancelEvents[1];
         Assert.Equal("EndDialog", cancel.Event);
         Assert.Equal("Return", cancel.Argument);
     }

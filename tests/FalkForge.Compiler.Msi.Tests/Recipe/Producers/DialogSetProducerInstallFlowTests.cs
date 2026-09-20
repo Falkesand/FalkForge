@@ -70,6 +70,47 @@ public sealed class DialogSetProducerInstallFlowTests
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
     }
 
+    [Theory]
+    [InlineData("0")]
+    [InlineData(" 0 ")]
+    [InlineData(" ")]
+    public void An_impossible_EndDialog_condition_does_not_satisfy_the_check(string condition)
+    {
+        var package = Package(MsiDialogSet.None, new CustomDialogModel
+        {
+            Id = "NeverEnds",
+            SequenceNumber = 1100,
+            Controls = [Button("Install", new CustomDialogControlEventModel
+            {
+                Event = "EndDialog", Argument = "Return", Condition = condition
+            })]
+        });
+
+        var result = Produce(package);
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("NeverEnds", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("DLG024", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("WelcomeDlg")]
+    [InlineData("ProgressDlg")]
+    [InlineData("CancelDlg")]
+    public void A_custom_dialog_cannot_replace_a_stock_dialog(string id)
+    {
+        var result = Produce(Package(MsiDialogSet.Minimal, new CustomDialogModel
+        {
+            Id = id,
+            Controls = [Button("Go", Event("EndDialog", "Return"))]
+        }));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("DLG012", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains(id, result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("collides", result.Error.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void A_custom_dialog_navigating_into_the_progress_dialog_is_rejected()
     {

@@ -9,6 +9,15 @@ namespace FalkForge.Compiler.Msi.Tests.UI.Layout.Builders;
 public sealed class MsiRMFilesInUseDlgBuilderTests
 {
     [Fact]
+    public void Build_preserves_modal_and_modeless_lifetime_flags()
+    {
+        var attributes = (MsiDialogAttributes)MsiRMFilesInUseDlgBuilder.Build().AttributesOverride!.Value;
+        Assert.True(attributes.HasFlag(MsiDialogAttributes.Modal));
+        Assert.True(attributes.HasFlag(MsiDialogAttributes.KeepModeless));
+        Assert.True(attributes.HasFlag(MsiDialogAttributes.Visible));
+    }
+
+    [Fact]
     public void Build_returns_dialog_content_with_expected_name()
     {
         Assert.Equal("MsiRMFilesInUse", MsiRMFilesInUseDlgBuilder.Build().Name);

@@ -15,12 +15,30 @@ internal sealed partial class DialogSetProducer
     /// MSI-capable builder. Each distinct step is emitted once; duplicate insert points (the same
     /// step inserted after two stock dialogs) do not duplicate the dialog rows.
     /// </summary>
-    // An MSI control-event Condition of null, empty or "1" always fires. Anything else is an
-    // expression this compiler does not evaluate, so it cannot be counted on to give the user a
-    // way forward. Being strict here costs an author one explicit unconditional event; being lax
-    // costs their user an installer they cannot advance.
-    private static bool IsAlwaysTrue(string? condition) =>
-        string.IsNullOrWhiteSpace(condition) || condition.Trim() == "1";
+    private static bool HasUsableForwardCondition(MsiDialogModel model, MsiControlEventModel candidate)
+    {
+        if (!string.IsNullOrEmpty(candidate.Condition))
+            return candidate.Condition.Trim() == "1";
+
+        // Blank conditions are fallback events. Any potentially true sibling suppresses them;
+        // among blank siblings MSI fires only the one with the greatest Ordering value.
+        foreach (var sibling in model.Events)
+        {
+            if (ReferenceEquals(sibling, candidate) || sibling.ControlName != candidate.ControlName)
+                continue;
+            if (string.IsNullOrEmpty(sibling.Condition))
+            {
+                if (sibling.Ordering >= candidate.Ordering)
+                    return false;
+            }
+            else if (sibling.Condition.Trim() != "0")
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private Result<Unit> AppendInsertedExtensionStepDialogs(
         PackageModel package,
@@ -28,8 +46,7 @@ internal sealed partial class DialogSetProducer
         DialogFlowSplice flow,
         ImmutableArray<string> stockChain)
     {
-        if (_extensionStepBuilders.Count == 0
-            || package.DialogCustomization is not { } customization
+        if (package.DialogCustomization is not { } customization
             || customization.InsertedSteps.IsDefaultOrEmpty)
         {
             return Result<Unit>.Success(Unit.Value);
@@ -76,13 +93,19 @@ internal sealed partial class DialogSetProducer
 
             if (!registry.TryGet(step.StepName, out IMsiDialogStepBuilder? builder) || builder is null)
             {
-                continue;
+                return Result<Unit>.Failure(ErrorKind.Validation,
+                    $"DLG025: dialog step '{step.StepName}' has no MSI-capable builder. " +
+                    "Name registration alone cannot emit a dialog; provide an IMsiDialogStepBuilder.");
             }
 
             // Each step gets the flow its own position in the spliced chain implies, so its
             // Next and Back point at real neighbours rather than at nothing.
             DialogFlowContext stepFlow = flow.FlowFor(step.StepName);
             MsiDialogModel model = builder.Build(DialogBuildContext.Create(customization, registry, stepFlow));
+            if (model is null || !string.Equals(model.Name, step.StepName, StringComparison.Ordinal))
+                return Result<Unit>.Failure(ErrorKind.Validation,
+                    $"DLG025: builder for dialog step '{step.StepName}' returned " +
+                    $"'{model?.Name ?? "<no dialog>"}'. The emitted dialog must match the registered step name.");
 
             // DLG025 — the splice is correct by construction for the stock dialogs and correct by
             // COOPERATION for the step, because a builder can simply not consult the flow it was
@@ -98,7 +121,7 @@ internal sealed partial class DialogSetProducer
             bool publishesForwardEdge = model.Events.Exists(e =>
                 string.Equals(e.Event.Value.Trim(), expected.Event, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(e.Argument.Trim(), expected.Argument, StringComparison.Ordinal)
-                && IsAlwaysTrue(e.Condition)
+                && HasUsableForwardCondition(model, e)
                 && model.Controls.Exists(c =>
                     string.Equals(c.Name, e.ControlName, StringComparison.Ordinal)
                     && c.Attributes.HasFlag(MsiControlAttributes.Visible)

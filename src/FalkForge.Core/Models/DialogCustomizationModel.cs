@@ -162,7 +162,9 @@ public enum DialogStepAnchor
     BeforeInstall,
 }
 
-/// <summary>Stock dialogs that can be suppressed via <see cref="DialogCustomizationModel.SuppressedDialogs"/>.</summary>
+/// <summary>Legacy compatibility identifiers. Dialog suppression is unsupported; use <see cref="DialogStepAnchor"/> for insertion.</summary>
+/// <remarks>Retained for existing model serialization and API compatibility. SuppressedDialogs is rejected by validation.</remarks>
+[System.ComponentModel.EditorBrowsable(System.ComponentModel.EditorBrowsableState.Never)]
 public enum StockDialog
 {
     Welcome,
