@@ -1,5 +1,6 @@
 using System.IO;
 using System.IO.Pipes;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
 using FalkForge.Engine.Protocol.Manifest;
@@ -43,6 +44,7 @@ internal static class BuiltInUiHost
     internal static Result<BuiltInUiArgs> ResolveArgs(string[] args)
     {
         string? manifestPath = null;
+        string? manifestSha256 = null;
         string? pipeName = null;
         string? secretPipeName = null;
 
@@ -51,6 +53,9 @@ internal static class BuiltInUiHost
             {
                 case "--manifest":
                     manifestPath = args[i + 1];
+                    break;
+                case "--manifest-sha256":
+                    manifestSha256 = args[i + 1];
                     break;
                 case "--pipe":
                     pipeName = args[i + 1];
@@ -66,19 +71,49 @@ internal static class BuiltInUiHost
                 "FalkForge.Ui requires a --manifest <path> argument. This is the built-in installer "
                 + "UI host; it is launched by the FalkForge engine and cannot run on its own.");
 
-        return new BuiltInUiArgs(manifestPath, pipeName, secretPipeName);
+        if ((pipeName is not null || secretPipeName is not null)
+            && string.IsNullOrWhiteSpace(manifestSha256))
+            return Result<BuiltInUiArgs>.Failure(
+                ErrorKind.Validation,
+                "An engine-connected FalkForge.Ui requires --manifest-sha256 so the UI cannot " +
+                "display an unverified manifest.");
+
+        return new BuiltInUiArgs(manifestPath, manifestSha256, pipeName, secretPipeName);
     }
 
     /// <summary>
     /// Loads and deserializes the installer manifest referenced by <paramref name="manifestPath"/>.
-    /// A read or parse failure is surfaced as a loud <see cref="Result{T}"/> failure so the entry
-    /// point can report it instead of silently degrading.
+    /// When the engine supplied <paramref name="expectedSha256"/>, the digest is checked over the
+    /// same bytes that are deserialized so a same-user rewrite cannot change what the wizard shows.
+    /// A read, integrity, or parse failure is surfaced as a loud <see cref="Result{T}"/> failure.
     /// </summary>
-    internal static Result<InstallerManifest> LoadManifest(string manifestPath)
+    internal static Result<InstallerManifest> LoadManifest(
+        string manifestPath, string? expectedSha256 = null)
     {
         try
         {
             var json = File.ReadAllBytes(manifestPath);
+            if (expectedSha256 is not null)
+            {
+                byte[] expectedHash;
+                try
+                {
+                    expectedHash = Convert.FromHexString(expectedSha256);
+                }
+                catch (FormatException)
+                {
+                    return Result<InstallerManifest>.Failure(
+                        ErrorKind.Validation, "The manifest SHA-256 is not valid hexadecimal.");
+                }
+
+                var actualHash = SHA256.HashData(json);
+                if (expectedHash.Length != actualHash.Length
+                    || !CryptographicOperations.FixedTimeEquals(expectedHash, actualHash))
+                    return Result<InstallerManifest>.Failure(
+                        ErrorKind.IntegrityError,
+                        $"Manifest '{manifestPath}' does not match the digest supplied by the engine.");
+            }
+
             var manifest = JsonSerializer.Deserialize(json, ManifestJsonContext.Default.InstallerManifest);
             return manifest is null
                 ? Result<InstallerManifest>.Failure(
@@ -220,4 +255,8 @@ internal static class BuiltInUiHost
 /// Parsed command line for the built-in UI host: an always-present manifest path plus the optional
 /// engine data-pipe and secret-pipe names.
 /// </summary>
-internal readonly record struct BuiltInUiArgs(string ManifestPath, string? PipeName, string? SecretPipeName);
+internal readonly record struct BuiltInUiArgs(
+    string ManifestPath,
+    string? ManifestSha256,
+    string? PipeName,
+    string? SecretPipeName);

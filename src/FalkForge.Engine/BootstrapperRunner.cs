@@ -86,6 +86,7 @@ internal static class BootstrapperRunner
         // Write manifest to disk so the UI can load it
         var manifestPath = Path.Combine(cacheDir, "manifest.json");
         await File.WriteAllBytesAsync(manifestPath, content.ManifestJsonBytes);
+        var manifestSha256 = Convert.ToHexString(SHA256.HashData(content.ManifestJsonBytes));
 
         // Trust binding: bind the payload bytes each extraction will trust (the unsigned overlay
         // TOC hash) to the ECDSA-signed manifest hash BEFORE extracting or launching anything.
@@ -335,7 +336,8 @@ internal static class BootstrapperRunner
 
         // Launch the UI process. BuildUiArgs forwards --log / --log-level when the user
         // supplied them so a `installer.exe --log foo.log` invocation actually produces a log.
-        var uiArgs = Bootstrapper.BuildUiArgs(manifestPath, pipeName, secretPipeName, programArgs);
+        var uiArgs = Bootstrapper.BuildUiArgs(
+            manifestPath, manifestSha256, pipeName, secretPipeName, programArgs);
         var launch = UiProcessLauncher.TryStartUiProcess(resolvedUiPath, uiArgs);
         if (launch.IsFailure)
         {
