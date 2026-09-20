@@ -234,7 +234,7 @@ jobs:
       - name: Restore and build the packaged engine and companion
         env:
           FALKFORGE_REQUIRE_SOURCE_FEED: '1'
-        run: ./tests/FalkForge.Integration.Tests/bin/Release/net10.0-windows/FalkForge.Integration.Tests.exe -class FalkForge.Integration.Tests.Packaging.EngineSourcePackageTests
+        run: ./tests/FalkForge.Integration.Tests/bin/Release/net10.0-windows/FalkForge.Integration.Tests.exe --filter-class FalkForge.Integration.Tests.Packaging.EngineSourcePackageTests
 
   code-quality:
     runs-on: windows-latest
