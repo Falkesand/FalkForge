@@ -131,6 +131,8 @@ The following flags are wired internally by the bootstrapper when it spawns the 
 
 `--manifest`, `--pipe`, and `--secret-pipe` are always emitted as a trio. The bootstrapper generates the pipe names and the secret per invocation.
 
+A direct engine invocation that supplies `--manifest` is treated as unverified input and never probes for or launches an ambient elevation companion. It can still plan, inspect, or run per-user work, but privileged packages are unavailable. Only the bundle bootstrap path can enable elevation, using the companion whose bytes it verified against the bundle trust chain.
+
 ### Deprecated
 
 | Flag | Status |
