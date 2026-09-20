@@ -104,6 +104,7 @@ public sealed class SignServerRotationRevocationE2ETests
                 BaseUrl = baseUrl,
                 Worker = WorkerNameOld,
                 AuthMode = SignServerAuthMode.None,
+                AllowInsecureHttpForDevelopment = true,
                 KeyId = "signserver-old-key"
             });
             using var newKeyProvider = new SignServerSignatureProvider(new SignServerConfig
@@ -111,6 +112,7 @@ public sealed class SignServerRotationRevocationE2ETests
                 BaseUrl = baseUrl,
                 Worker = WorkerNameNew,
                 AuthMode = SignServerAuthMode.None,
+                AllowInsecureHttpForDevelopment = true,
                 KeyId = "signserver-new-key"
             });
 
@@ -189,6 +191,7 @@ public sealed class SignServerRotationRevocationE2ETests
                 BaseUrl = baseUrl,
                 Worker = WorkerNameOld,
                 AuthMode = SignServerAuthMode.None,
+                AllowInsecureHttpForDevelopment = true,
                 KeyId = "signserver-to-be-revoked"
             });
             using var goodKeyProvider = new SignServerSignatureProvider(new SignServerConfig
@@ -196,6 +199,7 @@ public sealed class SignServerRotationRevocationE2ETests
                 BaseUrl = baseUrl,
                 Worker = WorkerNameNew,
                 AuthMode = SignServerAuthMode.None,
+                AllowInsecureHttpForDevelopment = true,
                 KeyId = "signserver-not-revoked"
             });
 

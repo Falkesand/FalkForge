@@ -107,6 +107,7 @@ public sealed class SignServerPodSigningE2ETests
                 BaseUrl = baseUrl,
                 Worker = WorkerName,
                 AuthMode = SignServerAuthMode.None,
+                AllowInsecureHttpForDevelopment = true,
                 KeyId = "signserver-plainecdsa"
             };
 

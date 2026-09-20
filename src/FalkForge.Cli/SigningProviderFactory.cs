@@ -40,8 +40,9 @@ internal static class SigningProviderFactory
             return Result<ResolvedSigning>.Failure(signServerConfig.Error);
 
         var warnings = new List<string>();
-        if (signServerConfig.Value.BaseUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-            warnings.Add("Signing: SignServer baseUrl uses http:// — the canonical manifest message and any credential travel in cleartext. Use https:// outside local CE test containers.");
+        if (signServerConfig.Value.AllowInsecureHttpForDevelopment
+            && signServerConfig.Value.BaseUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            warnings.Add("Signing: development-only SignServer HTTP is enabled; the canonical manifest travels in cleartext. Use HTTPS outside local CE test containers.");
         if (signServerConfig.Value.AuthMode == SignServerAuthMode.None)
             warnings.Add("Signing: SignServer authMode is 'none' (unauthenticated NOAUTH) — production should use clientcert (mTLS) or bearer.");
 
@@ -124,8 +125,13 @@ internal static class SigningProviderFactory
             BaseUrl = config.BaseUrl!,
             Worker = config.Worker!,
             AuthMode = authMode,
+            AllowInsecureHttpForDevelopment = config.AllowInsecureHttpForDevelopment,
             KeyId = config.KeyId ?? string.Empty,
         };
+
+        var transport = result.ValidateTransportSecurity();
+        if (transport.IsFailure)
+            return Result<SignServerConfig>.Failure(transport.Error);
 
         switch (authMode)
         {

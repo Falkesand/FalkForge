@@ -6,7 +6,7 @@ namespace FalkForge.Cli;
 /// <summary>
 /// The build-time result of resolving a JSON <c>signing</c> section: the constructed
 /// <see cref="ISignatureProvider"/> (C17 seam) plus any non-fatal security warnings to surface
-/// (e.g. SignServer over http, unauthenticated NOAUTH mode). <see cref="None"/> represents
+/// (e.g. explicitly enabled development HTTP, unauthenticated NOAUTH mode). <see cref="None"/> represents
 /// "signing absent or explicitly none" — <c>Result&lt;T&gt;</c> forbids null payloads, so absence
 /// is modeled explicitly instead. The caller owns the providers and must dispose them after the
 /// build when they are <see cref="IDisposable"/>.

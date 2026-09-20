@@ -37,6 +37,7 @@ public sealed class EnvVarCatalogTests : IDisposable
         Assert.Equal("SIGNSERVER_URL", EnvVarCatalog.SignServerUrl);
         Assert.Equal("SIGNSERVER_WORKER", EnvVarCatalog.SignServerWorker);
         Assert.Equal("SIGNSERVER_AUTH", EnvVarCatalog.SignServerAuth);
+        Assert.Equal("SIGNSERVER_ALLOW_INSECURE_HTTP", EnvVarCatalog.SignServerAllowInsecureHttp);
         Assert.Equal("SIGNSERVER_BEARER_TOKEN", EnvVarCatalog.SignServerBearerToken);
         Assert.Equal("SIGNSERVER_BASIC_USER", EnvVarCatalog.SignServerBasicUser);
         Assert.Equal("SIGNSERVER_BASIC_PASS", EnvVarCatalog.SignServerBasicPass);

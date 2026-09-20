@@ -12,13 +12,8 @@ public sealed record SignServerConfig
 {
     /// <summary>
     /// Base URL of the SignServer instance, e.g. <c>https://signserver.example.com:8443</c>.
-    /// <para><b>Production MUST use https.</b> An <c>http://</c> URL sends the canonical manifest
-    /// message — and any Basic/Bearer credential — in cleartext. It is accepted deliberately (not
-    /// validated away) because local SignServer CE test containers legitimately run plain http, but
-    /// it belongs only in that scenario. The trust impact of a spoofed signing endpoint is bounded:
-    /// a signature from a key outside the engine's baked trusted set is never accepted at install
-    /// time — yet a signing failure or wrong-key signature still breaks the release, so treat the
-    /// channel as production infrastructure.</para>
+    /// <para>HTTPS is required unless <see cref="AllowInsecureHttpForDevelopment"/> explicitly enables
+    /// unauthenticated HTTP for a local development container.</para>
     /// </summary>
     public required string BaseUrl { get; init; }
 
@@ -33,6 +28,12 @@ public sealed record SignServerConfig
     /// production signer would let anyone on the network request signatures from the release key.</para>
     /// </summary>
     public SignServerAuthMode AuthMode { get; init; } = SignServerAuthMode.None;
+
+    /// <summary>
+    /// Allows plain HTTP only for an unauthenticated development SignServer. Defaults to <see langword="false"/>.
+    /// When HTTP is used, this option is rejected unless <see cref="AuthMode"/> is <see cref="SignServerAuthMode.None"/>.
+    /// </summary>
+    public bool AllowInsecureHttpForDevelopment { get; init; }
 
     /// <summary>Bearer token used when <see cref="AuthMode"/> is <see cref="SignServerAuthMode.Bearer"/>.</summary>
     public string? BearerToken { get; init; }
@@ -61,8 +62,8 @@ public sealed record SignServerConfig
     /// without secrets in source: <c>SIGNSERVER_URL</c>, <c>SIGNSERVER_WORKER</c>, <c>SIGNSERVER_AUTH</c>
     /// (<c>none|clientcert|basic|bearer</c>), <c>SIGNSERVER_BEARER_TOKEN</c>, <c>SIGNSERVER_BASIC_USER</c>,
     /// <c>SIGNSERVER_BASIC_PASS</c>, <c>SIGNSERVER_CLIENT_CERT</c> (PFX path) + <c>SIGNSERVER_CLIENT_CERT_PASSWORD</c>,
-    /// and <c>SIGNSERVER_KEY_ID</c>. Fails loud (SGN024) when the URL or worker is missing, or the auth mode
-    /// is present but its required material is not.
+    /// <c>SIGNSERVER_KEY_ID</c>, and <c>SIGNSERVER_ALLOW_INSECURE_HTTP</c>. Fails loud (SGN024/SGN025)
+    /// when configuration is missing or transport security is invalid.
     /// </summary>
     public static Result<SignServerConfig> FromEnvironment()
     {
@@ -82,16 +83,30 @@ public sealed record SignServerConfig
             return Result<SignServerConfig>.Failure(ErrorKind.SecurityError,
                 $"SGN024: SIGNSERVER_AUTH value '{authRaw}' is not one of none|clientcert|basic|bearer.");
 
+        var allowInsecureRaw = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerAllowInsecureHttp);
+        var allowInsecureHttp = false;
+        if (!string.IsNullOrWhiteSpace(allowInsecureRaw)
+            && !bool.TryParse(allowInsecureRaw, out allowInsecureHttp))
+        {
+            return Result<SignServerConfig>.Failure(ErrorKind.SecurityError,
+                "SGN024: SIGNSERVER_ALLOW_INSECURE_HTTP must be 'true' or 'false' when specified.");
+        }
+
         var config = new SignServerConfig
         {
             BaseUrl = baseUrl,
             Worker = worker,
             AuthMode = authMode,
+            AllowInsecureHttpForDevelopment = allowInsecureHttp,
             BearerToken = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerBearerToken),
             BasicUsername = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerBasicUser),
             BasicPassword = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerBasicPass),
             KeyId = EnvVarCatalog.GetRaw(EnvVarCatalog.SignServerKeyId) ?? string.Empty
         };
+
+        var transport = config.ValidateTransportSecurity();
+        if (transport.IsFailure)
+            return Result<SignServerConfig>.Failure(transport.Error);
 
         switch (authMode)
         {
@@ -112,6 +127,31 @@ public sealed record SignServerConfig
         }
 
         return config;
+    }
+
+    /// <summary>Validates that the endpoint uses HTTPS, or explicitly opted-in unauthenticated development HTTP.</summary>
+    public Result<Unit> ValidateTransportSecurity()
+    {
+        if (!Uri.TryCreate(BaseUrl, UriKind.Absolute, out var uri))
+            return Result<Unit>.Failure(ErrorKind.SecurityError,
+                "SGN025: SignServer base URL must be an absolute HTTPS URL.");
+
+        if (uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            return Unit.Value;
+
+        if (!uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
+            return Result<Unit>.Failure(ErrorKind.SecurityError,
+                "SGN025: SignServer base URL must use HTTPS.");
+
+        if (!AllowInsecureHttpForDevelopment)
+            return Result<Unit>.Failure(ErrorKind.SecurityError,
+                "SGN025: SignServer HTTP is disabled by default. Use HTTPS, or explicitly enable development HTTP.");
+
+        if (AuthMode != SignServerAuthMode.None)
+            return Result<Unit>.Failure(ErrorKind.SecurityError,
+                "SGN025: SignServer development HTTP cannot be combined with Basic, Bearer, or client-certificate authentication.");
+
+        return Unit.Value;
     }
 
     private static Result<X509Certificate2> LoadClientCertFromEnvironment()

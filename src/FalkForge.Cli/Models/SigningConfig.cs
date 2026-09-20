@@ -54,6 +54,10 @@ public sealed class SigningConfig
     [JsonPropertyName("authMode")]
     public string? AuthMode { get; set; }
 
+    /// <summary>SignServer: explicit opt-in for unauthenticated HTTP to a local development container.</summary>
+    [JsonPropertyName("allowInsecureHttpForDevelopment")]
+    public bool AllowInsecureHttpForDevelopment { get; set; }
+
     /// <summary>SignServer bearer auth: NAME of the environment variable holding the bearer token.</summary>
     [JsonPropertyName("bearerTokenEnv")]
     public string? BearerTokenEnv { get; set; }
