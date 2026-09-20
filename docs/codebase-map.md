@@ -177,7 +177,7 @@ Compilation/: BundleCompiler, ManifestGenerator, ManifestJsonContext, PayloadEmb
 BundleDetacher -- Detach/Reattach for code signing (BDS001-003)
 DeltaBundleCompiler -- generates delta bundles from old+new using Octodiff binary diffing. `BundleBuilder.DeltaFrom(oldBundlePath)` enables delta mode.
 Compression/GzipCompressor, Compression/DeltaCompressor (Octodiff rsync-based delta creation/application) | Validation/BundleValidator (BDL001-007, BDL024-025)
-UseCustomUI(uiProjectPath) on BundleBuilder (BDL007)
+UseCustomUI(uiProjectPath) on BundleBuilder (BDL007). Current limitation: the path is recorded and validated but is not built or embedded; runnable bundles use the separately resolved `UiPath` payload.
 EXE format: [PE stub][Magic:"FALKBUNDLE"][Manifest][Compressed payloads][TOC][Footer]
 Known gap: `Reproducible()` + `Integrity()` on bundles is not byte-identical yet (signature embedded in-band; MSI moves it to a sidecar). Post-beta task.
 

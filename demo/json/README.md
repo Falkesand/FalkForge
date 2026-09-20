@@ -3,17 +3,15 @@
 Declarative JSON installer definitions built and validated by the `forge` CLI. Use these when you need a standard MSI without custom C# code.
 
 > **Work in progress.** The C# fluent API is FalkForge's primary, fully supported authoring
-> path (what `forge init` scaffolds). JSON configuration is an experimental subset. JSON **can**
-> now author the Firewall, IIS, and SQL extensions — an `extensions` block is translated into the
-> same real extensions the C# API attaches via `new MsiCompiler().Use(...)` and emitted into the
-> compiled MSI (`06-web-server.json` shows firewall + IIS, `07-database-app.json` shows SQL). The
-> one exception is **.NET runtime detection**, a bundle-engine feature with no standalone-MSI
-> representation: a `dotnet` block still fails the build with JSN019. Use the C# fluent API for
-> .NET detection (demo 32) and for anything beyond the JSON subset.
+> path (what `forge init` scaffolds). JSON configuration is an experimental subset. JSON can
+> author Firewall, IIS, SQL, and .NET runtime detection through an `extensions` block. Each block
+> is translated into the same real extension used by the C# API and emitted into the compiled MSI.
+> `06-web-server.json` shows firewall + IIS and `07-database-app.json` shows SQL. Use the C# fluent
+> API for anything beyond the JSON subset.
 
 ## Overview
 
-JSON configs cover a subset of the FalkForge fluent API: files, shortcuts, registry, services, environment variables, features, major upgrade, downgrade, launch conditions, license, and the Firewall / IIS / SQL extensions. The `dotnet` extension section is structurally recognized and validated but cannot be authored in JSON (JSN019). For anything beyond that subset — custom actions, file operations, sequence scheduling, custom tables, and .NET detection — use the C# fluent API demos instead.
+JSON configs cover a subset of the FalkForge fluent API: files, shortcuts, registry, services, environment variables, features, major upgrade, downgrade, launch conditions, license, and the Firewall / IIS / SQL / .NET extensions. A `dotnet` block emits MSI-native `Signature`, `DrLocator`, and `AppSearch` detection plus a launch condition. For anything beyond that subset, including custom actions, file operations, sequence scheduling, and custom tables, use the C# fluent API demos instead.
 
 ## The 7 Configurations
 
@@ -66,10 +64,10 @@ The JSON format is documented in the [JSON Configuration Format](../../documenta
 | `downgrade` | object | `allow` (bool) and `message` (string) for downgrade behavior |
 | `launchConditions` | array | `condition` + `message` pairs |
 | `features` | array | Feature tree: `id`, `title`, `files` (each with an optional nested `shortcut` object), `registry`, `services`, `environmentVariables`, nested `features` |
-| `extensions` | object | `firewall`, `iis`, `sql` sub-objects are translated into the real extensions and emitted into the MSI; the `dotnet` sub-object is structurally validated but not buildable in JSON (JSN019) |
+| `extensions` | object | `firewall`, `iis`, `sql`, and `dotnet` sub-objects are translated into real extensions and emitted into the MSI |
 
 ## Key Differences from the C# API
 
 - Major upgrade schedule lives in `"majorUpgrade": { "schedule": "..." }`.
 - Downgrade settings live in a separate top-level `"downgrade": { "allow": false, "message": "..." }` object — they are **not** nested inside `majorUpgrade`.
-- Extension configuration lives in the top-level `"extensions"` object. The `firewall`, `iis`, and `sql` sections are translated into the same real extensions the C# API attaches via `new MsiCompiler().Use(...)`, so a JSON build emits the identical firewall / IIS / SQL tables into the MSI. The `dotnet` (.NET runtime detection) section is the exception: it is a bundle-engine feature with no standalone-MSI representation, so a `dotnet` block fails the build with JSN019 (rather than silently producing an installer that does not gate on the runtime). Use the C# fluent API for .NET-detection configuration (demo 32).
+- Extension configuration lives in the top-level `"extensions"` object. The `firewall`, `iis`, `sql`, and `dotnet` sections are translated into the same real extensions the C# API attaches via `new MsiCompiler().Use(...)`. The `dotnet` block emits MSI-native runtime searches and a launch condition. See demo 32 for the equivalent C# configuration.

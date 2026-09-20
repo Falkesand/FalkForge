@@ -25,7 +25,8 @@
     </div>
 
     <!-- Intro -->
-    <p>FalkForge includes a built-in WPF UI framework for installer applications. Instead of the standard MSI dialog boxes, you can build fully custom installer experiences with pages, navigation, theming, and data binding.</p>
+    <p>FalkForge includes a WPF UI framework for installer applications. Instead of the standard MSI dialog boxes, you can build custom experiences with pages, navigation, theming, and data binding.</p>
+    <p><strong>Integration status:</strong> the demo projects run directly as UI previews. <code>InstallerApp.Run()</code> connects to an engine only when the engine supplies its pipe arguments. <code>BundleBuilder.UseCustomUI(projectPath)</code> currently records and validates the project path but does not build or embed that executable. A runnable bundle still uses the compiler's separately resolved <code>UiPath</code> payload.</p>
     <p>WPF (Windows Presentation Foundation) is a .NET UI framework for desktop apps. It uses XAML markup to define layouts and supports rich styling, animations, and data binding. You don't need deep WPF knowledge to follow this tutorial &mdash; we explain each concept as it appears.</p>
 
     <!-- Section 1 -->
@@ -51,7 +52,7 @@
         <span class="punc">.</span><span class="method">Add</span><span class="punc">&lt;</span><span class="typ">ProgressPage</span><span class="punc">&gt;()</span>
         <span class="punc">.</span><span class="method">Add</span><span class="punc">&lt;</span><span class="typ">CompletePage</span><span class="punc">&gt;())));</span></code></pre>
 
-    <p><code>InstallerApp.Run()</code> is the entry point for every custom UI installer. It launches the WPF application, connects to the engine process, and renders your pages. The <code>return</code> passes the exit code back to the OS.</p>
+    <p><code>InstallerApp.Run()</code> launches the WPF application and renders your pages. When invoked by the engine with valid session arguments it connects to that engine. When run directly, as in this tutorial, it is a UI preview. The <code>return</code> passes the exit code back to the OS.</p>
     <p>Three builders configure the app:</p>
     <ul>
       <li><strong>Localization</strong> &mdash; loads JSON string files, sets the default culture, and enables a language picker in the UI. <code>AddJsonResources()</code> auto-discovers all embedded <code>lang.strings.*.json</code> resources across loaded assemblies. For explicit control, use <code>AddJsonResource&lt;T&gt;(path)</code> instead.</li>

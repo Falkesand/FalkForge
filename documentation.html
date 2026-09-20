@@ -1064,9 +1064,9 @@
       <tr><td>Runtime</td><td>.NET 10, C# latest</td></tr>
       <tr><td>Nullable</td><td>Enabled project-wide</td></tr>
       <tr><td>Package Management</td><td>Central Package Management (Directory.Packages.props)</td></tr>
-      <tr><td>Engine/Elevation</td><td>NativeAOT (~3-5 MB), no reflection, no dynamic</td></tr>
+      <tr><td>Engine/Elevation</td><td>NativeAOT, no reflection, no dynamic</td></tr>
       <tr><td>UI Framework</td><td>WPF + ReactiveUI</td></tr>
-      <tr><td>Testing</td><td>xUnit 2.9.3 (~7,000+ tests)</td></tr>
+      <tr><td>Testing</td><td>xUnit 2.9.3 (thousands of tests)</td></tr>
       <tr><td>Build Policy</td><td><code>TreatWarningsAsErrors</code> &mdash; 0 warnings required</td></tr>
     </tbody>
   </table>
@@ -1446,7 +1446,7 @@ package.MajorUpgrade(mu =&gt; mu
   <pre><code class="language-bash"># Build all projects (0 warnings required &mdash; TreatWarningsAsErrors is on)
 dotnet build
 
-# Run the full test suite (~7,000+ tests, xUnit 2.9.3; fast default skips
+# Run the full test suite (thousands of tests, xUnit 2.9.3; fast default skips
 # heavyweight end-to-end tests -- set FALKFORGE_E2E=1 to include them)
 dotnet test
 
@@ -1469,7 +1469,7 @@ dotnet publish -c Release</code></pre>
     <li><code>IlcOptimizationPreference: Size</code></li>
   </ul>
   <p>
-    This produces standalone executables of approximately 3-5 MB with no .NET runtime dependency.
+    This produces standalone executables with no .NET runtime dependency. Size varies with the current runtime and publish settings.
     NativeAOT constraints apply: no reflection, no dynamic, no BinaryFormatter. All serialization
     uses a custom binary protocol.
   </p>
@@ -1648,7 +1648,7 @@ Executables:
 
   <h3>3-Process Engine Architecture</h3>
   <pre><code>[UI Process]              [Engine Process]            [Elevated Engine]
- WPF + ReactiveUI          NativeAOT (~3-5 MB)         NativeAOT (elevated)
+ WPF + ReactiveUI          NativeAOT engine            NativeAOT (elevated)
  FalkForge.Ui               FalkForge.Engine             FalkForge.Engine.Elevation
        |&lt;-- Named Pipe A --&gt;|&lt;-- Named Pipe B ----------&gt;|</code></pre>
   <p>
@@ -4941,7 +4941,7 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>Chain(Action&lt;ChainBuilder&gt; configure)</code></td><td><code>BundleBuilder</code></td><td>Configures the package installation chain. Adds packages and chain items (including rollback boundaries).</td></tr>
       <tr><td><code>UseBuiltInUI(string? licenseFile, string? logoFile, string? themeColor, string? watermarkImage, string? bannerImage, string? bannerIcon)</code></td><td><code>BundleBuilder</code></td><td>Uses the built-in WPF installer UI with optional customization for license, logo, theme color, watermark, banner, and banner icon. The compiler embeds the licence file bytes in the manifest; the licence page displays plain text (UTF-8, or BOM-marked Unicode) or RTF without reading a build-machine path. Missing, unreadable, or empty licence files fail compilation. Bundles without a licence skip the acceptance page. Older bundles that declare a licence but lack embedded content must be rebuilt to display and accept it.</td></tr>
       <tr><td><code>UseSilentUI()</code></td><td><code>BundleBuilder</code></td><td>Configures the bundle for silent (no-UI) installation.</td></tr>
-      <tr><td><code>UseCustomUI(string uiProjectPath)</code></td><td><code>BundleBuilder</code></td><td>Registers a custom WPF UI project for the bundle. Throws if path is null or whitespace.</td></tr>
+      <tr><td><code>UseCustomUI(string uiProjectPath)</code></td><td><code>BundleBuilder</code></td><td>Records and validates a custom WPF UI project path. The compiler does not build or embed that project yet. Runnable bundles use the separately resolved <code>UiPath</code> payload. Throws if path is null or whitespace.</td></tr>
       <tr><td><code>UpdateFeed(string feedUrl, UpdatePolicy policy)</code></td><td><code>BundleBuilder</code></td><td>Configures an update feed URL and policy. Default policy: <code>UpdatePolicy.NotifyOnly</code>.</td></tr>
       <tr><td><code>RelatedBundle(string bundleId, Action&lt;RelatedBundleBuilder&gt;? configure)</code></td><td><code>BundleBuilder</code></td><td>Declares a related bundle by string ID.</td></tr>
       <tr><td><code>RelatedBundle(Guid bundleId, Action&lt;RelatedBundleBuilder&gt;? configure)</code></td><td><code>BundleBuilder</code></td><td>Declares a related bundle by GUID (formatted as uppercase brace-style).</td></tr>
@@ -5006,7 +5006,7 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>InstallCondition(Condition condition)</code></td><td><code>BundlePackageBuilder</code></td><td>Sets an install condition using a type-safe <code>Condition</code> object.</td></tr>
       <tr><td><code>ExitCode(int code, ExitCodeBehavior behavior)</code></td><td><code>BundlePackageBuilder</code></td><td>Maps a specific exit code to a behavior (success, error, reboot required, etc.).</td></tr>
       <tr><td><code>Property(string key, string value)</code></td><td><code>BundlePackageBuilder</code></td><td>Sets an MSI property to pass to the package during installation.</td></tr>
-      <tr><td><code>RemotePayload(string url, string sha256, long size)</code></td><td><code>BundlePackageBuilder</code></td><td>Declares a remote payload with download URL, SHA-256 hash, and size. Remote payloads are not embedded in the bundle.</td></tr>
+      <tr><td><code>RemotePayload(string url, string sha256, long size)</code></td><td><code>BundlePackageBuilder</code></td><td>Declares remote-payload metadata and omits the local payload. Current limitation: the ordinary chain runner does not download or cache it. Use a downloadable external container for the supported runtime path.</td></tr>
       <tr><td><code>Container(string containerId)</code></td><td><code>BundlePackageBuilder</code></td><td>Assigns this package to a named container by string ID.</td></tr>
       <tr><td><code>Container(ContainerRef containerRef)</code></td><td><code>BundlePackageBuilder</code></td><td>Assigns this package to a container using a typed reference handle.</td></tr>
       <tr><td><code>DetectionMode(DetectionMode mode)</code></td><td><code>BundlePackageBuilder</code></td><td>Sets the detection strategy. <code>Default</code> uses product code (MSI) or ARP (EXE). <code>SearchOnly</code> relies solely on search conditions.</td></tr>
@@ -7765,7 +7765,7 @@ public void AuditEntry_EmitsCustomTableRowAndDeferredInstallAction()
     </div>
     <div style="border: 2px solid #D94A4A; border-radius: 8px; padding: 20px; text-align: center; min-width: 180px; background: #fff0f0;">
         <div style="font-weight: bold; font-size: 1.1em; margin-bottom: 8px;">Engine Process</div>
-        <div style="font-size: 0.9em; color: #555;">NativeAOT (~3-5 MB)</div>
+        <div style="font-size: 0.9em; color: #555;">NativeAOT engine</div>
         <div style="font-size: 0.85em; color: #777; margin-top: 4px;">FalkForge.Engine.csproj</div>
     </div>
     <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
@@ -11557,7 +11557,7 @@ public sealed record WixUnmappedFeature(
 </tr>
 <tr>
     <td>39</td><td>Bundle Remote Payload</td>
-    <td>Download package from URL at install time</td>
+    <td>Remote-payload authoring metadata; ordinary chain runtime download is not wired yet</td>
     <td><span class="badge">RemotePayload</span> <span class="badge">Hash</span> <span class="badge">Size</span></td>
 </tr>
 <tr>
@@ -11577,7 +11577,7 @@ public sealed record WixUnmappedFeature(
 </tr>
 <tr>
     <td>43</td><td>Bundle Layout</td>
-    <td>Named containers for offline layout scenarios</td>
+    <td>Named container metadata; offline <code>/layout</code> execution is not wired yet</td>
     <td><span class="badge">Container</span> <span class="badge">Layout</span></td>
 </tr>
 </tbody>
@@ -11710,7 +11710,7 @@ public sealed record WixUnmappedFeature(
 </tr>
 <tr>
     <td>62</td><td>Require-Signed Updates</td>
-    <td>Update-trust authoring with <code>Integrity().Epoch()/.Revoke()</code> and <code>UpdateFeed()</code>; runtime enforcement notes for require-signed, anti-downgrade, and revocation (INT001/INT007/INT008)</td>
+    <td>Update-trust authoring and active require-signed staged verification. Persistent epoch/revocation enforcement remains dormant because production does not save <code>TrustState</code>.</td>
     <td><span class="badge">Epoch</span> <span class="badge">Revoke</span> <span class="badge">UpdateFeed</span> <span class="badge">Require-Signed</span></td>
 </tr>
 <tr>
@@ -13796,9 +13796,7 @@ return await Installer.BuildBundleAsync(args, async outputPath =>
 </div>
 
 <p>
-    <strong>The engine does not know or care where a signature was produced.</strong> A local PEM key and a
-    signing server yield the same signature, checked the same way against the same pinned set. SignServer
-    changes <em>where</em> signing happens, never <em>what</em> the engine trusts or how it verifies.
+    The engine verifies the resulting bundle signature in the same format whether it came from a local PEM key or SignServer. The current provider does not independently verify that the response signature matches the submitted digest or pin an expected signer identity, so the configured endpoint, worker routing, TLS, and authentication remain part of the trusted build boundary.
 </p>
 
 <h3 id="signing-updates">Safe Updates</h3>
@@ -13821,7 +13819,7 @@ return await Installer.BuildBundleAsync(args, async outputPath =>
     executed.</p>
 
 <p>
-    Two more attacks are now blocked, and both protections are <strong>active in this release</strong>:
+    The verifier also understands epoch and revocation state, but these two protections are <strong>not active across production runs yet</strong>. The bootstrapper currently uses default in-memory <code>TrustState</code> and does not persist accepted state:
 </p>
 
 <table class="api-table">
@@ -13830,24 +13828,18 @@ return await Installer.BuildBundleAsync(args, async outputPath =>
         <tr>
             <td><strong>Downgrade / replay</strong></td>
             <td>Serve you an <em>older</em>, still-validly-signed release that has a known vulnerability</td>
-            <td>The engine remembers a monotonic &ldquo;epoch&rdquo; counter and refuses any bundle older than
-                the newest one it has accepted</td>
+            <td>When a host supplies persisted <code>TrustState</code>, the verifier refuses an epoch below the highest accepted value. The production bootstrapper does not persist that value yet.</td>
         </tr>
         <tr>
             <td><strong>Revoked key</strong></td>
             <td>Re-use a key you have since retired because it leaked</td>
-            <td>A verified update can declare a key revoked; from then on any bundle signed only by that key is
-                rejected, even though the key is still in older engines' pinned sets</td>
+            <td>When a host loads locally persisted revocations, a bundle signed only by a revoked key is rejected. The production bootstrapper does not persist that set yet.</td>
         </tr>
     </tbody>
 </table>
 
 <div class="note">
-    This anti-downgrade and revocation store is kept in a per-machine file that is protected by a strict
-    Windows access-control list (only SYSTEM and Administrators can write it) and advanced only by the elevated
-    helper after a genuinely verified update. If a run does not elevate, the store simply does not advance that
-    time and the engine says so &mdash; it never pretends to have protection it does not have. See
-    <strong>Demo 62 (require-signed-updates)</strong>.
+    <code>TrustStateStore</code> can read and write an ACL-protected per-machine file, and the verifier has tested epoch and revocation checks. No production bootstrap path currently loads or saves that store, so shipped bundles do not yet retain these protections between runs. See <strong>Demo 62 (require-signed-updates)</strong>.
 </div>
 
 <h3 id="signing-rotation">Key Rotation (Changing Keys Without Breaking Installs)</h3>

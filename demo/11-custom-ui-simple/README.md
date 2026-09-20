@@ -1,7 +1,8 @@
 # Demo 11: Custom UI Simple
 
-A minimal custom UI installer using the FalkForge.Ui framework. This demo shows the simplest possible page-based
-installer with localization support, a welcome screen, progress tracking, and a completion page.
+A minimal custom UI host using the FalkForge.Ui framework. This demo shows the simplest possible page-based UI with localization support, a welcome screen, progress tracking, and a completion page.
+
+> **Integration status:** running this project directly is a UI preview. `InstallerApp.Run()` connects to an engine only when the engine supplies its pipe arguments. `BundleBuilder.UseCustomUI(projectPath)` records and validates the project path but does not build or embed that UI executable yet.
 
 ## What This Demonstrates
 

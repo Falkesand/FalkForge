@@ -3,6 +3,8 @@
 A Visual Studio-inspired installer UI with a dark theme, borderless window, workload selection, and per-component
 progress tracking. This demo recreates the familiar VS Installer experience using the FalkForge.Ui framework.
 
+> **Integration status:** running this project directly is a UI preview. It connects to an engine only when launched with valid engine pipe arguments. `UseCustomUI(projectPath)` does not build or embed the project yet.
+
 ## What This Demonstrates
 
 - Borderless window with dark background and custom accent color

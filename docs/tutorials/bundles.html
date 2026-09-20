@@ -252,16 +252,8 @@
         <span class="str">"e3b0c44298fc1c14...7852b855"</span><span class="punc">,</span>  <span class="cmt">// SHA256 hash</span>
         <span class="num">10485760</span><span class="punc">))</span>                       <span class="cmt">// Size in bytes</span></code></pre>
 
-    <p><code>RemotePayload</code> takes three arguments: the download URL, the expected SHA256 hash, and the file size. The engine downloads the file, verifies the hash, and caches it before installation.</p>
-
-    <details class="deep-dive">
-      <summary>Deep dive: Caching and resume behavior</summary>
-      <div class="deep-dive-content">
-        <p>Downloaded payloads are stored in the package cache (<code>PackageCache</code>). The cache uses a three-layer path traversal defense: allowlist regex, <code>Path.GetFileName</code> sanitization, and <code>Path.GetFullPath</code> containment check.</p>
-        <p>If a download is interrupted, the engine resumes from where it left off using HTTP range requests. If the cached file already exists and its SHA256 matches, the download is skipped entirely.</p>
-        <p>Remote payloads reduce the bootstrapper size dramatically. A 5 MB EXE can orchestrate the installation of hundreds of megabytes of software downloaded on demand.</p>
-      </div>
-    </details>
+    <p><code>RemotePayload</code> takes the download URL, expected SHA256 hash, and file size. The compiler records these values and omits the local payload.</p>
+    <p><strong>Current limitation:</strong> the ordinary chain runner does not yet call <code>PayloadDownloader</code>, <code>PackageCache</code>, or <code>LayoutManager</code>, so this authoring shape does not download or install the package in a production bundle. Demo 39 is a compile-time API example only. For a supported downloadable path, use an external container declared with <code>Container(id, c =&gt; c.DownloadUrl(...))</code>.</p>
 
     <!-- ────────────────────────────────────────────────────────────── -->
     <h2>7. Update Feeds</h2>
@@ -309,20 +301,8 @@
 <span class="punc">.</span><span class="method">Container</span><span class="punc">(</span><span class="str">"CoreContainer"</span><span class="punc">)</span>
 <span class="punc">.</span><span class="method">Container</span><span class="punc">(</span><span class="str">"ExtrasContainer"</span><span class="punc">)</span></code></pre>
 
-    <p>Each <code>Container</code> becomes a separate compressed archive inside the bundle. When the bundle runs in <strong>layout mode</strong> (<code>/layout &lt;directory&gt;</code>), it extracts all containers to a folder. This folder can then be copied to an air-gapped machine and installed offline.</p>
-
-    <details class="deep-dive">
-      <summary>Deep dive: When to use layout mode</summary>
-      <div class="deep-dive-content">
-        <p>Layout mode is essential in three scenarios:</p>
-        <ul>
-          <li><strong>Air-gapped environments</strong> &mdash; servers with no internet access.</li>
-          <li><strong>Network share deployment</strong> &mdash; extract once, install from a shared folder across many machines.</li>
-          <li><strong>Build verification</strong> &mdash; extract and inspect every payload without running the installer.</li>
-        </ul>
-        <p>The <code>LayoutManager</code> handles extraction and produces a <code>LayoutJsonContext</code> manifest that lists every file in the layout directory. The engine can install from a layout directory by reading this manifest instead of extracting from the EXE.</p>
-      </div>
-    </details>
+    <p>In this demo, <code>Container</code> records grouping metadata and the payloads remain embedded. The production engine does not currently expose a <code>/layout</code> command, and <code>LayoutManager</code> has no production caller.</p>
+    <p>A container becomes a separate downloadable artifact only when declared with <code>DownloadUrl(...)</code>. That external-container path is live: the compiler writes the container beside the bundle, signs its membership and hash, and the engine downloads, verifies, and extracts it. Hosting and publishing the generated container is still the author's responsibility.</p>
 
     <!-- ────────────────────────────────────────────────────────────── -->
     <h2>9. Advanced Bundles</h2>
