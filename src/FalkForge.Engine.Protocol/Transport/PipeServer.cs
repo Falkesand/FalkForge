@@ -6,6 +6,7 @@
 
 namespace FalkForge.Engine.Protocol.Transport;
 
+using System.Buffers;
 using System.IO.Pipes;
 using System.Runtime.Versioning;
 using FalkForge.Engine.Protocol.Messages;
@@ -14,6 +15,14 @@ public sealed class PipeServer : PipeTransportBase
 {
     public PipeServer(PipeConnectionOptions options, Func<EngineMessage, Task> messageHandler)
         : base(options, messageHandler)
+    {
+    }
+
+    internal PipeServer(
+        PipeConnectionOptions options,
+        Func<EngineMessage, Task> messageHandler,
+        ArrayPool<byte> bufferPool)
+        : base(options, messageHandler, bufferPool)
     {
     }
 
