@@ -158,9 +158,11 @@ public sealed record EngineSessionOptions
     /// <para>
     /// SECURITY: the companion runs elevated (SYSTEM for per-machine installs). Callers must only
     /// ever set this to a path whose contents have been integrity-verified — never to an
-    /// unverified or attacker-influencable location. When null (or the file no longer exists),
-    /// the session falls back to the beside-the-engine probe; when neither yields a companion the
-    /// session runs without an elevation gateway (per-user behavior).
+    /// unverified or attacker-influencable location. Under <see cref="ElevationCompanionPolicy.VerifiedPath"/>,
+    /// a missing or changed file aborts the session so privileged packages cannot be silently
+    /// skipped. Under <see cref="ElevationCompanionPolicy.AmbientAllowed"/>, a null path permits
+    /// the beside-the-engine probe; a supplied path that fails verification is refused without
+    /// falling back to that probe.
     /// </para>
     /// </summary>
     public string? ElevationCompanionPath { get; init; }
@@ -172,8 +174,9 @@ public sealed record EngineSessionOptions
     /// SECURITY: this is required whenever <see cref="ElevationCompanionPath"/> is set. The
     /// session opens the file, hashes it, and compares it against this value immediately before
     /// wiring the elevation gateway, then keeps that handle open until the session ends. A path
-    /// with no digest cannot be re-proven, so the session refuses to wire it and runs per-user
-    /// instead. Verifying a file at extraction time and launching it by name minutes later is not
+    /// with no digest cannot be re-proven. A bundle-declared companion then aborts the session;
+    /// an optional plain-engine path is refused without an ambient fallback. Verifying a file at
+    /// extraction time and launching it by name minutes later is not
     /// a check at all: the extraction directory belongs to the user, and any process running as
     /// that user can swap the file, or redirect the path with a directory junction, in between.
     /// </para>

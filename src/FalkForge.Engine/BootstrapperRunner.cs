@@ -358,17 +358,21 @@ internal static class BootstrapperRunner
             SharedSecret = secret
         };
 
-        await using var session = EngineSession.BindToPipe(
-            pipeName,
-            manifestPath,
-            new EngineSessionOptions
+        var uiProcess = new SystemUiProcessHandle(process);
+        EngineSession session;
+        try
+        {
+            session = EngineSession.BindToPipe(
+                pipeName,
+                manifestPath,
+                new EngineSessionOptions
             {
                 PipeOptions = pipeOptions,
                 // Carry the UI process across to the handshake wait. Without it the wait cannot
                 // tell a UI that died on startup from one that is running and silent, it runs the
                 // full timeout down either way, and the process is left behind when the engine
                 // gives up — a UI stuck on a modal dialog outlived the engine that started it.
-                UiProcess = new SystemUiProcessHandle(process),
+                UiProcess = uiProcess,
                 LogPath = programArgs?.LogPath,
                 MinimumLogLevel = programArgs?.MinimumLogLevel,
                 // The manifest object deserialized from the bundle's own embedded bytes above and
@@ -415,19 +419,30 @@ internal static class BootstrapperRunner
                 // the store must never advance under a weaker rule than the auto-update path enforces.
                 UpdatePathStoredEpoch = requireSigned ? trustState.Epoch : null
             });
+        }
+        catch (InvalidOperationException ex)
+        {
+            uiProcess.KillTree();
+            await Console.Error.WriteLineAsync($"Failed to start installer session: {ex.Message}");
+            return 1;
+        }
 
-        await Console.Out.WriteLineAsync($"Session: {session.CorrelationId:D}");
+        await using (session)
+        {
 
-        var outcome = await session.RunUntilShutdown(CancellationToken.None);
+            await Console.Out.WriteLineAsync($"Session: {session.CorrelationId:D}");
+
+            var outcome = await session.RunUntilShutdown(CancellationToken.None);
 
         // Every other failure in this method prints why before returning; this one used to return
         // an exit code and nothing else, so a UI that never connected looked like a silent freeze
         // followed by a bare non-zero exit. The reason was written only to the log file, which the
         // user has no reason to know exists.
-        if (outcome.Error is { } outcomeError)
-            await Console.Error.WriteLineAsync(outcomeError.Message);
+            if (outcome.Error is { } outcomeError)
+                await Console.Error.WriteLineAsync(outcomeError.Message);
 
-        return EngineProgramHelpers.ToExitCode(outcome.State);
+            return EngineProgramHelpers.ToExitCode(outcome.State);
+        }
     }
 
     /// <summary>

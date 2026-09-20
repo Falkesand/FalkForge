@@ -23,8 +23,8 @@ using Xunit;
 ///   no elevation gateway.</description></item>
 ///   <item><description><b>Bundle bootstrap, manifest declares a verified companion
 ///   (<see cref="ElevationCompanionPolicy.VerifiedPath"/>):</b> only the integrity-verified
-///   extracted path is wired; if it is gone the session degrades to per-user rather than
-///   falling back to the (unverified) ambient probe.</description></item>
+///   extracted path is wired; if it is gone or changed the session aborts rather than silently
+///   omitting privileged packages or falling back to the (unverified) ambient probe.</description></item>
 ///   <item><description><b>Plain engine run
 ///   (<see cref="ElevationCompanionPolicy.AmbientAllowed"/>, the default):</b> the companion
 ///   legitimately ships beside the engine, so the ambient probe stays the intended
@@ -168,20 +168,20 @@ public sealed class EngineSessionCompanionPolicyTests : IDisposable
     }
 
     [Fact]
-    public async Task VerifiedPath_MissingVerifiedFile_DoesNotFallBackToAmbientProbe()
+    public void VerifiedPath_MissingVerifiedFile_AbortsInsteadOfDowngrading()
     {
         // The manifest declared a companion and the resolver verified it, but the extracted file
-        // is gone by bind time. Fail-safe: degrade to per-user; never substitute the unverified
-        // planted binary from the ambient probe.
+        // is gone by bind time. The install must abort rather than report success after silently
+        // skipping privileged packages, and it must never substitute the ambient probe.
         Assert.True(File.Exists(_plantedCompanionPath), "test setup: planted companion must exist");
         var vanishedPath = Path.Combine(_tempDir, "vanished-companion.exe");
         var hash = Sha256Hex([(byte)'M', (byte)'Z', 0x01]);
 
-        await using var session = EngineSession.BindToPipe(
+        var error = Assert.Throws<InvalidOperationException>(() => EngineSession.BindToPipe(
             pipeName: null, WriteManifest(),
-            Options(ElevationCompanionPolicy.VerifiedPath, vanishedPath, hash));
+            Options(ElevationCompanionPolicy.VerifiedPath, vanishedPath, hash)));
 
-        Assert.Null(session.ElevationGateway);
+        Assert.Contains("install is aborted", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -206,7 +206,7 @@ public sealed class EngineSessionCompanionPolicyTests : IDisposable
     // it for that whole wait. These tests use the wait.
 
     [Fact]
-    public async Task VerifiedPath_BytesReplacedAfterVerification_IsNotWired()
+    public void VerifiedPath_BytesReplacedAfterVerification_AbortsInsteadOfDowngrading()
     {
         // The plainest version of the attack: the file that was proven is overwritten with
         // something else before the session gets to it. Nothing about the path changes, so the
@@ -215,11 +215,11 @@ public sealed class EngineSessionCompanionPolicyTests : IDisposable
         var publisherHash = Sha256Hex([(byte)'M', (byte)'Z', 0x01]);
         WriteBytes(verifiedPath, "attacker-companion"u8.ToArray());
 
-        await using var session = EngineSession.BindToPipe(
+        var error = Assert.Throws<InvalidOperationException>(() => EngineSession.BindToPipe(
             pipeName: null, WriteManifest(),
-            Options(ElevationCompanionPolicy.VerifiedPath, verifiedPath, publisherHash));
+            Options(ElevationCompanionPolicy.VerifiedPath, verifiedPath, publisherHash)));
 
-        Assert.Null(session.ElevationGateway);
+        Assert.Contains("tampering", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
