@@ -19,7 +19,7 @@ namespace FalkForge.Engine.Tests.Variables;
 /// the assertion message and run locally — the mutation sequence is identical.
 ///
 /// Scale up via environment variable:
-///   FALKFORGE_FUZZ_ITERATIONS=50000 dotnet test --filter "ConditionParserFuzz"
+///   FALKFORGE_FUZZ_ITERATIONS=50000 dotnet test -- --filter-class FalkForge.Engine.Tests.Variables.ConditionParserFuzzTests
 /// </summary>
 public sealed class ConditionParserFuzzTests
 {

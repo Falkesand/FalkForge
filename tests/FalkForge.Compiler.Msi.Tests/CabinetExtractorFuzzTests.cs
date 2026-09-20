@@ -22,7 +22,7 @@ namespace FalkForge.Compiler.Msi.Tests;
 ///   Reconstruct: Convert.FromHexString(hex) then CabinetExtractor.Extract(new MemoryStream(...)).
 ///
 /// Scale up:
-///   FALKFORGE_FUZZ_ITERATIONS=2000 dotnet test --filter "CabinetExtractorFuzz"
+///   FALKFORGE_FUZZ_ITERATIONS=2000 dotnet test -- --filter-class FalkForge.Compiler.Msi.Tests.CabinetExtractorFuzzTests
 /// </summary>
 [SupportedOSPlatform("windows")]
 public sealed class CabinetExtractorFuzzTests : IDisposable

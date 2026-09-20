@@ -13,7 +13,7 @@
 # mutates fine, this repo's copy does not until --msbuild-path is passed explicitly.
 #
 # Why "test-runner": "mtp" in every stryker-config.json: this repo's test projects run
-# on xunit.v3 3.2.2 under Microsoft.Testing.Platform (MTP), not classic VSTest. Stryker's
+# on xunit.v3 4.x under Microsoft.Testing.Platform (MTP), not classic VSTest. Stryker's
 # default vstest runner is unreliable against xunit.v3 (upstream stryker-net#3117). The
 # mtp runner (Stryker 4.13+, `-t|--test-runner <vstest,mtp>` in `dotnet-stryker --help`)
 # is the supported path here — it is still flagged PREVIEW by upstream Stryker itself,

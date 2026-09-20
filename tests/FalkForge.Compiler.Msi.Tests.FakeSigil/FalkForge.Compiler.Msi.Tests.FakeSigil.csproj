@@ -11,11 +11,11 @@
         <AssemblyName>sigil</AssemblyName>
         <RootNamespace>FalkForge.Compiler.Msi.Tests.FakeSigil</RootNamespace>
         <!-- This project lives under tests/ so it inherits tests/Directory.Build.props, which
-             adds the xUnit/Microsoft.Testing.Platform test-hosting packages to every project in
-             that subtree. This is a plain console app, not a test project, so opt back out so
+             adds the Microsoft.Testing.Platform extensions to every project in that subtree.
+             This is a plain console app, not a test project, so opt back out so
              `dotnet test` on the .slnx only builds it (as MsiIntegritySigningTests' transitive
              ProjectReference dependency) rather than trying to run it as a test host. -->
-        <TestingPlatformDotnetTestSupport>false</TestingPlatformDotnetTestSupport>
+        <UseMicrosoftTestingPlatformRunner>false</UseMicrosoftTestingPlatformRunner>
         <IsTestProject>false</IsTestProject>
     </PropertyGroup>
     <ItemGroup>

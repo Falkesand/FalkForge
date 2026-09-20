@@ -14,7 +14,7 @@
 // that new, untagged collection in parallel with "ElevationSecurityLog". This is the identical
 // shape FalkForge.Integration.Tests already hit and fixed the same way (see
 // IntegrationAssemblyParallelization.cs): a named collection is fragile because it depends on
-// every future caller remembering to opt in; assembly-level DisableTestParallelization is
+// every future caller remembering to opt in; assembly-level Parallelization(Mode = None) is
 // opt-out and closes the gap structurally instead of by convention.
 //
 // Measured: the full-solution run failed twice on unrelated verification runs, a different test
@@ -40,4 +40,4 @@
 // 9.30s / 6.38s / 6.32s. Standalone wall-clock for both shapes is dominated by process/host
 // startup; serializing adds well under a second of reported test time. This project is small
 // enough that the cost is negligible, unlike the Integration.Tests case.
-[assembly: Xunit.CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]

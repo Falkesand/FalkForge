@@ -40,4 +40,4 @@
 // and constant while the races above are nondeterministic and produce failures that read as compiler
 // bugs. Revisit if this project's runtime grows materially — but re-solve all three windows, not just
 // the cheapest one.
-[assembly: Xunit.CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]
