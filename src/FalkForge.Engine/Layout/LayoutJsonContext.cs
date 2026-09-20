@@ -20,4 +20,4 @@ using FalkForge.Engine.Protocol.Manifest;
 [JsonSerializable(typeof(SearchConditionType))]
 [JsonSerializable(typeof(ExternalContainerInfo))]
 [JsonSerializable(typeof(ExternalContainerInfo[]))]
-internal partial class LayoutJsonContext : JsonSerializerContext;
+internal sealed partial class LayoutJsonContext : JsonSerializerContext;
