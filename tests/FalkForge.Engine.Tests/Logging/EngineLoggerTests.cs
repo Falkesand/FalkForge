@@ -84,6 +84,25 @@ public sealed class EngineLoggerTests : IDisposable
     }
 
     [Fact]
+    public void Log_ControlCharactersCannotAlterRecordsOrColumns()
+    {
+        var path = GetLogPath();
+        using (var logger = new EngineLogger(path))
+        {
+            logger.MinimumLevel = LogLevel.Info;
+            logger.Info("Cat\tInjected\r\n\u001b", "Msg\nFORGED\tfield\u0085\u2028");
+        }
+
+        var lines = File.ReadAllLines(path);
+        var line = Assert.Single(lines);
+        var parts = line.Split('\t');
+
+        Assert.Equal(6, parts.Length);
+        Assert.Equal("Cat\\tInjected\\r\\n\\u001B", parts[2]);
+        Assert.Equal("Msg\\nFORGED\\tfield\\u0085\\u2028", parts[3]);
+    }
+
+    [Fact]
     public void MinimumLevel_FiltersLowerLevels()
     {
         var path = GetLogPath();

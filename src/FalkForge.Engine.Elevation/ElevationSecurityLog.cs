@@ -1,6 +1,7 @@
 namespace FalkForge.Engine.Elevation;
 
 using System.Globalization;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Elevation.Commands;
 using FalkForge.Engine.Elevation.Interop;
 
@@ -186,13 +187,15 @@ internal static class ElevationSecurityLog
         var correlationId = _correlationId;
 
         var timestamp = _timeProvider.GetUtcNow().UtcDateTime.ToString("o", CultureInfo.InvariantCulture);
+        var encodedCategory = LogFieldEncoder.EncodeTsvField(category);
+        var encodedMessage = LogFieldEncoder.EncodeTsvField(message);
         _writer!.Write(timestamp);
         _writer.Write('\t');
         _writer.Write(level);
         _writer.Write('\t');
-        _writer.Write(category);
+        _writer.Write(encodedCategory);
         _writer.Write('\t');
-        _writer.Write(message);
+        _writer.Write(encodedMessage);
         _writer.Write('\t');
         _writer.WriteLine(correlationId);
     }
