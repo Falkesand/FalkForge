@@ -255,7 +255,7 @@ public sealed class SignServerRotationRevocationE2ETests
     }
 
     private static IContainer BuildContainer() =>
-        new ContainerBuilder("keyfactor/signserver-ce:latest")
+        new ContainerBuilder(SignServerProvisioning.Image)
             .WithPortBinding(SignServerHttpPort, assignRandomHostPort: true)
             .WithWaitStrategy(Wait.ForUnixContainer().UntilHttpRequestIsSucceeded(request => request
                 .ForPort(SignServerHttpPort)
@@ -266,13 +266,13 @@ public sealed class SignServerRotationRevocationE2ETests
     {
         var write = await container.ExecAsync(
             ["sh", "-c", $"printf '%b' \"{WorkerProperties}\" > /tmp/falk-rotation-worker.properties"]);
-        Assert.Equal(0L, write.ExitCode);
+        SignServerProvisioning.AssertSuccess("write", write.ExitCode, write.Stdout, write.Stderr);
 
         var apply = await container.ExecAsync(["bin/signserver", "setproperties", "/tmp/falk-rotation-worker.properties"]);
-        Assert.Equal(0L, apply.ExitCode);
+        SignServerProvisioning.AssertSuccess("apply", apply.ExitCode, apply.Stdout, apply.Stderr);
 
         var reload = await container.ExecAsync(["bin/signserver", "reload", "all"]);
-        Assert.Equal(0L, reload.ExitCode);
+        SignServerProvisioning.AssertSuccess("reload", reload.ExitCode, reload.Stdout, reload.Stderr);
     }
 
     /// <summary>Polls the named worker until it answers a real signature — mirrors the happy-path e2e's guard.</summary>

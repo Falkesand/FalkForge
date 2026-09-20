@@ -83,7 +83,7 @@ public sealed class SignServerPodSigningE2ETests
         var (runtimeAvailable, reason) = await ContainerRuntime.TryEnsureConfiguredAsync();
         Assert.SkipUnless(runtimeAvailable, $"No Docker/Podman container runtime available: {reason}");
 
-        var container = new ContainerBuilder("keyfactor/signserver-ce:latest")
+        var container = new ContainerBuilder(SignServerProvisioning.Image)
             .WithPortBinding(SignServerHttpPort, assignRandomHostPort: true)
             // The SignServer web root answers 200 once WildFly has deployed the EAR. (The REST /workers
             // endpoint answers 403 without the X-Keyfactor-Requested-With header, which the default
@@ -154,13 +154,13 @@ public sealed class SignServerPodSigningE2ETests
     {
         var write = await container.ExecAsync(
             ["sh", "-c", $"printf '%b' \"{WorkerProperties}\" > /tmp/falk-worker.properties"]);
-        Assert.Equal(0L, write.ExitCode);
+        SignServerProvisioning.AssertSuccess("write", write.ExitCode, write.Stdout, write.Stderr);
 
         var apply = await container.ExecAsync(["bin/signserver", "setproperties", "/tmp/falk-worker.properties"]);
-        Assert.Equal(0L, apply.ExitCode);
+        SignServerProvisioning.AssertSuccess("apply", apply.ExitCode, apply.Stdout, apply.Stderr);
 
         var reload = await container.ExecAsync(["bin/signserver", "reload", "all"]);
-        Assert.Equal(0L, reload.ExitCode);
+        SignServerProvisioning.AssertSuccess("reload", reload.ExitCode, reload.Stdout, reload.Stderr);
     }
 
     /// <summary>Polls the worker until it answers a real signature — the token can take a moment to activate.</summary>
