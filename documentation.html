@@ -1150,6 +1150,12 @@ return Installer.Build(args, package =>
   </p>
 
   <h3 id="concepts-codes">ProductCode, UpgradeCode &amp; PackageCode</h3>
+  <p><strong>Identity format migration:</strong> Automatic MSI, reproducible bundle and component GUIDs now use
+    <code>GuidUtility.CreateFramedGuid</code>: a versioned, purpose-specific format with length-prefixed fields.
+    Names containing <code>::</code> cannot shift field boundaries. This changes GUIDs derived by the older concatenation format.
+    Before rebuilding a released installer, preserve its existing UpgradeCode and review product/component identity migration;
+    explicitly supplied ProductCode, UpgradeCode, BundleId and file ComponentGuid values remain authoritative.
+    The legacy <code>CreateDeterministicGuid</code> API retains its original byte-for-byte behavior.</p>
   <p>
     MSI packages carry three distinct GUIDs, and confusing them is one of the most common sources
     of broken upgrades. FalkForge's <code>PackageBuilder.Build()</code> assigns sensible defaults
@@ -1352,7 +1358,7 @@ package.MajorUpgrade(mu =&gt; mu
     is the only one of the three ever running with elevated rights. The Engine and the Elevated
     companion mutually authenticate (HMAC-SHA256 handshake plus parent-process verification) before
     the Elevated side will execute anything, and it accepts only a fixed, whitelisted set of
-    commands (MSI install/uninstall, service install, registry write, file write) &mdash; it never
+    commands (MSI install/uninstall, trust-state advancement and dependency registration) &mdash; it never
     executes arbitrary code the UI sends it. See <a href="#engine">Engine
     Architecture</a> for the full three-process design.
   </p>
@@ -1363,6 +1369,14 @@ package.MajorUpgrade(mu =&gt; mu
     elevation model exists so the bundle wrapper only asks Windows for elevation once, at the point
     it's actually needed, instead of relaunching the whole UI as admin.
   </div>
+
+  <p>
+    If the elevated security log refuses an unsafe directory or file, the companion reports possible
+    log-path tampering after the authenticated session-start exchange. The engine records a warning
+    under the <code>Elevation</code> category with the session correlation id. An existing filename
+    during exclusive log creation also counts as a security refusal; ordinary I/O failures do not
+    assert tampering. Installation may continue without the companion's local security log.
+  </p>
 
   <h3 id="concepts-sequencing">Install Sequencing</h3>
   <p>
@@ -1422,7 +1436,7 @@ package.MajorUpgrade(mu =&gt; mu
       <tr><th>Requirement</th><th>Detail</th></tr>
     </thead>
     <tbody>
-      <tr><td>.NET SDK</td><td>10.0.103 or later (pinned via <code>global.json</code>)</td></tr>
+      <tr><td>.NET SDK</td><td>10.0.401 exactly for repository builds (<code>global.json</code> disables roll-forward; CI installs that version). Restore is locked by default; intentional dependency updates use <code>-p:RestoreLockedMode=false</code> and require reviewing changed lock files</td></tr>
       <tr><td>Operating System</td><td>Windows (required for MSI compilation via <code>msi.dll</code> P/Invoke)</td></tr>
       <tr><td>Architecture</td><td>x64 or Arm64</td></tr>
     </tbody>
@@ -1736,7 +1750,7 @@ Executables:
       <tr><th>Operator</th><th>Description</th></tr>
     </thead>
     <tbody>
-      <tr><td><code>implicit operator Result&lt;T&gt;(T value)</code></td><td>Implicit conversion from <code>T</code> to a successful result.</td></tr>
+      <tr><td><code>implicit operator Result&lt;T&gt;(T value)</code></td><td>Implicit conversion from a non-null <code>T</code> to a successful result. Null throws <code>ArgumentNullException</code>; use <code>Result&lt;T&gt;.Success(null)</code> explicitly when null is a legitimate success value.</td></tr>
     </tbody>
   </table>
 
@@ -4652,9 +4666,9 @@ Installer.Build(p =&gt;
     <tbody>
       <tr>
         <td><strong>Normal build</strong> (no <code>Reproducible()</code>, no explicit value)</td>
-        <td><code>null</code> &rarr; compiler generates a fresh <code>Guid.NewGuid()</code></td>
-        <td>Every packaging event produces a unique PackageCode. Guarantees uniqueness even when
-            <code>ProductCode</code> is pinned for upgrade detection.</td>
+        <td>The builder assigns a fresh <code>Guid.NewGuid()</code>; the compiler preserves it.</td>
+        <td>Each newly built model has a unique PackageCode, stable for that model's lifetime.
+            Reproducible mode instead leaves the value null for content-based derivation.</td>
       </tr>
       <tr>
         <td><strong>Reproducible build</strong> (<code>PackageBuilder.Reproducible()</code>)</td>
@@ -4925,7 +4939,7 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>UpgradeCode(Guid code)</code></td><td><code>BundleBuilder</code></td><td>Sets the upgrade code for related bundle detection. Default: auto-generated GUID.</td></tr>
       <tr><td><code>Scope(InstallScope scope)</code></td><td><code>BundleBuilder</code></td><td>Sets the install scope. Default: <code>InstallScope.PerMachine</code>.</td></tr>
       <tr><td><code>Chain(Action&lt;ChainBuilder&gt; configure)</code></td><td><code>BundleBuilder</code></td><td>Configures the package installation chain. Adds packages and chain items (including rollback boundaries).</td></tr>
-      <tr><td><code>UseBuiltInUI(string? licenseFile, string? logoFile, string? themeColor, string? watermarkImage, string? bannerImage, string? bannerIcon)</code></td><td><code>BundleBuilder</code></td><td>Uses the built-in WPF installer UI with optional customization for license, logo, theme color, watermark, banner, and banner icon.</td></tr>
+      <tr><td><code>UseBuiltInUI(string? licenseFile, string? logoFile, string? themeColor, string? watermarkImage, string? bannerImage, string? bannerIcon)</code></td><td><code>BundleBuilder</code></td><td>Uses the built-in WPF installer UI with optional customization for license, logo, theme color, watermark, banner, and banner icon. The compiler embeds the licence file bytes in the manifest; the licence page displays plain text (UTF-8, or BOM-marked Unicode) or RTF without reading a build-machine path. Missing, unreadable, or empty licence files fail compilation. Bundles without a licence skip the acceptance page. Older bundles that declare a licence but lack embedded content must be rebuilt to display and accept it.</td></tr>
       <tr><td><code>UseSilentUI()</code></td><td><code>BundleBuilder</code></td><td>Configures the bundle for silent (no-UI) installation.</td></tr>
       <tr><td><code>UseCustomUI(string uiProjectPath)</code></td><td><code>BundleBuilder</code></td><td>Registers a custom WPF UI project for the bundle. Throws if path is null or whitespace.</td></tr>
       <tr><td><code>UpdateFeed(string feedUrl, UpdatePolicy policy)</code></td><td><code>BundleBuilder</code></td><td>Configures an update feed URL and policy. Default policy: <code>UpdatePolicy.NotifyOnly</code>.</td></tr>
@@ -6498,7 +6512,8 @@ Installer.Build(args, package =&gt; { /* ... */ }, new MsiCompiler().Use(util));
       <tr><td><code>CornerRadius(double radius)</code></td><td><code>InstallerWindowBuilder</code></td><td>Sets the window corner radius.</td></tr>
       <tr><td><code>Background(string hex)</code></td><td><code>InstallerWindowBuilder</code></td><td>Sets the window background color from a hex string (e.g., <code>"#1E1E1E"</code>).</td></tr>
       <tr><td><code>Accent(string hex)</code></td><td><code>InstallerWindowBuilder</code></td><td>Sets the accent color from a hex string (e.g., <code>"#7B68EE"</code>).</td></tr>
-      <tr><td><code>Title(string title)</code></td><td><code>InstallerWindowBuilder</code></td><td>Sets the window title text.</td></tr>
+      <tr><td><code>Title(string title)</code></td><td><code>InstallerWindowBuilder</code></td><td>Sets a literal window title. The last Title or TitleLocalized call wins.</td></tr>
+      <tr><td><code>TitleLocalized(string key)</code></td><td><code>InstallerWindowBuilder</code></td><td>Resolves the window title through the UI localization resources and updates it on language changes. Both wizard shells localize navigation captions; custom resources can override Button.Back, Button.Next and Button.Cancel. Built-in defaults cover English and Swedish; other cultures fall back to English unless the publisher supplies translations.</td></tr>
       <tr><td><code>Icon(string iconPath)</code></td><td><code>InstallerWindowBuilder</code></td><td>Sets the window icon file path.</td></tr>
       <tr><td><code>CustomWindow&lt;TWindow&gt;()</code></td><td><code>InstallerWindowBuilder</code></td><td>Uses a completely custom WPF <code>Window</code> subclass as the shell. <code>TWindow</code> must derive from <code>Window</code> and have a parameterless constructor.</td></tr>
       <tr><td><code>WatermarkImage(string path)</code></td><td><code>InstallerWindowBuilder</code></td><td>Sets the watermark image path for the classic wizard exterior pages (164px left panel).</td></tr>
@@ -6694,8 +6709,8 @@ public class WelcomePage : InstallerPage&lt;WelcomePageView&gt;
       <tr><td><code>Features</code></td><td><code>IReadOnlyList&lt;FeatureState&gt;</code></td><td>Feature states with selection status.</td></tr>
       <tr><td><code>InstallDirectory</code></td><td><code>string</code></td><td>Gets or sets the installation directory. Setting it sends <code>SetInstallDirectory</code> and the engine records it on the plan request. <strong>The plan does not read it yet</strong> &mdash; every package installs where its own MSI puts it &mdash; because nothing says which package in a chain a user-chosen directory applies to, or which property each one reads it from. The built-in wizard keeps its directory page out of the walk for that reason; a custom UI that offers one must set the target property itself with <code>SetProperty</code> (for a FalkForge-built MSI, <code>INSTALLDIR</code>).</td></tr>
       <tr><td><code>SetLicenseAccepted(bool accepted)</code></td><td><code>void</code></td><td>Reports the user&rsquo;s licence decision. The engine refuses to plan a bundle whose manifest carries a licence file until it has been told the licence was accepted, so a custom UI that shows a licence must call this before requesting a plan. <code>EngineClient</code> puts the message on the wire immediately before the plan request, so ordering is not the caller&rsquo;s problem.</td></tr>
-      <tr><td><code>Cancel()</code></td><td><code>void</code></td><td>Cancels the current operation.</td></tr>
-      <tr><td><code>ShutdownAsync()</code></td><td><code>Task&lt;int&gt;</code></td><td>Shuts down the engine and returns the process exit code.</td></tr>
+      <tr><td><code>Cancel()</code></td><td><code>void</code></td><td>Signals cancellation independently of the request queue, including while a phase is executing. Cancellation during apply requests rollback. The built-in maintenance commands forward cancellation for their entire plan/apply run.</td></tr>
+      <tr><td><code>ShutdownAsync()</code></td><td><code>Task&lt;int&gt;</code></td><td>Requests shutdown and returns the engine session exit code. <code>EngineClient</code> retains the terminal response if the engine finishes before the window closes; repeated calls return the same outcome. An unexpected disconnect without a terminal response remains an error.</td></tr>
       <tr><td><code>SetProperty(string name, string value)</code></td><td><code>void</code></td><td>Sets an MSI property to pass to packages during installation. Only accepted during Initializing, Detecting, or Planning phases. Property names must match <code>^[A-Z_][A-Z0-9_.]*$</code>.</td></tr>
       <tr><td><code>SetSecureProperty(string name, SensitiveBytes value)</code></td><td><code>void</code></td><td>Sets a secure property. The value travels UI&rarr;engine over the authenticated named pipe, and the engine applies it to the MSI through a runtime-generated transform (<code>TRANSFORMS=</code>) rather than the command line, so it never appears on the command line. The caller disposes after return.</td></tr>
     </tbody>
@@ -6719,6 +6734,23 @@ public class WelcomePage : InstallerPage&lt;WelcomePageView&gt;
     the same way <code>EngineClient</code> does &mdash; see the row above, and
     <code>src/FalkForge.Ui/EngineClient.cs</code> for the reference implementation.
   </div>
+
+  <h4>Bundle feature selection</h4>
+  <p>
+    <code>EngineClient</code> also implements the optional <code>IBundleFeatureChannel</code> interface.
+    After detection, call <code>SetFeatureSelection(string featureId, bool isSelected)</code> to change
+    a bundle feature. Unknown feature IDs throw <code>ArgumentException</code>. The client retains the
+    choices in <code>Features</code> and sends every current selection, including unchanged defaults,
+    before <code>PlanAsync</code> requests the plan. These choices select whole packages; per-package
+    MSI features still use <code>IPackageMsiFeatureChannel</code>.
+  </p>
+  <p>
+    The built-in feature page exposes editable <code>FeatureOptions</code> and preserves choices when
+    revisited. Required features stay checked and cannot be deselected in either the UI or planner;
+    package install conditions still apply. Engines without this optional capability show read-only
+    choices. Fresh installs use authored feature defaults when no persisted selections or installed
+    feature packages are found. Saving choices for a later installer session remains separate work.
+  </p>
 
   <!-- 11.8 PageResult -->
   <h3 id="custom-ui-page-result">11.8 PageResult</h3>
@@ -7378,6 +7410,9 @@ Installer.Build(args, package =&gt;
     PropertyBuilder</a>), into a single, deterministic <code>MsiHiddenProperties</code> property row
     &mdash; neither an extension nor a package author may author that row directly (PRP002); two
     independent <code>MsiHiddenProperties</code> rows would collide on the same primary key.
+    At runtime, the secret transform also merges every supplied secure property name into that hidden list,
+    preserving authored entries. This covers raw <code>SetSecureProperty</code> calls without an extension declaration.
+    <code>MsiHiddenProperties</code> itself cannot be supplied as a secret property.
   </p>
 
   <h4>CommandLine escaping helpers</h4>
@@ -8007,6 +8042,7 @@ public sealed record EngineSessionOptions
 <pre><code class="language-csharp">public interface IUiChannel : IAsyncDisposable
 {
     void SetSessionCorrelationId(Guid id);
+    CancellationToken CancellationRequested =&gt; CancellationToken.None;
     Task SendAsync(PipelineEvent evt, CancellationToken ct);
     IAsyncEnumerable&lt;UiRequest&gt; ReadRequestsAsync(CancellationToken ct);
 }</code></pre>
@@ -8015,6 +8051,11 @@ public sealed record EngineSessionOptions
     The production implementation, <code>NamedPipeUiChannel</code>, performs the HMAC handshake on
     <code>StartAsync</code>, translates outbound <code>PipelineEvent</code> values into the corresponding
     <code>EngineMessage</code> frame, and translates inbound frames back into <code>UiRequest</code> values.
+    Cancellation signals <code>CancellationRequested</code> independently of the request queue, so the
+    runner can interrupt an executing phase. Disconnecting the UI completes the request stream.
+    The runner emits <code>DetectBeginMessage</code>, <code>PlanBeginMessage</code>, and
+    <code>ApplyBeginMessage</code> before invoking each phase, and sends a
+    <code>ShutdownResponseMessage</code> with its exit code before the final shutdown phase notification.
     A null implementation is available for headless and CLI scenarios via
     <code>NamedPipeUiChannel.CreateNullChannel()</code>.
 </p>
@@ -8272,7 +8313,7 @@ public sealed record EngineSessionOptions
         <tr><td>VersionMsi</td><td>Version</td><td>Emulated MSI version (always 5.0)</td><td>5.0</td></tr>
         <tr><td>Date</td><td>string</td><td>Current UTC date</td><td>20260217</td></tr>
         <tr><td>Time</td><td>string</td><td>Current UTC time</td><td>143022</td></tr>
-        <tr><td>RebootPending</td><td>long</td><td>1 if a reboot is pending from prior installations: the Component Based Servicing <code>RebootPending</code> key exists, the Windows Update <code>RebootRequired</code> key exists, the <code>PendingFileRenameOperations</code> value exists under Session Manager, or any of those probes could not be read (an unreadable probe is treated as pending, not as safe)</td><td>0</td></tr>
+        <tr><td>RebootPending</td><td>long</td><td>1 if a reboot is pending from prior installations: the Component Based Servicing <code>RebootPending</code> key exists, the Windows Update <code>RebootRequired</code> key exists, the <code>PendingFileRenameOperations</code> value exists under Session Manager, the configured and active <code>ComputerName</code> values differ (ignoring case), or any of those probes could not be read (an unreadable probe is treated as pending, not as safe)</td><td>0</td></tr>
     </tbody>
 </table>
 
@@ -9031,6 +9072,8 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     </tbody>
 </table>
 
+<p>For stock wizard button branding, <code>DialogButton.Install</code> applies to a <code>Next</code> control that starts installation and takes precedence over <code>DialogButton.Next</code> on that control. Ordinary Next buttons retain the Next override.</p>
+
 <h3 id="dlg-minimal-template">Minimal Template</h3>
 <p><code>src/FalkForge.Compiler.Msi/UI/Templates/MinimalDialogTemplate.cs</code></p>
 <p>The simplest template with just three dialogs for a one-click installation experience.</p>
@@ -9040,6 +9083,7 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
 <p><code>src/FalkForge.Compiler.Msi/UI/Templates/InstallDirDialogTemplate.cs</code></p>
 <p>Adds a license agreement and destination folder chooser to the flow.</p>
 <p>Dialog flow: <strong>WelcomeDlg</strong> &rarr; <strong>LicenseAgreementDlg</strong> &rarr; <strong>InstallDirDlg</strong> &rarr; <strong>ProgressDlg</strong> &rarr; <strong>ExitDlg</strong></p>
+<p>Before advancing from InstallDir, <code>SetTargetPath</code> validates and resolves the selected <code>INSTALLDIR</code> for a new installation. An invalid path blocks navigation. Cancelling Browse resets its edited path before returning.</p>
 
 <h3 id="dlg-featuretree-template">FeatureTree Template</h3>
 <p><code>src/FalkForge.Compiler.Msi/UI/Templates/FeatureTreeDialogTemplate.cs</code></p>
@@ -9049,12 +9093,12 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
 <h3 id="dlg-mondo-template">Mondo Template</h3>
 <p><code>src/FalkForge.Compiler.Msi/UI/Templates/MondoDialogTemplate.cs</code></p>
 <p>Full dialog set with setup type selection (Typical/Custom/Complete) and both feature tree and install directory dialogs.</p>
-<p>Dialog flow: <strong>WelcomeDlg</strong> &rarr; <strong>LicenseAgreementDlg</strong> &rarr; <strong>SetupTypeDlg</strong> (Typical &rarr; Progress | Custom &rarr; <strong>CustomizeDlg</strong> | Complete &rarr; Progress) &rarr; <strong>InstallDirDlg</strong> &rarr; <strong>ProgressDlg</strong> &rarr; <strong>ExitDlg</strong></p>
+<p>Dialog flow: <strong>WelcomeDlg</strong> &rarr; <strong>LicenseAgreementDlg</strong> &rarr; <strong>SetupTypeDlg</strong> (Typical/Complete &rarr; Progress | Custom &rarr; <strong>CustomizeDlg</strong> &rarr; <strong>InstallDirDlg</strong> &rarr; Progress) &rarr; <strong>ExitDlg</strong></p>
 
 <h3 id="dlg-advanced-template">Advanced Template</h3>
 <p><code>src/FalkForge.Compiler.Msi/UI/Templates/AdvancedDialogTemplate.cs</code></p>
 <p>The most comprehensive template, adding an install scope dialog for choosing between per-machine (all users, requires admin) and per-user installation. Sets the <code>ALLUSERS</code> property accordingly.</p>
-<p>Dialog flow: <strong>WelcomeDlg</strong> &rarr; <strong>InstallScopeDlg</strong> &rarr; <strong>LicenseAgreementDlg</strong> &rarr; <strong>SetupTypeDlg</strong> &rarr; <strong>CustomizeDlg</strong> &rarr; <strong>InstallDirDlg</strong> &rarr; <strong>ProgressDlg</strong> &rarr; <strong>ExitDlg</strong></p>
+<p>Dialog flow: <strong>WelcomeDlg</strong> &rarr; <strong>InstallScopeDlg</strong> &rarr; <strong>LicenseAgreementDlg</strong> &rarr; <strong>SetupTypeDlg</strong> (Typical/Complete &rarr; Progress | Custom &rarr; <strong>CustomizeDlg</strong> &rarr; <strong>InstallDirDlg</strong> &rarr; Progress) &rarr; <strong>ExitDlg</strong></p>
 
 <div class="note">
     All templates include a <strong>CancelDlg</strong> (spawned by the Cancel button) and
@@ -9382,7 +9426,7 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
     <tbody>
         <tr><td>DLG010</td><td>Error</td><td>A custom dialog's <code>Id</code> is empty or whitespace.</td></tr>
         <tr><td>DLG011</td><td>Error</td><td>A custom dialog's <code>Id</code> is not a valid MSI identifier (must start with a letter or underscore; only letters, digits, underscores, and periods after that).</td></tr>
-        <tr><td>DLG012</td><td>Error</td><td>Two custom dialogs in the package share the same <code>Id</code>.</td></tr>
+        <tr><td>DLG012</td><td>Error</td><td>Two custom dialogs share an <code>Id</code>, or a custom dialog collides with a stock or extension dialog in the composed set.</td></tr>
         <tr><td>DLG013</td><td>Error</td><td>A custom dialog has zero controls &mdash; it would have no <code>Control_First</code> and could never be shown.</td></tr>
         <tr><td>DLG014</td><td>Error</td><td>A control on a custom dialog has an empty or whitespace <code>Name</code>.</td></tr>
         <tr><td>DLG015</td><td>Error</td><td>A control <code>Name</code> is not a valid MSI identifier.</td></tr>
@@ -9394,10 +9438,11 @@ package.UseDialogSet(MsiDialogSet.InstallDir);</code></pre>
         <tr><td>DLG021</td><td>Error</td><td>A <code>NewDialog</code>/<code>SpawnDialog</code>/<code>DoAction</code>/<code>EndDialog</code> event has an empty argument.</td></tr>
         <tr><td>DLG022</td><td>Error</td><td>A control condition has an empty condition expression.</td></tr>
         <tr><td>DLG023</td><td>Error</td><td>A dialog placed in <code>InstallUISequence</code> with <code>Sequence(...)</code> is modal and no control on it publishes any event, so it can never end. Windows Installer waits on a modal dialog until a control publishes <code>EndDialog</code>; with no events at all it waits forever and nothing installs. Publish <code>EndDialog</code> with argument <code>Return</code> on the control that continues the install, or clear the Modal bit (<code>0x2</code>) from <code>Attributes</code> if the dialog is meant to be modeless.</td></tr>
-        <tr><td>DLG024</td><td>Error</td><td>A modal dialog scheduled in <code>InstallUISequence</code> cannot reach an <code>EndDialog</code> by following <code>NewDialog</code> navigation from it. Raised by the compiler over the composed set of stock and custom dialogs together, so it catches a custom dialog that navigates into a stock dialog which never ends, such as <code>ProgressDlg</code>. An <code>EndDialog</code> inside a dialog opened with <code>SpawnDialog</code> does not satisfy this, because control returns to the spawning dialog rather than to the sequence.</td></tr>
-        <tr><td>DLG025</td><td>Error</td><td>An extension dialog step named by <code>InsertStep</code> does not publish the forward navigation it was handed. A step is spliced into the wizard chain, so its position, and therefore its Next target, is decided by the active dialog set and by where the author anchored it. The builder must read <code>DialogBuildContext.Flow</code> rather than authoring its own; a hardcoded flow publishes navigation to nothing and the wizard stops on that page. The edge must also be one the user can take: published by a control the dialog defines, on a control that is visible and enabled, and not behind a condition other than <code>1</code>.</td></tr>
-        <tr><td>DLG026</td><td>Error</td><td><code>InsertStep</code> anchors a step after a dialog the active <code>MsiDialogSet</code> does not put on its wizard chain, so the step could never be reached. Note that a set can compose a dialog without putting it on the chain: Mondo and Advanced emit <code>InstallDirDlg</code> but never navigate to it, so it cannot host a step there even though its rows appear in the MSI. Anchor it after a dialog the set has, or use <code>DialogStepAnchor.BeforeInstall</code>, which every set supports.</td></tr>
+        <tr><td>DLG024</td><td>Error</td><td>A modal dialog scheduled in <code>InstallUISequence</code> cannot reach an <code>EndDialog Return</code> by following <code>NewDialog</code> navigation from it. Literal <code>0</code> and whitespace-only control conditions do not count as usable routes; null conditions retain MSI fallback semantics. Raised by the compiler over the composed set of stock and custom dialogs together, so it catches a custom dialog that navigates into a stock dialog which never ends, such as <code>ProgressDlg</code>. An <code>EndDialog</code> inside a dialog opened with <code>SpawnDialog</code> does not satisfy this, because control returns to the spawning dialog rather than to the sequence.</td></tr>
+        <tr><td>DLG025</td><td>Error</td><td>An extension dialog step named by <code>InsertStep</code> has no MSI-capable builder, emits a mismatched dialog name, or does not publish the forward navigation it was handed. A step is spliced into the wizard chain, so its position, and therefore its Next target, is decided by the active dialog set and by where the author anchored it. The builder must read <code>DialogBuildContext.Flow</code> rather than authoring its own; a hardcoded flow publishes navigation to nothing and the wizard stops on that page. The edge must also be one the user can take: published by a control the dialog defines, on a control that is visible and enabled, and either conditioned on <code>1</code> or an unsuppressed blank fallback event. Other potentially true events on the same control suppress a blank fallback; among blank events only the greatest ordering can fire.</td></tr>
+        <tr><td>DLG026</td><td>Error</td><td><code>InsertStep</code> anchors a step after a dialog the active <code>MsiDialogSet</code> does not put on its wizard chain, so the step could never be reached. The anchor must belong to the active wizard chain. Mondo and Advanced support <code>InstallDirDlg</code> on their Custom route; Typical and Complete retain their direct installation route. Anchor it after a dialog the set has, or use <code>DialogStepAnchor.BeforeInstall</code>, which every set supports.</td></tr>
         <tr><td>DLG027</td><td>Error</td><td>The same step is inserted at more than one anchor. A step occupies one position in the wizard chain, so it can follow only one dialog. Register a second step builder if two pages are needed.</td></tr>
+        <tr><td>DLG029</td><td>Error</td><td>A custom dialog publishes <code>EndDialog Return</code> alongside a <code>BeforeInstall</code> step. This ambiguous combination is rejected, including custom child dialogs. Author the page as an inserted <code>IMsiDialogStepBuilder</code> using <code>DialogBuildContext.Flow</code>, or remove the conflicting insertion. Multiple trailing extension steps are visited in order, including from the Typical and Complete routes.</td></tr>
         <tr><td>DLG028</td><td>Error</td><td>A stock dialog template lists a dialog on its wizard chain that it does not compose, so navigation would point at nothing. Internal consistency check on the compiler's own templates; a publisher should never see it.</td></tr>
     </tbody>
 </table>
@@ -9458,7 +9503,7 @@ public interface IDialogStepBuilder
     <thead><tr><th>Code</th><th>Severity</th><th>Description</th></tr></thead>
     <tbody>
         <tr><td>DLG001</td><td>Error</td><td>An <code>InsertedDialogStep</code> references a step name that is not registered in the <code>DialogStepRegistry</code>. Fix: register the builder via the owning extension before compiling.</td></tr>
-        <tr><td>DLG002</td><td>Error</td><td><code>DialogCustomizationModel.SuppressedDialogs</code> is non-empty. <code>DialogCustomization.SuppressDialog</code> is not implemented — nothing downstream consumes the set, so every stock dialog is composed and emitted regardless (task #44 tracks the real implementation). The builder method is separately marked <code>[Obsolete(error: true)]</code>, but the model's <code>SuppressedDialogs</code> is a public <code>init</code> property, so this rule is what actually blocks a populated set, including one set via an object initializer that never calls the method. Fix: remove all entries from <code>SuppressedDialogs</code>; the feature does not exist yet.</td></tr>
+        <tr><td>DLG002</td><td>Error</td><td><code>DialogCustomizationModel.SuppressedDialogs</code> is non-empty. <code>DialogCustomization.SuppressDialog</code> is not implemented — nothing downstream consumes the set, so every stock dialog is composed and emitted regardless (task #44 tracks the real implementation). The builder method is separately marked <code>[Obsolete(error: true)]</code>, but the model's <code>SuppressedDialogs</code> is a public <code>init</code> property, so this rule is what actually blocks a populated set, including one set via an object initializer that never calls the method. Fix: remove all entries from <code>SuppressedDialogs</code>; the feature does not exist yet. The legacy <code>StockDialog</code> enum is retained for compatibility and hidden from IntelliSense; use <code>DialogStepAnchor</code> to insert steps.</td></tr>
         <tr><td>DLG003</td><td>Error</td><td><code>DialogCustomization.BannerBitmap</code>/<code>DialogBitmap</code>/<code>HeaderIcon</code> names a Binary stream key that is not registered in <code>PackageModel.Binaries</code> (via <code>PackageBuilder.Binary(name, sourcePath)</code>). Fix: register the key with <code>PackageBuilder.Binary()</code> before compiling, or fix the typo.</td></tr>
         <tr><td>DLG005</td><td>Warning</td><td>A culture in <code>PackageModel.LocalizationData</code> produced no localizable difference from the base culture during MST language transform generation (see <a href="#loc-mst-transforms">MST Language Transforms</a>), so no <code>.mst</code> was emitted for it. Fix: add <code>!(loc.*)</code> text to a dialog set or custom dialog for that culture, or drop the extra culture.</td></tr>
     </tbody>
@@ -9812,7 +9857,7 @@ forge winget package.msi --id Acme.WebApp --license MIT --desc "Sample" \
                          --url https://acme.example/app.msi -o ./manifest</code></pre>
 
 <h4>rules list</h4>
-<p>Enumerates validation rules. Useful for CI configuration and rule discovery.</p>
+<p>Enumerates registered validation rules. Useful for CI configuration and rule discovery. Compiler-only diagnostics are not in this catalog: <code>DLG001</code>–<code>DLG005</code> and <code>DLG024</code>–<code>DLG027</code> are explained in the dialog diagnostic tables in this manual. <code>rules explain</code> has the same catalog scope.</p>
 <pre><code class="language-bash">forge rules list [options]
 
 # Options:
@@ -10981,7 +11026,7 @@ public sealed record WixUnmappedFeature(
         <tr><td>INT001</td><td>No trusted signature validates the manifest (tampering, untrusted publisher key, or locally-revoked key)</td></tr>
         <tr><td>INT002</td><td>Signed hash does not match the manifest package hash, or a signed entry has no matching package</td></tr>
         <tr><td>INT003</td><td>Malformed integrity envelope (parse failure, no signatures, or embedded manifest deserialization failure)</td></tr>
-        <tr><td>INT004</td><td>A manifest package, or a bundle TOC payload, is not covered by the integrity signature (set-coverage violation)</td></tr>
+        <tr><td>INT004</td><td>A declared payload (package, pre-UI prerequisite, MSI transform, elevation companion, or UI executable), or a bundle TOC payload, is not covered by the integrity signature (set-coverage violation). Manifest payload IDs must also be unique across these kinds, ignoring case; ambiguous or empty IDs fail with INT003, including in unsigned bundles.</td></tr>
         <tr><td>INT006</td><td>Bundle TOC payload hash does not match the ECDSA-signed manifest hash (post-signing overlay tamper)</td></tr>
         <tr><td>INT007</td><td>A signature is required on this path (e.g. update) but the manifest carries none</td></tr>
         <tr><td>INT008</td><td>Bundle key-epoch is below the highest epoch this machine has accepted (downgrade/replay) &mdash; see &sect;23 (Safe Updates)</td></tr>
@@ -11005,6 +11050,7 @@ public sealed record WixUnmappedFeature(
         <tr><td>FALKPQ002</td><td>Build-time error: a <code>FalkForgeTrustedKey</code> item has a malformed <code>PqFingerprint</code> (must be the 64-hex SHA-256 of the ML-DSA public key)</td></tr>
         <tr><td>FALKPQ003</td><td>Build-time error: duplicate trusted-key fingerprint in the baked <code>FalkForgeTrustedKey</code> set</td></tr>
         <tr><td>FALKPQ004</td><td>Build-time error: a <code>FalkForgeTrustedKey</code> item has a malformed classical fingerprint (must be the 64-hex SHA-256 of the signing key's SubjectPublicKeyInfo)</td></tr>
+        <tr><td>FALKPQ006</td><td>Build-time error: a classical or PQ fingerprint contains an unexpected character. Only hex digits and space, colon, hyphen or tab separators are accepted, matching runtime validation. Classical and PQ field errors are reported together.</td></tr>
     </tbody>
 </table>
 
@@ -14420,6 +14466,8 @@ Tooling &amp; distribution  Cli, Decompiler, Localization, Sdk, Signing.SignServ
 </p>
 
 <h3 id="architecture-security">24.4 Security Architecture</h3>
+<p>The engine source package includes dependency lock files, the repository SDK pin, and locked restore defaults. Pack sibling libraries first, then pack <code>FalkForge.Engine.Sources</code> with <code>FalkForgeSourceLockFeed</code> pointing to that feed; <code>scripts/pack.ps1</code> orders these steps automatically. Packaging checks external dependency versions and hashes against reviewed repository locks. Build from the packaged <code>tools/src</code> directory so its <code>global.json</code> selects the pinned SDK. The shipped locks include the supported <code>win-x64</code> target; another target requires a separately reviewed lock set.</p>
+<p>Elevated MSI requests normalize paths before opening them and reject UNC/network paths. File verification defaults to an unverified state, and resolved file paths must remain fully qualified; device handles cannot become verified payloads. These checks do not replace signed-manifest authorization or secure staging.</p>
 <p>
     FalkForge's security model is layered: each layer answers a different question about trust, and a
     reader who only skims one of the existing chapters (<a href="#concepts-elevation">Concepts</a>,
@@ -14450,7 +14498,7 @@ Tooling &amp; distribution  Cli, Decompiler, Localization, Sdk, Signing.SignServ
             <code>ServiceInstallCommand</code>, <code>RegistryWriteCommand</code>, and
             <code>FileWriteCommand</code> exist in the same assembly but are not registered with
             <code>ElevatedHost</code>, so nothing on the wire can currently reach them &mdash; a command is
-            only part of the surface once something registers it.</td>
+            only part of the surface once something registers it. The dormant file writer uses create-only semantics: an existing file, hard link or symbolic link is refused without overwriting it.</td>
         </tr>
         <tr>
             <td>Elevated payload binding</td>
