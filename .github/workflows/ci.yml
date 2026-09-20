@@ -129,7 +129,7 @@ jobs:
         run: ./scripts/coverage-gate.ps1 -UseExisting -FailUnder -MinDiff 0 -BaseRef origin/main
 
       - name: Upload test results
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: test-results
@@ -163,14 +163,14 @@ jobs:
         run: reportgenerator "-reports:TestResults\coverage\coverage.cobertura.xml" "-targetdir:CoverageReport-AllAssembly" "-reporttypes:JsonSummary;TextSummary"
 
       - name: Upload coverage report (src-only)
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
           path: CoverageReport/
           if-no-files-found: warn
 
       - name: Upload coverage report (all-assembly)
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report-all-assembly
           path: CoverageReport-AllAssembly/
@@ -207,7 +207,7 @@ jobs:
         run: dotnet test tests/FalkForge.SignServer.E2E.Tests/FalkForge.SignServer.E2E.Tests.csproj -c Release -v minimal -- --report-trx --report-trx-filename signserver-e2e.trx
 
       - name: Upload test results
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: signserver-e2e-test-results
