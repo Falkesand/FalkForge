@@ -43,8 +43,11 @@ public readonly record struct Result<T>
         return new Result<T>(new Error(kind, message));
     }
 
+    /// <summary>Converts a non-null value to success. Use <see cref="Success"/> explicitly for a legitimate null payload.</summary>
+    /// <exception cref="ArgumentNullException">The implicit value is null.</exception>
     public static implicit operator Result<T>(T value)
     {
+        ArgumentNullException.ThrowIfNull(value);
         return Success(value);
     }
 
