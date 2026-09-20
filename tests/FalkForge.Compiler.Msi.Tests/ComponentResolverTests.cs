@@ -8,6 +8,25 @@ namespace FalkForge.Compiler.Msi.Tests;
 [SupportedOSPlatform("windows")]
 public sealed class ComponentResolverTests
 {
+    [Fact]
+    public void RegistryComponentGuid_DistinguishesKeyAndValueBoundaries()
+    {
+        static PackageModel Package(string key, string name) => new()
+        {
+            Name = "App", Manufacturer = "Corp", Version = new Version(1, 0, 0),
+            RegistryEntries = [new RegistryEntryModel
+            {
+                Root = RegistryRoot.LocalMachine, Key = key, ValueName = name, Value = "value", FeatureRef = "Main"
+            }]
+        };
+        var resolver = new ComponentResolver(new MockFileSystem());
+        var first = resolver.Resolve(Package("Software\\Corp::Product", "Value"));
+        var second = resolver.Resolve(Package("Software\\Corp", "Product::Value"));
+        Assert.True(first.IsSuccess);
+        Assert.True(second.IsSuccess);
+        Assert.NotEqual(Assert.Single(first.Value.Components).Guid, Assert.Single(second.Value.Components).Guid);
+    }
+
     private static PackageModel BuildPackageWithSingleFile(MockFileSystem fs)
     {
         fs.AddFile("C:/build/app.exe", size: 4096);

@@ -78,8 +78,8 @@ public sealed partial class PackageBuilder
     public PackageModel Build()
     {
         var upgradeCode = UpgradeCode ??
-                          GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace,
-                              $"{Name}::{Manufacturer}");
+                          GuidUtility.CreateFramedGuid(GuidUtility.FalkForgeNamespace,
+                              "msi.upgrade", Name, Manufacturer);
         // Match PropertyTableProducer's ProductVersion for every version the compiler
         // accepts (major.minor.build): Windows Installer only ever reads three version
         // fields, so a 4th (Revision) component -- e.g. a CI build number in "1.0.0.100"
@@ -100,9 +100,9 @@ public sealed partial class PackageBuilder
         // likewise for a PerMachine vs. PerUser build of the same product: installing the
         // second build then fails with 1638 (ERROR_PRODUCT_VERSION) instead of installing,
         // with no build-time error.
-        var productCode = ProductCode ?? GuidUtility.CreateDeterministicGuid(
+        var productCode = ProductCode ?? GuidUtility.CreateFramedGuid(
             GuidUtility.FalkForgeNamespace,
-            $"{Name}::{Manufacturer}::{msiVersion}::{ArchitectureToken(Architecture)}::{ScopeToken(Scope)}");
+            "msi.product", Name, Manufacturer, msiVersion, ArchitectureToken(Architecture), ScopeToken(Scope));
         var defaultInstallDir = DefaultInstallDirectory ?? KnownFolder.ProgramFiles / Manufacturer / Name;
 
         // If no features defined, create implicit "Complete" feature

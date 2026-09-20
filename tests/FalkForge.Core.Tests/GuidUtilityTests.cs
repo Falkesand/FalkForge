@@ -34,6 +34,22 @@ public sealed class GuidUtilityTests
         Assert.Equal(expected, actual);
     }
 
+    [Fact]
+    public void FramedGuid_DistinguishesBoundariesAndPurposes()
+    {
+        var ns = GuidUtility.FalkForgeNamespace;
+        Assert.NotEqual(GuidUtility.CreateFramedGuid(ns, "product", "Foo::Bar", "Baz"),
+            GuidUtility.CreateFramedGuid(ns, "product", "Foo", "Bar::Baz"));
+        Assert.NotEqual(GuidUtility.CreateFramedGuid(ns, "product", "Foo", "Bar"),
+            GuidUtility.CreateFramedGuid(ns, "upgrade", "Foo", "Bar"));
+        Assert.NotEqual(GuidUtility.CreateFramedGuid(ns, "product", new string?[] { null }),
+            GuidUtility.CreateFramedGuid(ns, "product", ""));
+        Assert.NotEqual(GuidUtility.CreateFramedGuid(ns, "product"),
+            GuidUtility.CreateFramedGuid(ns, "product", ""));
+        Assert.Equal(GuidUtility.CreateFramedGuid(ns, "product", "å::文", "x"),
+            GuidUtility.CreateFramedGuid(ns, "product", "å::文", "x"));
+    }
+
     private static Guid ReferenceCreateDeterministicGuid(Guid namespaceId, string name)
     {
         var namespaceBytes = namespaceId.ToByteArray();

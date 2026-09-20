@@ -375,12 +375,12 @@ public sealed class BundleBuilder
     public BundleModel Build()
     {
         var upgradeCode = _upgradeCode ?? (_reproducibleOptions is not null
-            ? GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace, $"{_name}::{_manufacturer}")
+            ? GuidUtility.CreateFramedGuid(GuidUtility.FalkForgeNamespace, "bundle.upgrade", _name, _manufacturer)
             : Guid.NewGuid());
 
         var bundleId = _bundleId ?? (_reproducibleOptions is not null
-            ? GuidUtility.CreateDeterministicGuid(GuidUtility.FalkForgeNamespace,
-                $"{_name}::{_manufacturer}::{_version}")
+            ? GuidUtility.CreateFramedGuid(GuidUtility.FalkForgeNamespace,
+                "bundle.product", _name, _manufacturer, _version)
             : Guid.NewGuid());
 
         return new BundleModel

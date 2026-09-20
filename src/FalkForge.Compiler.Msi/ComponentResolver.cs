@@ -54,9 +54,9 @@ public sealed class ComponentResolver
 
                     var sanitizedFileName = ProducerHelpers.SanitizeDirectoryId(fileName);
                     var componentId = GenerateComponentId(targetDir, sanitizedFileName);
-                    var componentGuid = GuidUtility.CreateDeterministicGuid(
+                    var componentGuid = GuidUtility.CreateFramedGuid(
                         GuidUtility.FalkForgeNamespace,
-                        $"component::{targetDir}::{fileName}");
+                        "component.file", targetDir.ToString(), fileName);
 
                     var resolvedFile = new ResolvedFile
                     {
@@ -90,9 +90,9 @@ public sealed class ComponentResolver
                 var fullPath = _fileSystem.GetFullPath(file.SourcePath);
                 var sanitizedFileName = ProducerHelpers.SanitizeDirectoryId(file.FileName);
                 var componentId = GenerateComponentId(file.TargetDirectory, sanitizedFileName);
-                var componentGuid = file.ComponentGuid ?? GuidUtility.CreateDeterministicGuid(
+                var componentGuid = file.ComponentGuid ?? GuidUtility.CreateFramedGuid(
                     GuidUtility.FalkForgeNamespace,
-                    $"component::{file.TargetDirectory}::{file.FileName}");
+                    "component.file", file.TargetDirectory.ToString(), file.FileName);
 
                 var resolvedFile = new ResolvedFile
                 {
@@ -133,9 +133,9 @@ public sealed class ComponentResolver
             }
 
             var componentId = GenerateServiceComponentId(service.Name);
-            var componentGuid = GuidUtility.CreateDeterministicGuid(
+            var componentGuid = GuidUtility.CreateFramedGuid(
                 GuidUtility.FalkForgeNamespace,
-                $"service-component::{service.Name}");
+                "component.service", service.Name);
 
             components.Add(new ResolvedComponent
             {
@@ -162,9 +162,9 @@ public sealed class ComponentResolver
             }
 
             var componentId = GenerateRegistryComponentId(i, entry);
-            var componentGuid = GuidUtility.CreateDeterministicGuid(
+            var componentGuid = GuidUtility.CreateFramedGuid(
                 GuidUtility.FalkForgeNamespace,
-                $"registry-component::{i}::{entry.Root}::{entry.Key}::{entry.ValueName}");
+                "component.registry", i.ToString(System.Globalization.CultureInfo.InvariantCulture), entry.Root.ToString(), entry.Key, entry.ValueName);
 
             components.Add(new ResolvedComponent
             {
@@ -188,9 +188,9 @@ public sealed class ComponentResolver
             }
 
             var componentId = GenerateShortcutComponentId(i, shortcut);
-            var componentGuid = GuidUtility.CreateDeterministicGuid(
+            var componentGuid = GuidUtility.CreateFramedGuid(
                 GuidUtility.FalkForgeNamespace,
-                $"shortcut-component::{i}::{shortcut.Name}");
+                "component.shortcut", i.ToString(System.Globalization.CultureInfo.InvariantCulture), shortcut.Name);
 
             components.Add(new ResolvedComponent
             {
@@ -214,9 +214,9 @@ public sealed class ComponentResolver
             }
 
             var componentId = GenerateEnvironmentComponentId(i, envVar);
-            var componentGuid = GuidUtility.CreateDeterministicGuid(
+            var componentGuid = GuidUtility.CreateFramedGuid(
                 GuidUtility.FalkForgeNamespace,
-                $"environment-component::{i}::{envVar.Name}");
+                "component.environment", i.ToString(System.Globalization.CultureInfo.InvariantCulture), envVar.Name);
 
             components.Add(new ResolvedComponent
             {
@@ -240,9 +240,9 @@ public sealed class ComponentResolver
             }
 
             var componentId = GenerateIniFileComponentId(i, ini);
-            var componentGuid = GuidUtility.CreateDeterministicGuid(
+            var componentGuid = GuidUtility.CreateFramedGuid(
                 GuidUtility.FalkForgeNamespace,
-                $"inifile-component::{i}::{ini.FileName}::{ini.Section}::{ini.Key}");
+                "component.ini", i.ToString(System.Globalization.CultureInfo.InvariantCulture), ini.FileName, ini.Section, ini.Key);
 
             components.Add(new ResolvedComponent
             {
@@ -266,9 +266,9 @@ public sealed class ComponentResolver
             }
 
             var componentId = GenerateFileAssociationComponentId(i, assoc);
-            var componentGuid = GuidUtility.CreateDeterministicGuid(
+            var componentGuid = GuidUtility.CreateFramedGuid(
                 GuidUtility.FalkForgeNamespace,
-                $"fileassociation-component::{i}::{assoc.Extension}");
+                "component.association", i.ToString(System.Globalization.CultureInfo.InvariantCulture), assoc.Extension);
 
             components.Add(new ResolvedComponent
             {
