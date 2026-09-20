@@ -214,7 +214,7 @@ jobs:
       # A warning step below makes any failure visible in the workflow summary.
       - name: Attest build provenance
         id: attest
-        uses: actions/attest-build-provenance@96b4a1ef7235a096b17240c259729fdd70c83d45 # v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         continue-on-error: true
         with:
           subject-path: |
