@@ -58,7 +58,7 @@ internal static class BundleIntegritySigner
         // (set by BundleCompiler before signing), and the verifier binds them back via INT013.
         var signResult = EcdsaManifestSigner.Sign(
             entries, config, manifest.ExternalContainers, BuildTransformAssociations(manifest),
-            BuildAuthorizedProductCodes(manifest));
+            BuildAuthorizedProductCodes(manifest), BuildPropertyAllowlists(model));
         if (signResult.IsFailure)
             return Result<InstallerManifest>.Failure(signResult.Error);
 
@@ -85,7 +85,7 @@ internal static class BundleIntegritySigner
 
         var signResult = await EcdsaManifestSigner
             .SignAsync(entries, config, manifest.ExternalContainers, BuildTransformAssociations(manifest),
-                BuildAuthorizedProductCodes(manifest), cancellationToken: cancellationToken)
+                BuildAuthorizedProductCodes(manifest), BuildPropertyAllowlists(model), cancellationToken)
             .ConfigureAwait(false);
         if (signResult.IsFailure)
             return Result<InstallerManifest>.Failure(signResult.Error);
@@ -173,6 +173,33 @@ internal static class BundleIntegritySigner
         }
 
         return codes;
+    }
+
+    /// <summary>
+    /// Builds the signed per-package MSI property allowlists from the compiler model: every name a
+    /// package declared through <c>AllowElevatedProperty</c>, plus <c>ADDLOCAL</c> for a package that
+    /// enables feature selection, because the runtime planner stamps that property for such packages.
+    /// Names are de-duplicated (ordinal) and sorted so the envelope is deterministic. Returns null when
+    /// no package declares anything, so the field is omitted and "no allowlist" means "no property".
+    /// </summary>
+    internal static IReadOnlyList<PackagePropertyAllowlist>? BuildPropertyAllowlists(BundleModel model)
+    {
+        List<PackagePropertyAllowlist>? allowlists = null;
+        foreach (var package in model.Packages)
+        {
+            if (package.AllowedElevatedProperties.Count == 0 && !package.EnableFeatureSelection)
+                continue;
+
+            var names = new HashSet<string>(package.AllowedElevatedProperties, StringComparer.Ordinal);
+            if (package.EnableFeatureSelection)
+                names.Add("ADDLOCAL");
+
+            var sorted = names.ToArray();
+            Array.Sort(sorted, StringComparer.Ordinal);
+            (allowlists ??= []).Add(new PackagePropertyAllowlist { PackageId = package.Id, PropertyNames = sorted });
+        }
+
+        return allowlists;
     }
 
     /// <summary>

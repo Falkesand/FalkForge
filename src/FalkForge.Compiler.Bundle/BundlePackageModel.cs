@@ -35,4 +35,12 @@ public sealed class BundlePackageModel
     /// declared, so the bundle signs the byte-identical files-only message it signed before.
     /// </summary>
     public IReadOnlyList<BundleTransformModel> Transforms { get; init; } = [];
+
+    /// <summary>
+    /// MSI property names the bundle UI may set on this package when the elevated companion installs
+    /// it as SYSTEM. Signed into the integrity envelope per package; the companion refuses any other
+    /// name on both the command-line and the secret-property channel. <c>ADDLOCAL</c> is added by the
+    /// compiler when <see cref="EnableFeatureSelection"/> is set, because the runtime planner stamps it.
+    /// </summary>
+    public IReadOnlyList<string> AllowedElevatedProperties { get; init; } = [];
 }

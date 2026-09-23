@@ -22,6 +22,7 @@ public sealed class BundlePackageBuilder
     private bool _permanent;
     private bool _enableFeatureSelection;
     private readonly List<BundleTransformModel> _transforms = new();
+    private readonly List<string> _allowedElevatedProperties = new();
 
     internal BundlePackageBuilder(BundlePackageType type, string sourcePath)
     {
@@ -139,6 +140,20 @@ public sealed class BundlePackageBuilder
         return this;
     }
 
+    /// <summary>
+    /// Declares MSI property names the bundle UI may set on this package during an elevated install.
+    /// The names are signed into the integrity envelope, and the elevated companion refuses any
+    /// property that is not on the list, whether it arrives on the command line
+    /// (<c>Engine.SetProperty</c>) or in the secret block (<c>Engine.SetSecureProperty</c>). Names must
+    /// match <c>[A-Z_][A-Z0-9_.]*</c>; <c>TRANSFORMS</c> and <c>PATCH</c> are never accepted (BDL037).
+    /// Call it once with every name, or several times.
+    /// </summary>
+    public BundlePackageBuilder AllowElevatedProperty(params string[] names)
+    {
+        _allowedElevatedProperties.AddRange(names);
+        return this;
+    }
+
     internal BundlePackageModel Build()
     {
         return new BundlePackageModel
@@ -160,7 +175,8 @@ public sealed class BundlePackageBuilder
             IsPrerequisite = _isPrerequisite,
             Permanent = _permanent,
             EnableFeatureSelection = _enableFeatureSelection,
-            Transforms = _transforms.ToArray()
+            Transforms = _transforms.ToArray(),
+            AllowedElevatedProperties = _allowedElevatedProperties.ToArray()
         };
     }
 }
