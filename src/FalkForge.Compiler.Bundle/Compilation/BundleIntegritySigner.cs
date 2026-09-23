@@ -85,7 +85,7 @@ internal static class BundleIntegritySigner
 
         var signResult = await EcdsaManifestSigner
             .SignAsync(entries, config, manifest.ExternalContainers, BuildTransformAssociations(manifest),
-                BuildAuthorizedProductCodes(manifest), cancellationToken)
+                BuildAuthorizedProductCodes(manifest), cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         if (signResult.IsFailure)
             return Result<InstallerManifest>.Failure(signResult.Error);
