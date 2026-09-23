@@ -44,20 +44,20 @@
       "falkforge.engine.protocol": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.8, )",
+          "FalkForge.Core": "[0.5.0-beta.9, )",
           "Octopus.Octodiff": "[2.0.549, )"
         }
       },
       "falkforge.platform": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Core": "[0.5.0-beta.8, )"
+          "FalkForge.Core": "[0.5.0-beta.9, )"
         }
       },
       "falkforge.platform.windows": {
         "type": "Project",
         "dependencies": {
-          "FalkForge.Platform": "[0.5.0-beta.8, )"
+          "FalkForge.Platform": "[0.5.0-beta.9, )"
         }
       },
       "Octopus.Octodiff": {
