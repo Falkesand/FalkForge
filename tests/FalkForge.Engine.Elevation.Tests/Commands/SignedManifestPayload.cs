@@ -32,13 +32,15 @@ internal static class SignedManifestPayload
     /// A manifest with one installable MSI package (<paramref name="packageId"/>) whose signed and declared
     /// hash are both <paramref name="signedHash"/>, signed by <paramref name="signingKey"/>.
     /// </summary>
-    internal static string ManifestJson(string packageId, string signedHash, ECDsa signingKey)
+    internal static string ManifestJson(
+        string packageId, string signedHash, ECDsa signingKey, string[]? allowedProperties = null)
         => ManifestJson(
             envelopeEntries: [(packageId, signedHash)],
             packages: [(packageId, signedHash)],
             preUI: [],
             companionSha256: null,
-            signingKey: signingKey);
+            signingKey: signingKey,
+            propertyAllowlists: allowedProperties is null ? null : [(packageId, allowedProperties)]);
 
     /// <summary>
     /// Full control over the signed entries and the (possibly divergent) declared manifest packages, so a
@@ -51,7 +53,8 @@ internal static class SignedManifestPayload
         PreUIPackageInfo[] preUI,
         string? companionSha256,
         ECDsa? signingKey,
-        string? uiSha256 = null)
+        string? uiSha256 = null,
+        (string packageId, string[] propertyNames)[]? propertyAllowlists = null)
     {
         string? signature = null;
         if (signingKey is not null)
@@ -59,7 +62,12 @@ internal static class SignedManifestPayload
             var files = envelopeEntries
                 .Select(e => new ManifestFileEntry { Name = e.id, Sha256 = e.sha256 })
                 .ToList();
-            signature = IntegrityEnvelopeCodec.Serialize(IntegrityEnvelopeCodec.Sign(files, signingKey));
+            var allowlists = propertyAllowlists?
+                .Select(a => new PackagePropertyAllowlist { PackageId = a.packageId, PropertyNames = a.propertyNames })
+                .ToList();
+            signature = IntegrityEnvelopeCodec.Serialize(IntegrityEnvelopeCodec.Sign(
+                files, [signingKey], epoch: 0, revoked: [], externalContainers: null,
+                transformAssociations: null, productCodes: null, propertyAllowlists: allowlists));
         }
 
         var manifest = new InstallerManifest
@@ -90,6 +98,75 @@ internal static class SignedManifestPayload
     }
 
     /// <summary>
+    /// A manifest whose envelope was signed over <paramref name="signedNames"/> and then had its allowlist
+    /// rewritten to <paramref name="tamperedNames"/> without re-signing, so the signature no longer covers
+    /// the field. What a same-user caller who can edit the manifest but not sign would produce.
+    /// </summary>
+    internal static string TamperedPropertyAllowlistManifestJson(
+        string packageId, string signedHash, ECDsa signingKey, string[] signedNames, string[] tamperedNames)
+    {
+        var files = new List<ManifestFileEntry> { new() { Name = packageId, Sha256 = signedHash } };
+        var envelope = IntegrityEnvelopeCodec.Sign(
+            files, [signingKey], epoch: 0, revoked: [], externalContainers: null,
+            transformAssociations: null, productCodes: null,
+            propertyAllowlists: [new PackagePropertyAllowlist { PackageId = packageId, PropertyNames = signedNames }]);
+        envelope.PropertyAllowlists =
+            [new PackagePropertyAllowlist { PackageId = packageId, PropertyNames = tamperedNames }];
+
+        var manifest = new InstallerManifest
+        {
+            Name = "App",
+            Manufacturer = "Mfg",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new PackageInfo
+                {
+                    Id = packageId,
+                    Type = PackageType.MsiPackage,
+                    DisplayName = packageId,
+                    SourcePath = $"C:/cache/{packageId}.msi",
+                    Sha256Hash = signedHash
+                }
+            ],
+            PreUIPackages = [],
+            ManifestSignature = IntegrityEnvelopeCodec.Serialize(envelope)
+        };
+        return JsonSerializer.Serialize(manifest, BundleTrustJsonContext.Default.InstallerManifest);
+    }
+
+    /// <summary>A one-package manifest carrying a caller-supplied, already serialized envelope.</summary>
+    internal static string ManifestJsonWithEnvelope(string packageId, string signedHash, string envelopeJson)
+    {
+        var manifest = new InstallerManifest
+        {
+            Name = "App",
+            Manufacturer = "Mfg",
+            Version = "1.0.0",
+            BundleId = Guid.NewGuid(),
+            UpgradeCode = Guid.NewGuid(),
+            Scope = InstallScope.PerMachine,
+            Packages =
+            [
+                new PackageInfo
+                {
+                    Id = packageId,
+                    Type = PackageType.MsiPackage,
+                    DisplayName = packageId,
+                    SourcePath = $"C:/cache/{packageId}.msi",
+                    Sha256Hash = signedHash
+                }
+            ],
+            PreUIPackages = [],
+            ManifestSignature = envelopeJson
+        };
+        return JsonSerializer.Serialize(manifest, BundleTrustJsonContext.Default.InstallerManifest);
+    }
+
+    /// <summary>
     /// A manifest that declares one installable MSI package plus one or more signed MSI transforms.
     /// <paramref name="declaredTransforms"/> lists (owning package id, transform id, transform hash): each
     /// becomes a signed envelope file entry and a <see cref="PackageTransformInfo"/> under its owning
@@ -101,7 +178,8 @@ internal static class SignedManifestPayload
         (string id, string sha256)[] packages,
         (string owningPackageId, string transformId, string transformSha256)[] declaredTransforms,
         (string packageId, string[] transformIds)[] associations,
-        ECDsa signingKey)
+        ECDsa signingKey,
+        (string packageId, string[] propertyNames)[]? propertyAllowlists = null)
     {
         var files = new List<ManifestFileEntry>();
         foreach (var (id, sha256) in packages)
@@ -113,10 +191,15 @@ internal static class SignedManifestPayload
             .Select(a => new PackageTransformAssociation { PackageId = a.packageId, TransformIds = a.transformIds })
             .ToArray();
 
+        var allowlistList = propertyAllowlists?
+            .Select(a => new PackagePropertyAllowlist { PackageId = a.packageId, PropertyNames = a.propertyNames })
+            .ToList();
+
         var signature = IntegrityEnvelopeCodec.Serialize(
             IntegrityEnvelopeCodec.Sign(
                 files, [signingKey], epoch: 0, revoked: [],
-                externalContainers: null, transformAssociations: associationList));
+                externalContainers: null, transformAssociations: associationList,
+                productCodes: null, propertyAllowlists: allowlistList));
 
         var packageInfos = packages
             .Select(p => new PackageInfo
