@@ -53,7 +53,7 @@ public sealed class IntegrityEnvelopeCodecTrustTests
 
         var envelope = IntegrityEnvelopeCodec.Sign(files, key);
 
-        Assert.Equal(2, envelope.Version);
+        Assert.Equal(3, envelope.Version);
         Assert.Null(envelope.PublicKey);   // v1 top-level fields are not populated on v2
         Assert.Null(envelope.Signature);
         var entry = Assert.Single(envelope.Signatures);
@@ -74,7 +74,8 @@ public sealed class IntegrityEnvelopeCodecTrustTests
         Assert.Equal(Fingerprint(k1), envelope.Signatures[0].Fingerprint);
         Assert.Equal(Fingerprint(k2), envelope.Signatures[1].Fingerprint);
         // Both signatures are over the SAME files message -> both verify against their own key.
-        var hash = SHA256.HashData(IntegrityEnvelopeCodec.ComputeSignedBytes(files));
+        var hash = SHA256.HashData(IntegrityEnvelopeCodec.ComputeSignedBytes(
+            files, epoch: 0, revoked: [], externalContainers: null, version: envelope.Version));
         foreach (var e in envelope.Signatures)
         {
             using var v = ECDsa.Create();

@@ -39,8 +39,15 @@ public static class IntegrityEnvelopeCodec
     /// </summary>
     public const string MlDsa65AlgorithmId = FalkForge.Signing.SignatureAlgorithms.MlDsa65;
 
-    /// <summary>The current envelope format version (v2 = signature list).</summary>
-    public const int CurrentVersion = 2;
+    /// <summary>
+    /// The current envelope format version. v2 introduced the signature list. v3 folds the version
+    /// itself and the per-package property allowlists into the signed message, so a v3 envelope
+    /// has no legacy fallback: lowering the version field or stripping a v3 field breaks the signature.
+    /// </summary>
+    public const int CurrentVersion = 3;
+
+    /// <summary>The first envelope version whose number is part of the signed message.</summary>
+    public const int VersionBoundFrom = 3;
 
     /// <summary>The keyId assigned to a v1 envelope's signature when it is adapted to the list shape.</summary>
     public const string LegacyKeyId = "legacy";
@@ -76,12 +83,17 @@ public static class IntegrityEnvelopeCodec
     /// JSON), so an attacker cannot lower the epoch, strip/forge a revocation, or repoint a container's
     /// <c>DownloadUrl</c>/hash/membership without invalidating the signature. A v1 bundle is always treated
     /// as epoch 0, no revocations, no external containers.</para>
+    ///
+    /// <para>From <see cref="VersionBoundFrom"/> on, the envelope version is folded in as the first segment,
+    /// so a v3 message is never the legacy files-only bytes.</para>
     /// </summary>
     public static byte[] ComputeSignedBytes(
         IReadOnlyList<ManifestFileEntry> files, int epoch, IReadOnlyList<string> revoked,
         IReadOnlyList<ExternalContainerInfo>? externalContainers,
         IReadOnlyList<PackageTransformAssociation>? transformAssociations = null,
-        IReadOnlyList<string>? productCodes = null)
+        IReadOnlyList<string>? productCodes = null,
+        IReadOnlyList<PackagePropertyAllowlist>? propertyAllowlists = null,
+        int version = 2)
     {
         var filesJson = JsonSerializer.Serialize(
             files, IntegrityEnvelopeJsonContext.Default.IReadOnlyListManifestFileEntry);
@@ -102,10 +114,16 @@ public static class IntegrityEnvelopeCodec
         var productCodesCanonical = CanonicalizeProductCodes(productCodes);
         var hasProductCodes = productCodesCanonical.Length > 0;
 
-        // Neutral (epoch 0, no revocations, no external containers, no transform map, no product-code set)
-        // → the exact legacy files-only bytes. This is the property that keeps v1 and every earlier envelope
-        // verifiable.
-        if (!hasEpochOrRevoked && !hasContainers && !hasTransforms && !hasProductCodes)
+        var allowlistsCanonical = CanonicalizePropertyAllowlists(propertyAllowlists);
+        var hasAllowlists = allowlistsCanonical.Length > 0;
+
+        // A version at or above VersionBoundFrom is always folded in, first, so a v3 envelope never
+        // reduces to the legacy files-only message no matter which optional segments are absent.
+        var bindVersion = version >= VersionBoundFrom;
+
+        // Neutral v1/v2 (epoch 0, no revocations, no containers, no transform map, no product codes,
+        // no allowlists) is the exact legacy files-only bytes that keeps every shipped bundle verifiable.
+        if (!bindVersion && !hasEpochOrRevoked && !hasContainers && !hasTransforms && !hasProductCodes && !hasAllowlists)
             return Encoding.UTF8.GetBytes(filesJson);
 
         // Present → bind epoch + revocations into the signed message under a separator that cannot occur
@@ -118,6 +136,8 @@ public static class IntegrityEnvelopeCodec
             revoked ?? (IReadOnlyList<string>)[], IntegrityEnvelopeJsonContext.Default.IReadOnlyListString);
 
         var sb = new StringBuilder(filesJson);
+        if (bindVersion)
+            sb.Append('').Append("version=").Append(version.ToString(System.Globalization.CultureInfo.InvariantCulture));
         sb.Append('').Append("epoch=").Append(epoch.ToString(System.Globalization.CultureInfo.InvariantCulture));
         sb.Append('').Append("revoked=").Append(revokedJson);
 
@@ -144,6 +164,12 @@ public static class IntegrityEnvelopeCodec
         // publisher did not sign for -- a caller cannot add one to the set without breaking the signature.
         if (hasProductCodes)
             sb.Append('').Append("productcodes=").Append(productCodesCanonical);
+
+        // The property allowlists, when present, are bound last under their own length-prefixed segment.
+        // On a v3 envelope the version segment above already rules out the legacy fallback, so an
+        // attacker who strips this field only produces a signature failure, not a shape-only install.
+        if (hasAllowlists)
+            sb.Append('').Append("propertyallowlists=").Append(allowlistsCanonical);
 
         return Encoding.UTF8.GetBytes(sb.ToString());
     }
@@ -290,6 +316,67 @@ public static class IntegrityEnvelopeCodec
     }
 
     /// <summary>
+    /// The canonical, injective, order-independent string form of the per-package property allowlists.
+    /// Packages are ordered by id (ordinal) and names within a package by value (ordinal), so an
+    /// equivalent-but-reordered declaration canonicalizes identically. The entry count, each package id,
+    /// each name count and each name are length-prefixed (<c>len:value;</c>), so no crafted value can make
+    /// two distinct allowlists collide. A null or empty list yields the empty string.
+    /// </summary>
+    public static string CanonicalizePropertyAllowlists(IReadOnlyList<PackagePropertyAllowlist>? propertyAllowlists)
+    {
+        if (propertyAllowlists is null || propertyAllowlists.Count == 0)
+            return string.Empty;
+
+        var entries = new PackagePropertyAllowlist[propertyAllowlists.Count];
+        for (var i = 0; i < entries.Length; i++)
+        {
+            // A null here is a programming error on the signing side. The verifying side never reaches
+            // this method with a null because Parse refuses the envelope first (HasNullInside below).
+            var source = propertyAllowlists[i]
+                ?? throw new ArgumentException("Property allowlist entry is null.", nameof(propertyAllowlists));
+            if (source.PackageId is null || source.PropertyNames is null)
+                throw new ArgumentException("Property allowlist entry has a null package id or name list.", nameof(propertyAllowlists));
+            var names = new string[source.PropertyNames.Length];
+            for (var j = 0; j < names.Length; j++)
+                names[j] = source.PropertyNames[j]
+                    ?? throw new ArgumentException("Property allowlist contains a null name.", nameof(propertyAllowlists));
+            Array.Sort(names, StringComparer.Ordinal);
+            entries[i] = new PackagePropertyAllowlist { PackageId = source.PackageId, PropertyNames = names };
+        }
+        Array.Sort(entries, static (a, b) => string.CompareOrdinal(a.PackageId, b.PackageId));
+
+        var allowlistSb = new StringBuilder();
+        allowlistSb.Append(entries.Length).Append(';');
+        foreach (var entry in entries)
+        {
+            allowlistSb.Append(entry.PackageId.Length).Append(':').Append(entry.PackageId).Append(';');
+            allowlistSb.Append(entry.PropertyNames.Length).Append(';');
+            foreach (var name in entry.PropertyNames)
+                allowlistSb.Append(name.Length).Append(':').Append(name).Append(';');
+        }
+
+        return allowlistSb.ToString();
+    }
+
+    private static bool HasNullInside(IReadOnlyList<PackagePropertyAllowlist>? propertyAllowlists)
+    {
+        if (propertyAllowlists is null)
+            return false;
+
+        foreach (PackagePropertyAllowlist? entry in propertyAllowlists)
+        {
+            if (entry is null || entry.PackageId is null || entry.PropertyNames is null)
+                return true;
+            foreach (string? name in entry.PropertyNames)
+            {
+                if (name is null)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
     /// The SHA-256 fingerprint (uppercase hex, no separators) of a SubjectPublicKeyInfo blob —
     /// the value matched against a trusted set.
     /// </summary>
@@ -342,15 +429,17 @@ public static class IntegrityEnvelopeCodec
         IReadOnlyList<ManifestFileEntry> files, IReadOnlyList<ECDsa> keys, int epoch, IReadOnlyList<string> revoked,
         IReadOnlyList<ExternalContainerInfo>? externalContainers,
         IReadOnlyList<PackageTransformAssociation>? transformAssociations = null,
-        IReadOnlyList<string>? productCodes = null)
+        IReadOnlyList<string>? productCodes = null,
+        IReadOnlyList<PackagePropertyAllowlist>? propertyAllowlists = null)
     {
         ArgumentNullException.ThrowIfNull(keys);
         ArgumentNullException.ThrowIfNull(revoked);
         if (keys.Count == 0)
             throw new ArgumentException("At least one signing key is required.", nameof(keys));
 
-        var hash = SHA256.HashData(
-            ComputeSignedBytes(files, epoch, revoked, externalContainers, transformAssociations, productCodes));
+        var hash = SHA256.HashData(ComputeSignedBytes(
+            files, epoch, revoked, externalContainers, transformAssociations, productCodes,
+            propertyAllowlists, version: CurrentVersion));
 
         var signatures = new List<SignatureEntry>(keys.Count);
         foreach (var key in keys)
@@ -382,7 +471,9 @@ public static class IntegrityEnvelopeCodec
             // Same empty → null normalization so a transform-free envelope stays byte-identical.
             TransformAssociations = transformAssociations is { Count: > 0 } ? transformAssociations : null,
             // Same empty → null normalization so a product-code-free envelope stays byte-identical.
-            ProductCodes = productCodes is { Count: > 0 } ? productCodes : null
+            ProductCodes = productCodes is { Count: > 0 } ? productCodes : null,
+            // Same empty → null normalization so an allowlist-free envelope omits the field.
+            PropertyAllowlists = propertyAllowlists is { Count: > 0 } ? propertyAllowlists : null
         };
     }
 
@@ -411,6 +502,12 @@ public static class IntegrityEnvelopeCodec
         }
 
         if (envelope is null)
+            return null;
+
+        // `required` only checks that the key was present. A null entry, id, name array or name
+        // deserializes fine and would reach the canonicalizer, which runs before the signature is
+        // checked. Treat it as malformed, the same as bad JSON, so the caller maps it to INT003.
+        if (HasNullInside(envelope.PropertyAllowlists))
             return null;
 
         // v1 → v2 adapter: a legacy envelope carries a single top-level publicKey + signature and no
@@ -533,7 +630,8 @@ public static class IntegrityEnvelopeCodec
         // alongside the hash: ML-DSA companion verification is over the message itself (pure ML-DSA, no pre-hash).
         var message = ComputeSignedBytes(
             envelope.Files, envelope.Epoch, envelope.Revoked, envelope.ExternalContainers,
-            envelope.TransformAssociations, envelope.ProductCodes);
+            envelope.TransformAssociations, envelope.ProductCodes, envelope.PropertyAllowlists,
+            version: envelope.Version);
         var hash = SHA256.HashData(message);
         var haveTrustSet = trustedFingerprints.Count > 0;
         var sawRevoked = false;
@@ -700,7 +798,8 @@ public static class IntegrityEnvelopeCodec
         // the external-container set. The raw message is kept for ML-DSA companion verification (no pre-hash).
         var message = ComputeSignedBytes(
             envelope.Files, envelope.Epoch, envelope.Revoked, envelope.ExternalContainers,
-            envelope.TransformAssociations, envelope.ProductCodes);
+            envelope.TransformAssociations, envelope.ProductCodes, envelope.PropertyAllowlists,
+            version: envelope.Version);
         var hash = SHA256.HashData(message);
 
         // PQ side map, mirroring MatchTrustedSignature: companions consulted after a classical entry

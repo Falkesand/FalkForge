@@ -67,7 +67,7 @@ public sealed class MsiInspectorSignatureTests : IDisposable
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
         Assert.True(result.Value.SignaturePresent);
-        Assert.Equal("falkforge-ecdsa-envelope-v2", result.Value.SignatureFormatTag);
+        Assert.Equal("falkforge-ecdsa-envelope-v3", result.Value.SignatureFormatTag);
         Assert.NotEmpty(result.Value.SignatureFingerprints);
         Assert.All(result.Value.SignatureFingerprints, fp => Assert.False(string.IsNullOrWhiteSpace(fp)));
     }

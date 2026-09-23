@@ -101,8 +101,11 @@ public static class EcdsaManifestSigner
         // Normalize empty → null so the envelope's product-code field is omitted on the wire for a
         // product-code-free build (byte-identical envelope), and the signed bytes append nothing.
         var codes = productCodes is { Count: > 0 } ? productCodes : null;
+        // Sign the current envelope version explicitly. The codec's default is the legacy v2 shape and
+        // exists for tests that reproduce old messages; production always signs CurrentVersion.
         var message = IntegrityEnvelopeCodec.ComputeSignedBytes(
-            files, epoch, revoked, containers, transforms, codes);
+            files, epoch, revoked, containers, transforms, codes,
+            version: IntegrityEnvelopeCodec.CurrentVersion);
 
         var providers = BuildProviders(config);
         // PQ-hybrid Stage 1: classical entries are ordered before post-quantum entries regardless of

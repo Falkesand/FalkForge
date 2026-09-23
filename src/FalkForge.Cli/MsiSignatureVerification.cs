@@ -11,7 +11,7 @@ public sealed class MsiSignatureVerification
     public required SignatureVerdict Verdict { get; init; }
 
     /// <summary>The <c>Format</c> column value of the <c>ManifestSignature</c> row (e.g.
-    /// <c>falkforge-ecdsa-envelope-v2</c>), or null when the signature came from a sidecar (which
+    /// <c>falkforge-ecdsa-envelope-v3</c>), or null when the signature came from a sidecar (which
     /// carries no format column) or no signature was found.</summary>
     public string? FormatTag { get; init; }
 

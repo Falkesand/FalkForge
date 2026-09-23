@@ -126,4 +126,15 @@ public sealed class ManifestSignatureEnvelope
     [JsonPropertyName("productCodes")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public IReadOnlyList<string>? ProductCodes { get; set; }
+
+    /// <summary>
+    /// Per-package MSI property allowlists for the elevated install path. Folded into the ECDSA-signed
+    /// message under its own segment when present. Unlike the earlier optional fields this one lives on
+    /// v3 envelopes, whose version is itself signed, so a stripped field is a signature failure, never a
+    /// fallback to the legacy message. Null (and omitted from the wire) on v1 and v2 envelopes and on a
+    /// v3 bundle with no declared property; both mean "no property may be set".
+    /// </summary>
+    [JsonPropertyName("propertyAllowlists")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<PackagePropertyAllowlist>? PropertyAllowlists { get; set; }
 }

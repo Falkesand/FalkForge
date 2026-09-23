@@ -35,7 +35,7 @@ public sealed class MsiInspectionResultTests
             TableNames = tableNames,
             TableCount = 3,
             SignaturePresent = true,
-            SignatureFormatTag = "falkforge-ecdsa-envelope-v2",
+            SignatureFormatTag = "falkforge-ecdsa-envelope-v3",
             SignatureFingerprints = ["AABBCC"],
             PqCompanionFingerprints = ["DDEEFF"]
         };
@@ -47,7 +47,7 @@ public sealed class MsiInspectionResultTests
         Assert.Equal(3, result.TableCount);
         Assert.Equal(3, result.TableNames.Count);
         Assert.True(result.SignaturePresent);
-        Assert.Equal("falkforge-ecdsa-envelope-v2", result.SignatureFormatTag);
+        Assert.Equal("falkforge-ecdsa-envelope-v3", result.SignatureFormatTag);
         Assert.Equal(["AABBCC"], result.SignatureFingerprints);
         Assert.Equal(["DDEEFF"], result.PqCompanionFingerprints);
     }

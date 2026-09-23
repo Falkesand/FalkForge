@@ -36,7 +36,7 @@ public sealed class PqHybridGateTests : IDisposable
 
         if (!stripPqEntry)
         {
-            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, envelope.Epoch, envelope.Revoked);
+            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
             var pqSpki = pq.ExportSubjectPublicKeyInfo();
             var signature = new byte[pq.Algorithm.SignatureSizeInBytes];
             pq.SignData(message, signature, SignatureAlgorithms.ManifestContext);
