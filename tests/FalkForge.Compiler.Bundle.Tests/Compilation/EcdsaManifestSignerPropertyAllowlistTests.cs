@@ -70,8 +70,12 @@ public sealed class EcdsaManifestSignerPropertyAllowlistTests
     {
         var allowlists = new[] { Allow("PkgA", "INSTALLDIR") };
 
+        // The point of this test is that the sync overload and the async overload produce the same
+        // envelope shape, so the sync call is intentional, not a missed await.
+#pragma warning disable VSTHRD103, CA1849
         var sync = EcdsaManifestSigner.Sign(
             Entries(("PkgA", "AABBCC")), config: null, null, null, null, allowlists);
+#pragma warning restore VSTHRD103, CA1849
         var async = await EcdsaManifestSigner.SignAsync(
             Entries(("PkgA", "AABBCC")), config: null, null, null, null, allowlists, CancellationToken.None);
 

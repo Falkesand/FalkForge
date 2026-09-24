@@ -11,11 +11,11 @@ namespace FalkForge.Engine.Protocol.Tests.Integrity;
 /// </summary>
 public sealed class PropertyAllowlistSignatureBindingTests
 {
-    private static IReadOnlyList<ManifestFileEntry> Files(params (string name, string sha)[] items)
+    private static List<ManifestFileEntry> Files(params (string name, string sha)[] items)
         => items.Select(i => new ManifestFileEntry { Name = i.name, Sha256 = i.sha }).ToList();
 
-    private static IReadOnlySet<string> TrustSet(params string[] fingerprints)
-        => new HashSet<string>(fingerprints, StringComparer.OrdinalIgnoreCase);
+    private static HashSet<string> TrustSet(params string[] fingerprints)
+        => new(fingerprints, StringComparer.OrdinalIgnoreCase);
 
     private static string Fingerprint(ECDsa key)
         => Convert.ToHexString(SHA256.HashData(key.ExportSubjectPublicKeyInfo()));

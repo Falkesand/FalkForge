@@ -1,5 +1,6 @@
 namespace FalkForge.Engine.Protocol.Integrity;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
 
 /// <summary>
@@ -11,9 +12,19 @@ using System.Text.Json.Serialization;
 /// </summary>
 public sealed record PackagePropertyAllowlist
 {
+    /// <summary>
+    /// The MSI package this entry applies to.
+    /// </summary>
     [JsonPropertyName("packageId")]
     public required string PackageId { get; init; }
 
+    /// <summary>
+    /// The property names the publisher signed as settable on <see cref="PackageId"/>.
+    /// </summary>
+    // CA1819: serialized by source-generated JSON in NativeAOT code and compared with spans on the
+    // hot path without allocating; changing the type touches the signed wire format and the codec.
+    [SuppressMessage("Performance", "CA1819:Properties should not return arrays", Justification =
+        "Signed wire format for the property allowlist; the companion reads it with spans on the success path.")]
     [JsonPropertyName("propertyNames")]
     public required string[] PropertyNames { get; init; }
 }

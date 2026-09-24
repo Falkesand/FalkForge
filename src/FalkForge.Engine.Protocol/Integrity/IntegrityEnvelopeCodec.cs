@@ -286,7 +286,7 @@ public static class IntegrityEnvelopeCodec
     /// <summary>
     /// The canonical, injective, order-independent string form of the authorized product-code set. This is
     /// the exact representation folded into the signed message by
-    /// <see cref="ComputeSignedBytes(IReadOnlyList{ManifestFileEntry}, int, IReadOnlyList{string}, IReadOnlyList{ExternalContainerInfo}, IReadOnlyList{PackageTransformAssociation}, IReadOnlyList{string})"/>.
+    /// <see cref="ComputeSignedBytes(IReadOnlyList{ManifestFileEntry}, int, IReadOnlyList{string}, IReadOnlyList{ExternalContainerInfo}, IReadOnlyList{PackageTransformAssociation}, IReadOnlyList{string}, IReadOnlyList{PackagePropertyAllowlist}, int)"/>.
     /// A null or empty set yields the empty string, so a bundle with no declared product codes appends
     /// nothing to the signed message — the backward-compatibility property that keeps every already-shipped
     /// bundle's signed bytes byte-identical.
