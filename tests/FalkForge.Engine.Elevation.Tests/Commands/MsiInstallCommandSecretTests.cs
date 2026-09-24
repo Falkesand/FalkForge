@@ -127,7 +127,8 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
             packages: [(PackageId, msiHash)],
             declaredTransforms: [(PackageId, transformId, authorHash)],
             associations: [(PackageId, [transformId])],
-            _publisherKey);
+            _publisherKey,
+            propertyAllowlists: [(PackageId, ["SQLPASSWORD"])]);
 
         var payload = SignedManifestPayload.Build(
             baseMsi, string.Empty, PackageId, manifest,
@@ -367,7 +368,7 @@ public sealed class MsiInstallCommandSecretTests : IDisposable
     private byte[] BuildPayload(
         string msiPath, string additionalArgs, string hash, (string name, byte[] value)[] secrets)
     {
-        var manifestJson = SignedManifestPayload.ManifestJson(PackageId, hash, _publisherKey);
+        var manifestJson = SignedManifestPayload.ManifestJson(PackageId, hash, _publisherKey, ["SQLPASSWORD"]);
         return SignedManifestPayload.Build(msiPath, additionalArgs, PackageId, manifestJson, secrets);
     }
 

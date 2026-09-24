@@ -436,12 +436,14 @@ public sealed class Planner
     }
 
     /// <summary>
-    /// Stamps <c>ADDLOCAL</c> on each install/repair action whose package has an interactive
-    /// per-package feature selection. The selected feature ids are joined with commas
-    /// (<see cref="Execution.MsiExecutor"/> permits commas in property values and turns this
-    /// into <c>ADDLOCAL="F1,F2"</c>). Uninstall actions are never stamped. This intentionally
-    /// does not touch the bundle-level <see cref="IsPackageSelectedByFeatures"/> gating —
-    /// the two feature concepts are kept separate.
+    /// Stamps <c>ADDLOCAL</c> on each install/repair action whose package both has an interactive
+    /// per-package feature selection AND declared <see cref="PackageInfo.EnableFeatureSelection"/>.
+    /// The selected feature ids are joined with commas (<see cref="Execution.MsiExecutor"/> permits
+    /// commas in property values and turns this into <c>ADDLOCAL="F1,F2"</c>). Uninstall actions are
+    /// never stamped. This intentionally does not touch the bundle-level
+    /// <see cref="IsPackageSelectedByFeatures"/> gating — the two feature concepts are kept separate.
+    /// A package that never opted in never receives ADDLOCAL, matching the compiler's BDL027 rule
+    /// that only an <see cref="PackageInfo.EnableFeatureSelection"/> package may declare features.
     /// </summary>
     private static void ApplyPackageFeatureSelections(
         List<PlanAction> actions,
@@ -454,6 +456,9 @@ public sealed class Planner
         {
             // ADDLOCAL only makes sense when a product is being (re)installed.
             if (action.ActionType == PlanActionType.Uninstall)
+                continue;
+
+            if (!action.Package.EnableFeatureSelection)
                 continue;
 
             if (!packageFeatureSelections.TryGetValue(action.PackageId, out var selectedIds))

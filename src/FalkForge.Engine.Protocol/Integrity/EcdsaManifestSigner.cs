@@ -48,10 +48,12 @@ public static class EcdsaManifestSigner
         IntegrityConfiguration? config,
         IReadOnlyList<ExternalContainerInfo>? externalContainers = null,
         IReadOnlyList<PackageTransformAssociation>? transformAssociations = null,
-        IReadOnlyList<string>? productCodes = null)
+        IReadOnlyList<string>? productCodes = null,
+        IReadOnlyList<PackagePropertyAllowlist>? propertyAllowlists = null)
     {
         var task = SignAsync(
-            entries, config, externalContainers, transformAssociations, productCodes, CancellationToken.None);
+            entries, config, externalContainers, transformAssociations, productCodes, propertyAllowlists,
+            CancellationToken.None);
 
         // Built-in providers (PEM/ephemeral) always complete synchronously and successfully — the common,
         // no-block path.
@@ -80,6 +82,7 @@ public static class EcdsaManifestSigner
         IReadOnlyList<ExternalContainerInfo>? externalContainers = null,
         IReadOnlyList<PackageTransformAssociation>? transformAssociations = null,
         IReadOnlyList<string>? productCodes = null,
+        IReadOnlyList<PackagePropertyAllowlist>? propertyAllowlists = null,
         CancellationToken cancellationToken = default)
     {
         var files = new List<ManifestFileEntry>(entries.Count);
@@ -101,8 +104,13 @@ public static class EcdsaManifestSigner
         // Normalize empty → null so the envelope's product-code field is omitted on the wire for a
         // product-code-free build (byte-identical envelope), and the signed bytes append nothing.
         var codes = productCodes is { Count: > 0 } ? productCodes : null;
+        // Same empty -> null normalization for the property allowlists.
+        var allowlists = propertyAllowlists is { Count: > 0 } ? propertyAllowlists : null;
+        // Sign the current envelope version explicitly. The codec's default is the legacy v2 shape and
+        // exists for tests that reproduce old messages; production always signs CurrentVersion.
         var message = IntegrityEnvelopeCodec.ComputeSignedBytes(
-            files, epoch, revoked, containers, transforms, codes);
+            files, epoch, revoked, containers, transforms, codes, allowlists,
+            version: IntegrityEnvelopeCodec.CurrentVersion);
 
         var providers = BuildProviders(config);
         // PQ-hybrid Stage 1: classical entries are ordered before post-quantum entries regardless of
@@ -174,7 +182,8 @@ public static class EcdsaManifestSigner
             Revoked = revoked,
             ExternalContainers = containers,
             TransformAssociations = transforms,
-            ProductCodes = codes
+            ProductCodes = codes,
+            PropertyAllowlists = allowlists
         };
 
         return IntegrityEnvelopeCodec.Serialize(envelope);

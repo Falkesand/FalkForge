@@ -580,7 +580,7 @@ public sealed class MsiInstallCommandTests : IDisposable
     // integrity gate accepts the (trusted) publisher and the subsequent file-bytes bind is what decides.
     private byte[] BuildPayload(string msiPath, string additionalArgs, string signedHash)
     {
-        var manifestJson = SignedManifestPayload.ManifestJson(PackageId, signedHash, _publisherKey);
+        var manifestJson = SignedManifestPayload.ManifestJson(PackageId, signedHash, _publisherKey, ["INSTALLDIR", "LICENSEKEY"]);
         return SignedManifestPayload.Build(msiPath, additionalArgs, PackageId, manifestJson);
     }
 

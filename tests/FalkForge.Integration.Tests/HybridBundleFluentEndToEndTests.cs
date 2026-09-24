@@ -83,7 +83,7 @@ public sealed class HybridBundleFluentEndToEndTests : IDisposable
             envelope.Signatures[1].Fingerprint);
 
         // Both signatures cover the SAME signed bytes.
-        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked);
+        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
         using var pqPub = MLDsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(envelope.Signatures[1].PublicKey));
         Assert.True(pqPub.VerifyData(message, Convert.FromBase64String(envelope.Signatures[1].Signature),
             SignatureAlgorithms.ManifestContext));

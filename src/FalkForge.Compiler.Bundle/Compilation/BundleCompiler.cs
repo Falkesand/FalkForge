@@ -250,7 +250,7 @@ public sealed class BundleCompiler
         // embedded in the exe (never externalized), so it is appended to the embed set.
         var companionResult = ElevationCompanionAppender.Append(
             embeddedPayloads, manifest, model, ElevationCompanionPath, EngineStubPath, AllowPlaceholderStub,
-            EngineStubResolver);
+            EngineStubResolver, Logger);
         if (companionResult.IsFailure)
             return Result<(InstallerManifest, List<PayloadEntry>, List<PayloadEntry>)>.Failure(companionResult.Error);
 
@@ -335,7 +335,7 @@ public sealed class BundleCompiler
         // Step 4: Create stub — the resolved NativeAOT engine by default; the empty design-time
         // placeholder only via the explicit AllowPlaceholderStub opt-in. Fails loud otherwise.
         var stubResult = EngineStubLocator.CreateStubFile(
-            outputPath, EngineStubPath, AllowPlaceholderStub, EngineStubResolver);
+            outputPath, EngineStubPath, AllowPlaceholderStub, EngineStubResolver, Logger);
         if (stubResult.IsFailure)
             return Result<string>.Failure(stubResult.Error);
 

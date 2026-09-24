@@ -59,7 +59,7 @@ public sealed class HybridManifestSignerTests : IDisposable
         Assert.Equal(IntegrityEnvelopeCodec.MlDsa65AlgorithmId, pq.Algorithm);
 
         // The PQ entry verifies over the SAME canonical message, under the manifest context.
-        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked);
+        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
         using var pub = MLDsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(pq.PublicKey));
         Assert.True(pub.VerifyData(message, Convert.FromBase64String(pq.Signature), SignatureAlgorithms.ManifestContext));
 
@@ -106,7 +106,7 @@ public sealed class HybridManifestSignerTests : IDisposable
             Convert.ToHexString(SHA256.HashData(mldsa.ExportSubjectPublicKeyInfo())),
             pq.Fingerprint);
 
-        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked);
+        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
         using var pub = MLDsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(pq.PublicKey));
         Assert.True(pub.VerifyData(message, Convert.FromBase64String(pq.Signature), SignatureAlgorithms.ManifestContext));
     }
@@ -149,7 +149,7 @@ public sealed class HybridManifestSignerTests : IDisposable
         Assert.Equal(
             Convert.ToHexString(SHA256.HashData(mldsa.ExportSubjectPublicKeyInfo())),
             pq.Fingerprint);
-        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked);
+        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
         using var pub = MLDsa.ImportSubjectPublicKeyInfo(Convert.FromBase64String(pq.PublicKey));
         Assert.True(pub.VerifyData(message, Convert.FromBase64String(pq.Signature), SignatureAlgorithms.ManifestContext));
     }

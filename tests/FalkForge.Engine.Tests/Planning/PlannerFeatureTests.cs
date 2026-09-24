@@ -12,7 +12,10 @@ public sealed class PlannerFeatureTests
     private static DetectionResult NotInstalledDetection =>
         new(InstallState.NotInstalled, null, []);
 
-    private static PackageInfo CreatePackage(string id, string? installCondition = null)
+    private static PackageInfo CreatePackage(
+        string id,
+        string? installCondition = null,
+        bool enableFeatureSelection = false)
     {
         return new PackageInfo
         {
@@ -21,7 +24,8 @@ public sealed class PlannerFeatureTests
             DisplayName = $"Package {id}",
             SourcePath = $@"C:\test\{id}.msi",
             Sha256Hash = "AABBCCDD",
-            InstallCondition = installCondition
+            InstallCondition = installCondition,
+            EnableFeatureSelection = enableFeatureSelection
         };
     }
 
@@ -237,7 +241,8 @@ public sealed class PlannerFeatureTests
         // matching package's action — and does NOT gate any package in/out (that is the
         // separate bundle-level featureSelections concern).
         var planner = new Planner();
-        var manifest = CreateManifest([CreatePackage("Pkg1"), CreatePackage("Pkg2")]);
+        var manifest = CreateManifest(
+            [CreatePackage("Pkg1", enableFeatureSelection: true), CreatePackage("Pkg2", enableFeatureSelection: true)]);
 
         var selections = new Dictionary<string, IReadOnlyList<string>>
         {
@@ -259,12 +264,38 @@ public sealed class PlannerFeatureTests
     }
 
     [Fact]
+    public void Plan_PackageFeatureSelection_IgnoredWhenPackageDoesNotEnableFeatureSelection()
+    {
+        // A selection offered for a package that never declared EnableFeatureSelection must not
+        // reach the installer: BDL027 only allows the compiler to accept feature selections for a
+        // package that opted in, so stamping ADDLOCAL here would send a property the package was
+        // never authored to expect.
+        var planner = new Planner();
+        var manifest = CreateManifest([CreatePackage("Pkg1", enableFeatureSelection: false)]);
+
+        var selections = new Dictionary<string, IReadOnlyList<string>>
+        {
+            ["Pkg1"] = ["FeatureA"],
+        };
+
+        var result = planner.CreatePlan(
+            manifest,
+            NotInstalledDetection,
+            InstallAction.Install,
+            packageFeatureSelections: selections);
+
+        Assert.True(result.IsSuccess);
+        var pkg1 = result.Value.Actions.Single();
+        Assert.False(pkg1.Properties.ContainsKey("ADDLOCAL"));
+    }
+
+    [Fact]
     public void Plan_PackageFeatureSelection_OverridesStaticAddLocalFromUserProperties()
     {
         // A static ADDLOCAL (arriving via user properties) must lose to an interactive
         // per-package selection for that package.
         var planner = new Planner();
-        var manifest = CreateManifest([CreatePackage("Pkg1")]);
+        var manifest = CreateManifest([CreatePackage("Pkg1", enableFeatureSelection: true)]);
 
         var userProps = new Dictionary<string, string> { ["ADDLOCAL"] = "StaticFeature" };
         var selections = new Dictionary<string, IReadOnlyList<string>>
@@ -292,7 +323,7 @@ public sealed class PlannerFeatureTests
         // featureSelections still decides whether the package installs at all.
         var planner = new Planner();
         var manifest = CreateManifest(
-            [CreatePackage("Pkg1")],
+            [CreatePackage("Pkg1", enableFeatureSelection: true)],
             [new ManifestFeature("F1", "Feature 1", null, true, false, ["Pkg1"])]);
 
         // F1 deselected → Pkg1 excluded, regardless of any per-package ADDLOCAL selection.

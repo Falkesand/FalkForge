@@ -564,7 +564,7 @@
   <!-- Sidebar -->
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <h1><span>Falk</span>Forge Docs <span class="version-tag">v0.5.0-beta.8</span><!-- update per release --></h1>
+      <h1><span>Falk</span>Forge Docs <span class="version-tag">v0.5.0-beta.9</span><!-- update per release --></h1>
       <div class="sidebar-controls">
         <input type="text" class="search-box" id="searchBox" placeholder="Search docs..." autocomplete="off">
         <button class="theme-toggle" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">&#9790;</button>
@@ -5016,6 +5016,7 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
       <tr><td><code>Permanent(bool)</code></td><td><code>BundlePackageBuilder</code></td><td>Package is never uninstalled when the bundle is removed. Use for shared runtimes or setup utilities. Default: <code>false</code>.</td></tr>
       <tr><td><code>EnableFeatureSelection(bool)</code></td><td><code>BundlePackageBuilder</code></td><td>Allows bundle UI to present MSI feature selection for this package. Only valid for MSI packages. Default: <code>false</code>.</td></tr>
       <tr><td><code>Transform(string id, string mstPath)</code></td><td><code>BundlePackageBuilder</code></td><td>Declares an MSI transform (.mst) to apply to this package at install. The transform is embedded as a signed bundle payload and bound to this package in the signed integrity envelope; call it more than once to declare several transforms. See below.</td></tr>
+      <tr><td><code>AllowElevatedProperty(params string[] names)</code></td><td><code>BundlePackageBuilder</code></td><td>Declares the MSI property names the elevated companion accepts for this package. The names are signed into the integrity envelope per package. Every property the UI sets reaches every package's plan action, not only the one it was meant for, so declare a given property on every per-machine MSI package in the bundle, or the companion refuses the packages that did not declare it. Names must match <code>[A-Z_][A-Z0-9_.]*</code>; <code>TRANSFORMS</code> and <code>PATCH</code> are rejected at build (BDL037). <code>ADDLOCAL</code> is added for a package with <code>EnableFeatureSelection</code>. A package that declares nothing accepts no property on the elevated path.</td></tr>
     </tbody>
   </table>
   <p>
@@ -5027,6 +5028,65 @@ package.<span class="method">CustomAction</span>(<span class="typ">ProjectOutput
     after signing, or supplied by the caller at install time in place of a declared one. See
     <a href="#signing-trust">23, Who the Installer Trusts</a> for the surrounding trust model.
   </p>
+  <p>
+    Properties work the same way. A signed bundle carries, per package, the list of MSI property
+    names its UI is allowed to set, and the elevated companion checks every name against that list
+    before <code>msiexec</code> runs as SYSTEM. The check covers both ways a value can travel: the
+    command line (<code>Engine.SetProperty</code>) and the secure channel
+    (<code>Engine.SetSecureProperty</code>), because the MSI sees the same property either way. A
+    name outside the list is refused and the install does not start. The engine presents every
+    property the UI set to every package action in the plan, not only to the package the UI meant it
+    for, so a bundle with more than one per-machine MSI package must declare a given property on
+    every one of them, or the elevated companion refuses the packages that did not. This check runs
+    only when the elevated companion carries out the install; an engine process that is already
+    running elevated installs per-machine packages in-process instead of routing them to the
+    companion, and that in-process path does not enforce the allowlist, so a property left off one
+    package there is not caught. Test a bundle unelevated to exercise the companion and this check.
+    A bundle built with this compiler (envelope version 3) needs an engine and a companion of the same or a newer release,
+    which the compiler checks at build (BDL038), and a companion of this release refuses an envelope
+    below version 3, so a manifest from an earlier release cannot be replayed through it. Bundles
+    built by an earlier release keep installing through the engine and companion they carry.
+  </p>
+  <p>
+    From 0.5.0-beta.9 the integrity envelope is version 3 and its version number is inside the
+    signed message. Three things read that envelope and all three must be 0.5.0-beta.9 or later
+    together: the compiler that signs it, the <code>FalkForge.Engine.Runtime.win-x64</code> package
+    that supplies the engine and the elevation companion embedded in every bundle, and the
+    <code>forge</code> CLI, whose <code>verify</code> command checks the same envelope inside an MSI.
+    An engine or companion from an earlier release refuses every bundle the new compiler builds with a
+    signature error, and the compiler refuses to embed one it can identify as older (BDL038). A
+    <code>forge verify</code> from an earlier release reports every MSI the new compiler builds as
+    tampered; there is no build-time check for that, so upgrade the CLI with the compiler. The build
+    check is one-sided: a runtime newer than the compiler passes, so a later release that moves only
+    the compiler still refuses the older runtime, which is the same rule applied again. One path no
+    build check reaches is in-place update: an installed bundle from an earlier release verifies a
+    downloaded update with its own engine before it launches it, and that engine refuses a bundle
+    built by this compiler as tampered. Ship the first bundle of this release as a download the
+    customer runs, not as an update the installed bundle fetches.
+  </p>
+  <p>
+    <strong>Updating an installed bundle from 0.5.0-beta.8 or earlier.</strong> Every installed release
+    up to and including 0.5.0-beta.8 verifies a downloaded update with its own engine before it launches
+    it, and that engine reads the new envelope as tampered. The automatic update from any of those
+    releases to the first bundle built with 0.5.0-beta.9 does not happen. With the default
+    <code>ShowDownloadErrors = false</code> the installed bundle discards the download and reports no
+    update; with it on, the user sees an INT001 dialog saying the bundle may have been tampered with.
+    Neither is a sign of an attack. Publish the first 0.5.0-beta.9 bundle as a download the user runs by
+    hand; it carries its own engine and installs over the old one. Every later update between bundles
+    built with 0.5.0-beta.9 or newer goes through the update channel again. Text you can give end users:
+    "The automatic update to this version does not run. Download and run the new installer once. Later
+    updates work automatically again."
+  </p>
+  <table>
+    <thead><tr><th>Compiler</th><th>Runtime</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>0.5.0-beta.8 or earlier</td><td>0.5.0-beta.8 or earlier</td><td>Unchanged. Envelope version 2, no property allowlist. The bundle installs as it always did.</td></tr>
+      <tr><td>0.5.0-beta.8 or earlier</td><td>0.5.0-beta.9 or later</td><td>Per-machine: the companion refuses every install with <code>Signed manifest envelope is version 2; this elevation companion installs only bundles signed with envelope version 3 or later</code>. Per-user: installs, because no SYSTEM path is involved. Not a supported combination; move the compiler with the runtime.</td></tr>
+      <tr><td>0.5.0-beta.9 or later</td><td>0.5.0-beta.8 or earlier</td><td>Every install fails signature verification (INT001), because the old binary computes the old signed message for the new envelope. BDL038 refuses the build before it ships.</td></tr>
+      <tr><td>0.5.0-beta.9 or later</td><td>0.5.0-beta.9 or later</td><td>The signed allowlist is enforced on both channels.</td></tr>
+      <tr><td>0.5.0-beta.9 or later builds the update</td><td>installed bundle from 0.5.0-beta.8 or earlier fetches it</td><td>The installed engine refuses the download (INT001) and discards it; the user sees nothing by default, or an INT001 dialog with <code>ShowDownloadErrors</code> on. No build-time check reaches this. Ship the first 0.5.0-beta.9 bundle as a download the user runs. Updates between 0.5.0-beta.9-built bundles work.</td></tr>
+    </tbody>
+  </table>
 
   <!-- 9.3a SearchConditionBuilder -->
   <h3 id="bundle-search-conditions">9.3a SearchConditionBuilder</h3>
@@ -9787,7 +9847,7 @@ forge inspect package.msi --json
 forge inspect package.msi --sbom</code></pre>
 <p>
     When the MSI carries an <code>Integrity()</code> signature (embedded table row or detached sidecar),
-    <code>inspect</code> also prints its presence and format tag (e.g. <code>falkforge-ecdsa-envelope-v2</code>).
+    <code>inspect</code> also prints its presence and format tag (e.g. <code>falkforge-ecdsa-envelope-v3</code>).
     Classical (ECDSA-P256) fingerprints are printed as <strong>Signing Key Fingerprint</strong> &mdash; the
     values <code>forge verify --trusted-key</code> matches against. Any hybrid post-quantum (ML-DSA) companion
     fingerprints are printed separately as <strong>PQ Companion Fingerprint (not usable with
@@ -11016,6 +11076,8 @@ public sealed record WixUnmappedFeature(
         <tr><td>BDL025</td><td>Update feed URL must use HTTPS</td></tr>
         <tr><td>BDL027</td><td>EnableFeatureSelection is only valid for MsiPackage type</td></tr>
         <tr><td>BDL036</td><td>Two payloads share one id in the signed payload keyspace, which holds package ids, pre-UI prerequisite ids and MSI transform ids together, or an authored payload uses the id reserved for the embedded UI executable (<code>FalkForge.Ui.exe</code>). The runtime resolves a signed entry&rsquo;s declared hash by walking that keyspace in a fixed order, so a duplicate resolves to the wrong payload&rsquo;s hash; and a payload carried under the reserved id extracts on top of the UI the bootstrapper is about to launch with the session pipe secret. Rejected at build time so it is an authoring error rather than an integrity failure at install</td></tr>
+        <tr><td>BDL037</td><td>A package allowlists an elevated property name that does not match <code>[A-Z_][A-Z0-9_.]*</code>, or allowlists <code>TRANSFORMS</code> or <code>PATCH</code>. The elevated companion refuses such a name at install time, so the build refuses it first</td></tr>
+        <tr><td>BDL038</td><td>The engine stub or the elevation companion about to be embedded reports a <code>ProductVersion</code> older than the compiler. It would compute an older signed message for the envelope this compiler signs and refuse every install. Publish a matching runtime (<code>scripts/publish.ps1</code>) or upgrade <code>FalkForge.Engine.Runtime.win-x64</code>. A binary that reports exactly <code>1.0.0</code> with no prerelease is refused the same way while the compiler is below 1.0.0: that is the .NET SDK's default version, not a real release, and is what a runtime rebuilt from a <code>FalkForge.Engine.Sources</code> package older than 0.5.0-beta.9 reports; rebuild from the matching Engine.Sources package or publish a matching runtime. When the compiler cannot read or parse a version it embeds the binary and logs BDL038 as a warning instead. The warning reaches a log only when the caller building the bundle set <code>BundleCompiler.Logger</code>; <code>forge build</code> sets it, so the warning surfaces there, but the fluent <code>new BundleCompiler().Compile(...)</code> path, the project template, Studio, and <code>DeltaBundleCompiler</code> pass no logger, so the same warning is silent on those paths</td></tr>
     </tbody>
 </table>
 
@@ -13663,7 +13725,7 @@ static partial void ConfigureTrust()
     <em>public</em> and baked in, this check needs <strong>no internet at all</strong>: verification is fully
     offline. The engine never phones home to decide whom to trust.</p>
 
-<p>How the check actually runs, in four plain points:</p>
+<p>How the check actually runs, in five plain points:</p>
 
 <ul>
     <li>
@@ -13684,6 +13746,13 @@ static partial void ConfigureTrust()
     <li>
         <strong>Updates are held to a stricter rule</strong> (they must be signed and trusted) &mdash; covered
         in Safe Updates below, because an automatic update is the higher-risk path.
+    </li>
+    <li>
+        <strong>The elevated install sets only the properties the publisher signed.</strong> Each package
+        carries a signed list of MSI property names its UI may set. The companion that runs
+        <code>msiexec</code> as SYSTEM refuses any other name, on the command line and on the secure
+        channel alike, before the install starts. A caller who can edit the manifest but not sign it
+        cannot add a name: the list is inside the signature.
     </li>
 </ul>
 
@@ -13817,6 +13886,12 @@ return await Installer.BuildBundleAsync(args, async outputPath =>
     downloaded update <em>in-process, before it launches it</em>. It does not hand the decision to the
     downloaded file (which could just lie). If verification fails, the staged bundle is thrown away and never
     executed.</p>
+
+<p>
+    This is also why an installed bundle from 0.5.0-beta.8 or earlier cannot take an update built with
+    0.5.0-beta.9: its engine verifies the new envelope with the old rules and refuses it. See the
+    compatibility table under <a href="#bundle-package-builder">9.3 BundlePackageBuilder</a>.
+</p>
 
 <p>
     The verifier also understands epoch and revocation state, but these two protections are <strong>not active across production runs yet</strong>. The bootstrapper currently uses default in-memory <code>TrustState</code> and does not persist accepted state:
@@ -14106,7 +14181,7 @@ EngineTrustAnchor.TrustHybridFingerprint("A1B2C3...", "C3D4E5...");</code></pre>
     (<code>EcdsaManifestSigner</code>) on <em>both</em> sides &mdash; <code>BundleBuilder.Integrity()</code>
     for bundles and <code>PackageBuilder.Integrity()</code> for MSI packages (<code>IntegritySigner</code>,
     embedded as the MSI's <code>_FalkForgeIntegrity</code>/<code>ManifestSignature</code> row, format tag
-    <code>falkforge-ecdsa-envelope-v2</code>). No external tool is ever required to produce a verifiable
+    <code>falkforge-ecdsa-envelope-v3</code>). No external tool is ever required to produce a verifiable
     manifest signature for either artifact type. Plain SBOM generation (<code>.Sbom()</code> / <code>--sbom</code>)
     has no Sigil dependency either: it always writes a CycloneDX 1.6 sidecar
     (<code>&lt;output&gt;.cdx.json</code>) next to the compiled artifact. That sidecar is CycloneDX by

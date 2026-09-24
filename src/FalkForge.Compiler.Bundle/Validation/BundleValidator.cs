@@ -1,10 +1,11 @@
 namespace FalkForge.Compiler.Bundle.Validation;
 
+using System.Text.RegularExpressions;
 using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Manifest;
 using FalkForge.Sbom;
 
-public sealed class BundleValidator
+public sealed partial class BundleValidator
 {
     public Result<Unit> Validate(BundleModel model)
     {
@@ -79,6 +80,33 @@ public sealed class BundleValidator
                 return Result<Unit>.Failure(ErrorKind.BundleError,
                     $"BDL036: Package id '{id}' is reserved for the embedded UI executable and " +
                     "cannot be used by an authored package, pre-UI prerequisite or MSI transform.");
+        }
+
+        // BDL037: an allowlisted property name has to be a name the elevated companion's own MSI
+        // property-name rule would accept, and it can never be TRANSFORMS or PATCH. Either of those
+        // would let a caller point a SYSTEM install at arbitrary code, so the compiler refuses to
+        // sign a package that declares them, rather than relying on the companion to catch it later.
+        foreach (var package in model.Packages)
+        {
+            foreach (var name in package.AllowedElevatedProperties)
+            {
+                if (string.IsNullOrEmpty(name))
+                    return Result<Unit>.Failure(ErrorKind.BundleError,
+                        $"BDL037: Package '{package.Id}' allowlists a null or empty property name, " +
+                        "which is not a valid MSI public property name.");
+
+                if (string.Equals(name, "TRANSFORMS", StringComparison.Ordinal) ||
+                    string.Equals(name, "PATCH", StringComparison.Ordinal))
+                    return Result<Unit>.Failure(ErrorKind.BundleError,
+                        $"BDL037: Package '{package.Id}' allowlists '{name}', which the elevated " +
+                        "companion never accepts because it can redirect a SYSTEM install to " +
+                        "arbitrary code.");
+
+                if (!ElevatedPropertyNamePattern().IsMatch(name))
+                    return Result<Unit>.Failure(ErrorKind.BundleError,
+                        $"BDL037: Package '{package.Id}' allowlists '{name}', which is not a valid " +
+                        "MSI public property name.");
+            }
         }
 
         // BDL006: Package container references must resolve to defined containers
@@ -317,4 +345,8 @@ public sealed class BundleValidator
         return true;
     }
 
+    // Matches the MSI public-property naming rule: starts with an uppercase letter or underscore,
+    // followed by uppercase letters, digits, underscores or dots.
+    [GeneratedRegex(@"\A[A-Z_][A-Z0-9_.]*\z")]
+    private static partial Regex ElevatedPropertyNamePattern();
 }

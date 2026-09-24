@@ -69,7 +69,8 @@ public sealed class LowSCanonicalizationTests
         Assert.NotEqual(original, twin);
 
         // Prove the attack is real: the twin is cryptographically valid under plain VerifyHash.
-        var hash = SHA256.HashData(IntegrityEnvelopeCodec.ComputeSignedBytes(files));
+        var hash = SHA256.HashData(IntegrityEnvelopeCodec.ComputeSignedBytes(
+            files, epoch: 0, revoked: [], externalContainers: null, version: envelope.Version));
         using var pub = ECDsa.Create();
         pub.ImportSubjectPublicKeyInfo(Convert.FromBase64String(envelope.Signatures[0].PublicKey), out _);
         Assert.True(pub.VerifyHash(hash, twin), "Sanity: the (r, n − s) twin must be cryptographically valid.");

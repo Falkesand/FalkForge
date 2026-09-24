@@ -162,6 +162,15 @@ public sealed class MsiInstallCommand : IElevatedCommand
         var signedHash = trust.Value.SignedMsiHash;
         var envelope = trust.Value.Envelope;
 
+        // The publisher signed which property names this package accepts on the elevated path. Both
+        // channels are checked here: the command-line pairs already shape-validated above, and the
+        // secret block's names, which otherwise only pass a shape check before they are written into a
+        // companion-generated transform. An envelope below version 3 is refused outright: this companion
+        // never serves a bundle signed by an older compiler, and a replayed one gets no shape-only path.
+        var allowlistCheck = EnforceSignedPropertyAllowlist(envelope, packageId, additionalArgs, secrets);
+        if (allowlistCheck.IsFailure)
+            return Result<byte[]>.Failure(allowlistCheck.Error);
+
         // Open the file ourselves and hold the handle for the rest of this call, instead of
         // trusting the unelevated engine's own File.Exists + hash check. FileShare.Read denies
         // other processes write/rename/delete for as long as the handle lives, so the bytes we
@@ -824,6 +833,98 @@ public sealed class MsiInstallCommand : IElevatedCommand
 
         static Result<Unit> MalformedArgs() => Result<Unit>.Failure(ErrorKind.SecurityError,
             "Additional arguments are malformed: expected space-separated NAME=\"VALUE\" property pairs");
+    }
+
+    /// <summary>
+    /// Refuses any property name the publisher did not sign for <paramref name="packageId"/>. Runs on the
+    /// argument string <see cref="ValidateAdditionalArgs"/> has already accepted, so every pair is
+    /// well-formed here, and on every secret-block name. Matching is ordinal: the signed names and the
+    /// shape rule are both upper-case, so a case-different entry grants nothing. The success path
+    /// allocates nothing; keys are compared as spans against the signed strings.
+    /// </summary>
+    private static Result<Unit> EnforceSignedPropertyAllowlist(
+        ManifestSignatureEnvelope envelope, string packageId, string additionalArgs, List<SecretProperty> secrets)
+    {
+        // A companion of this release only meets an envelope below version 3 when an older compiler built
+        // the bundle, which the release rule forbids, or when a caller replays a genuine older manifest to
+        // reach the path that had no allowlist. Both are refused. The old bundle's own companion still
+        // serves the old bundle.
+        if (envelope.Version < IntegrityEnvelopeCodec.VersionBoundFrom)
+            return Result<Unit>.Failure(ErrorKind.SecurityError,
+                $"Signed manifest envelope is version {envelope.Version}; this elevation companion installs only " +
+                $"bundles signed with envelope version {IntegrityEnvelopeCodec.VersionBoundFrom} or later. " +
+                "Rebuild the bundle with a compiler of the same release as this companion.");
+
+        string[]? allowed = null;
+        if (envelope.PropertyAllowlists is { } lists)
+        {
+            for (var i = 0; i < lists.Count; i++)
+            {
+                if (!string.Equals(lists[i].PackageId, packageId, StringComparison.Ordinal))
+                    continue;
+                if (allowed is not null)
+                    return Result<Unit>.Failure(ErrorKind.SecurityError,
+                        "Signed manifest carries more than one property allowlist for the requested package");
+                allowed = lists[i].PropertyNames;
+            }
+        }
+
+        var args = additionalArgs.AsSpan();
+        var position = 0;
+        while (TryNextKey(args, ref position, out var key))
+        {
+            if (!IsAllowed(allowed, key))
+                return Result<Unit>.Failure(ErrorKind.SecurityError,
+                    $"MSI property '{key}' is not in the publisher-signed allowlist for package '{packageId}'");
+        }
+
+        foreach (var secret in secrets)
+        {
+            if (!IsAllowed(allowed, secret.Name.AsSpan()))
+                return Result<Unit>.Failure(ErrorKind.SecurityError,
+                    $"MSI secret property '{secret.Name}' is not in the publisher-signed allowlist for package '{packageId}'");
+        }
+
+        return Unit.Value;
+
+        static bool IsAllowed(string[]? allowed, ReadOnlySpan<char> key)
+        {
+            if (allowed is null)
+                return false;
+            for (var i = 0; i < allowed.Length; i++)
+            {
+                if (allowed[i].AsSpan().SequenceEqual(key))
+                    return true;
+            }
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Yields the next property NAME from an argument string that <see cref="ValidateAdditionalArgs"/> has
+    /// already accepted. Every pair is <c> NAME="VALUE"</c>, so the walk skips spaces, reads key characters,
+    /// then skips <c>="…"</c> to the closing quote. Returns false at the end of the string.
+    /// </summary>
+    private static bool TryNextKey(ReadOnlySpan<char> args, ref int position, out ReadOnlySpan<char> key)
+    {
+        while (position < args.Length && args[position] == ' ')
+            position++;
+        if (position >= args.Length)
+        {
+            key = default;
+            return false;
+        }
+
+        var keyStart = position;
+        while (position < args.Length && IsKeyChar(args[position]))
+            position++;
+        key = args[keyStart..position];
+
+        // Skip ="VALUE". ValidateAdditionalArgs guaranteed the '=', the opening quote and a closing quote.
+        position += 2;
+        var close = args[position..].IndexOf('"');
+        position += close + 1;
+        return true;
     }
 
     private static bool IsKeyStartChar(char c) => c is (>= 'A' and <= 'Z') or '_';

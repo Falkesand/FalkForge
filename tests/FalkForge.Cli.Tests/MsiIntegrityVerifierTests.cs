@@ -602,7 +602,7 @@ public sealed class MsiIntegrityVerifierTests : IDisposable
         Assert.True(result.IsFailure);
     }
 
-    private const string IntegrityTableEmitterFormatTag = "falkforge-ecdsa-envelope-v2";
+    private const string IntegrityTableEmitterFormatTag = "falkforge-ecdsa-envelope-v3";
 
     /// <summary>
     /// Reads the CLASSICAL (ECDSA-P256) signature's fingerprint. The zero-config Integrity() path

@@ -17,7 +17,7 @@ public sealed class MsiInspectionResult
     /// <see cref="MsiIntegrityVerifier"/> to actually verify the signature.</summary>
     public bool SignaturePresent { get; init; }
 
-    /// <summary>The signature row's <c>Format</c> column (e.g. <c>falkforge-ecdsa-envelope-v2</c>),
+    /// <summary>The signature row's <c>Format</c> column (e.g. <c>falkforge-ecdsa-envelope-v3</c>),
     /// or null when <see cref="SignaturePresent"/> is false.</summary>
     public string? SignatureFormatTag { get; init; }
 

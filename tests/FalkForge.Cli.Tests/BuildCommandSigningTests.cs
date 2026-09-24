@@ -222,7 +222,7 @@ public sealed class BuildCommandSigningTests : IDisposable
         Assert.Equal(
             Convert.ToHexString(SHA256.HashData(pq.ExportSubjectPublicKeyInfo())),
             envelope.Signatures[1].Fingerprint);
-        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked);
+        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(envelope.Files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
         using var pqPub = MLDsa.ImportSubjectPublicKeyInfo(
             Convert.FromBase64String(envelope.Signatures[1].PublicKey));
         Assert.True(pqPub.VerifyData(

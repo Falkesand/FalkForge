@@ -17,6 +17,8 @@ using FalkForge.Engine.Protocol.Manifest;
 [JsonSerializable(typeof(IReadOnlyList<ExternalContainerInfo>))]
 [JsonSerializable(typeof(PackageTransformAssociation))]
 [JsonSerializable(typeof(IReadOnlyList<PackageTransformAssociation>))]
+[JsonSerializable(typeof(PackagePropertyAllowlist))]
+[JsonSerializable(typeof(IReadOnlyList<PackagePropertyAllowlist>))]
 public sealed partial class IntegrityEnvelopeJsonContext : JsonSerializerContext
 {
 }

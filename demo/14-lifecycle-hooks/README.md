@@ -60,6 +60,14 @@ Engine.SetProperty("DBNAME", dbName);
 using var pw = SharedState.GetSensitive("DbPassword");
 Engine.SetSecureProperty("DBPASSWORD", pw);
 
+// The bundle that hosts this UI must declare every name the UI sets, on every per-machine MSI
+// package in the bundle -- the engine presents every property to every package's plan action, not
+// only to the package it was meant for. The elevated install refuses any other name, on the command
+// line and on the secure channel alike, so DBPASSWORD is declared here as well:
+//   chain.MsiPackage("App.msi", p => p
+//       .Id("App")
+//       .AllowElevatedProperty("DBSERVER", "DBNAME", "INTEGRATEDSECURITY", "DBUSERNAME", "DBPASSWORD"));
+
 // Collect password securely from UI
 using var pw = GetPassword("DbPassword");
 if (!pw.IsEmpty)
@@ -86,7 +94,9 @@ dotnet build demo/14-lifecycle-hooks/14-lifecycle-hooks.csproj
 - `DetectResult.State` reports `Installed`, `OlderVersion`, `NewerVersion`, or `NotInstalled`, allowing the UI to adapt.
 - `PlanResult.PackageActions` and `PlanResult.TotalDiskSpaceRequired` provide pre-install summary data.
 - `ApplyResult.ExitCode` and `ApplyResult.ErrorMessage` provide post-install diagnostics.
-- `Engine.SetSecureProperty` uses named pipe transport so passwords never appear in process command lines or logs. This
-  is critical for passing credentials to MSI custom actions.
+- `Engine.SetSecureProperty` sends the value over the named pipe and the elevated companion writes it into a
+  transform it generates itself, so the password never appears in a process command line or an MSI log. The
+  name still has to be on the package's signed allowlist (`AllowElevatedProperty`); the secure channel changes
+  where the value travels, not which names the publisher permits.
 - `SharedState.SetSensitive` stores data in protected memory. The corresponding `GetSensitive` returns a
   `ReadOnlyMemory<char>` that should be disposed after use.

@@ -52,7 +52,7 @@ Running the original inside this repo warns when the two versions differ.
 
 The version for every assembly, the `forge` CLI, and every `.nupkg` is set in **one**
 place: `VersionPrefix` + `VersionSuffix` in the root `Directory.Build.props`
-(currently `0.5.0-beta.8`). Intended progression: `alpha.N` → `beta.1` (friend beta)
+(currently `0.5.0-beta.9`). Intended progression: `alpha.N` → `beta.1` (friend beta)
 → `beta.N` (public beta) → `1.0.0` GA.
 
 When bumping, also update the pinned `ExpectedVersion` in

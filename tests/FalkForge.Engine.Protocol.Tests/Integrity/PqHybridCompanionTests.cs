@@ -55,7 +55,8 @@ public sealed class PqHybridCompanionTests
         var classical = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         var pq = MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65);
         var envelope = IntegrityEnvelopeCodec.Sign(files, classical);
-        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, envelope.Epoch, envelope.Revoked);
+        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(
+                files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
         envelope.Signatures = [envelope.Signatures[0], PqEntry(pq, message, SignatureAlgorithms.ManifestContext)];
         return (envelope, classical, pq);
     }
@@ -128,7 +129,8 @@ public sealed class PqHybridCompanionTests
         using (pq)
         using (var wrongPq = MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65))
         {
-            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, envelope.Epoch, envelope.Revoked);
+            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(
+                files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
             envelope.Signatures =
                 [envelope.Signatures[0], PqEntry(wrongPq, message, SignatureAlgorithms.ManifestContext)];
 
@@ -176,7 +178,8 @@ public sealed class PqHybridCompanionTests
         using (pq)
         using (var attackerPq = MLDsa.GenerateKey(MLDsaAlgorithm.MLDsa65))
         {
-            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, envelope.Epoch, envelope.Revoked);
+            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(
+                files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
             envelope.Signatures =
             [
                 envelope.Signatures[0],
@@ -204,7 +207,8 @@ public sealed class PqHybridCompanionTests
         using (classical)
         using (pq)
         {
-            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, envelope.Epoch, envelope.Revoked);
+            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(
+                files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
             envelope.Signatures =
                 [envelope.Signatures[0], PqEntry(pq, message, "falkforge/other"u8)];
 
@@ -420,7 +424,8 @@ public sealed class PqHybridCompanionTests
         using (classical)
         using (pq)
         {
-            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, envelope.Epoch, envelope.Revoked);
+            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(
+                files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
             envelope.Signatures =
             [
                 envelope.Signatures[0],
@@ -448,7 +453,8 @@ public sealed class PqHybridCompanionTests
         using (classical)
         using (pq)
         {
-            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, envelope.Epoch, envelope.Revoked);
+            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(
+                files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
             envelope.Signatures =
             [
                 envelope.Signatures[0],
@@ -478,7 +484,8 @@ public sealed class PqHybridCompanionTests
         using (classical)
         using (pq)
         {
-            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, envelope.Epoch, envelope.Revoked);
+            var message = IntegrityEnvelopeCodec.ComputeSignedBytes(
+                files, envelope.Epoch, envelope.Revoked, externalContainers: null, version: envelope.Version);
             envelope.Signatures =
             [
                 envelope.Signatures[0],

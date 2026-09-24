@@ -107,7 +107,7 @@ public sealed class SignServerSignatureProviderTests
         // and the certificate's SPKI such that a real integrity envelope built from them VERIFIES.
         var server = ServerKey.Create();
         var files = new List<ManifestFileEntry> { new() { Name = "PkgA", Sha256 = "AABBCC" } };
-        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files);
+        var message = IntegrityEnvelopeCodec.ComputeSignedBytes(files, epoch: 0, revoked: [], externalContainers: null, version: IntegrityEnvelopeCodec.CurrentVersion);
 
         var handler = new StubHandler((_, _) =>
             JsonResponse(HttpStatusCode.OK, ProcessResponseJson(server.SignDerBase64(message), server.CertificateDerBase64())));
