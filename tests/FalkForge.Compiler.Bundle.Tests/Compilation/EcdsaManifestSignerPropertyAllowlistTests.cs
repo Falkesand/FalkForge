@@ -12,7 +12,7 @@ namespace FalkForge.Compiler.Bundle.Tests.Compilation;
 /// </summary>
 public sealed class EcdsaManifestSignerPropertyAllowlistTests
 {
-    private static IReadOnlyList<PayloadHashEntry> Entries(params (string id, string hash)[] items)
+    private static List<PayloadHashEntry> Entries(params (string id, string hash)[] items)
         => items.Select(i => new PayloadHashEntry(i.id, i.hash)).ToList();
 
     private static PackagePropertyAllowlist Allow(string packageId, params string[] names)
