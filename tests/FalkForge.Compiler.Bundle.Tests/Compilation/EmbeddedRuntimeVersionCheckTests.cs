@@ -106,4 +106,56 @@ public sealed class EmbeddedRuntimeVersionCheckTests : IDisposable
         Assert.True(ProductVersionOrder.TryParse(EmbeddedRuntimeVersionCheck.CompilerVersion, out _),
             $"Compiler informational version '{EmbeddedRuntimeVersionCheck.CompilerVersion}' is not SemVer 2");
     }
+
+    [Fact]
+    public void CheckVersion_BinaryIsSdkDefault_ReturnsBDL038EvenThoughItSortsNewer()
+    {
+        // 1.0.0 sorts above 0.5.0-beta.9, so the plain newer-than-compiler compare would pass this.
+        // It is the SDK's default when a project sets no <Version>, not a real release.
+        var result = EmbeddedRuntimeVersionCheck.CheckVersion("1.0.0", "0.5.0-beta.9", "C:\\bin\\FalkForge.Engine.exe", "engine");
+
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("BDL038", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("SDK's default", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("FalkForge.Engine.Sources", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("0.5.0-beta.9", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("C:\\bin\\FalkForge.Engine.exe", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CheckVersion_BinaryIsSdkDefaultWithBuildMetadata_ReturnsBDL038()
+    {
+        // Build metadata is stripped before comparison, so 1.0.0+abc is still exactly 1.0.0.
+        var result = EmbeddedRuntimeVersionCheck.CheckVersion("1.0.0+abc", "0.5.0-beta.9", "C:\\bin\\FalkForge.Engine.exe", "engine");
+
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("BDL038", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("SDK's default", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CheckVersion_NormalOlderVersion_StillReturnsTheOlderVersionMessage()
+    {
+        // A genuinely older release must keep the original wording, not the 1.0.0 wording.
+        var result = EmbeddedRuntimeVersionCheck.CheckVersion("0.4.0", "0.5.0-beta.9", "C:\\bin\\FalkForge.Engine.exe", "engine");
+
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("BDL038", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("older than this", result.Error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("SDK's default", result.Error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CompilerVersion_IsStillBelow_1_0_0()
+    {
+        // The 1.0.0-is-the-SDK-default rule in CheckVersion only makes sense while the compiler itself
+        // has never shipped 1.0.0. Once it does, "1.0.0" is a real compiler version too, and the rule in
+        // EmbeddedRuntimeVersionCheck.CheckVersion needs to be revisited before release.
+        var isBelowOneZero = ProductVersionOrder.Compare(EmbeddedRuntimeVersionCheck.CompilerVersion, "1.0.0") < 0;
+
+        Assert.True(isBelowOneZero,
+            $"Compiler version '{EmbeddedRuntimeVersionCheck.CompilerVersion}' is at or past 1.0.0. " +
+            "The BDL038 rule that treats a binary's 1.0.0 ProductVersion as the SDK default (not a real " +
+            "release) must be revisited before release: 1.0.0 is now a version the compiler itself can carry.");
+    }
 }

@@ -51,6 +51,16 @@ public sealed class BundleValidatorPropertyAllowlistTests
         Assert.Contains("Pkg1", result.Error.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Validate_AllowedElevatedPropertyIsNull_ReturnsBDL037NotArgumentNullException()
+    {
+        var result = _validator.Validate(CreateModel(CreatePackage("Pkg1", [null!])));
+
+        Assert.True(result.IsFailure);
+        Assert.StartsWith("BDL037", result.Error.Message, StringComparison.Ordinal);
+        Assert.Contains("Pkg1", result.Error.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("TRANSFORMS")]
     [InlineData("PATCH")]

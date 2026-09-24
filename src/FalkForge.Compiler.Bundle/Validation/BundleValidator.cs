@@ -90,6 +90,11 @@ public sealed partial class BundleValidator
         {
             foreach (var name in package.AllowedElevatedProperties)
             {
+                if (string.IsNullOrEmpty(name))
+                    return Result<Unit>.Failure(ErrorKind.BundleError,
+                        $"BDL037: Package '{package.Id}' allowlists a null or empty property name, " +
+                        "which is not a valid MSI public property name.");
+
                 if (string.Equals(name, "TRANSFORMS", StringComparison.Ordinal) ||
                     string.Equals(name, "PATCH", StringComparison.Ordinal))
                     return Result<Unit>.Failure(ErrorKind.BundleError,

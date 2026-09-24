@@ -126,6 +126,55 @@ public sealed class MsiInstallCommandPropertyAllowlistTests : IDisposable
     }
 
     [Fact]
+    public void Execute_TwoAllowlistEntriesForSamePackage_Refused()
+    {
+        // The compiler's own BDL005 check never lets two packages share an id, so this shape only
+        // reaches the companion via a rewritten manifest. It must be refused, not resolved by picking
+        // either entry.
+        var manifest = SignedManifestPayload.ManifestJson(
+            envelopeEntries: [(PackageId, Hash())],
+            packages: [(PackageId, Hash())],
+            preUI: [],
+            companionSha256: null,
+            signingKey: _publisherKey,
+            propertyAllowlists: [(PackageId, ["INSTALLDIR"]), (PackageId, ["LICENSEKEY"])]);
+        var payload = SignedManifestPayload.Build(_msiPath, " INSTALLDIR=\"C:\\App\"", PackageId, manifest);
+
+        var result = _command.Execute(payload);
+
+        AssertRefusedNeverInstalled(result, "more than one property allowlist");
+    }
+
+    [Fact]
+    public void Execute_QuotedValueContainingSpace_Installs()
+    {
+        // The value is quoted, so the space inside it is not a second property. Only INSTALLDIR is
+        // allowlisted; a parser that mistook "B=y" for a second key would refuse this on B.
+        var result = _command.Execute(Payload(" INSTALLDIR=\"x B=y\"", ["INSTALLDIR"]));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(1, _mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public void Execute_EmptyQuotedValue_Installs()
+    {
+        var result = _command.Execute(Payload(" INSTALLDIR=\"\"", ["INSTALLDIR"]));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(1, _mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
+    public void Execute_SeveralSpacesBetweenAllowedPairs_Installs()
+    {
+        var result = _command.Execute(Payload(" INSTALLDIR=\"C:\\App\"   LICENSEKEY=\"abc\"", ["INSTALLDIR", "LICENSEKEY"]));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : null);
+        Assert.Equal(1, _mockMsiApi.InstallProductCallCount);
+    }
+
+    [Fact]
     public void Execute_AllowlistNameDiffersOnlyByCase_Refused()
     {
         // The companion's name rule is upper-case only, and the match is ordinal. A lower-case entry in
