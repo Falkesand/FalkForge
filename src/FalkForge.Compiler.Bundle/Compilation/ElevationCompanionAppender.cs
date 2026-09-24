@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using FalkForge.Diagnostics;
 using FalkForge.Engine.Protocol.Bundle;
 using FalkForge.Engine.Protocol.Manifest;
 
@@ -28,7 +29,8 @@ internal static class ElevationCompanionAppender
         string? explicitCompanionPath,
         string? explicitStubPath,
         bool allowPlaceholderStub,
-        Func<Result<string>> engineResolver)
+        Func<Result<string>> engineResolver,
+        IFalkLogger? logger = null)
     {
         // Reserved-id guard first: even an opted-out bundle must not ship an authored payload
         // impersonating the companion — the engine would extract it under the companion's name.
@@ -48,6 +50,12 @@ internal static class ElevationCompanionAppender
 
         if (resolved.Value.ResolvedPath is not { } companionPath)
             return manifest;
+
+        if (resolved.Value.Warning is { } warning)
+        {
+            logger?.Log(LogLevel.Warning, "BundleCompiler", warning,
+                new Dictionary<string, string> { ["code"] = "BDL038" });
+        }
 
         long originalSize;
         string hash;

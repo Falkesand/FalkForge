@@ -180,6 +180,10 @@ internal static class ElevationCompanionLocator
                 $"Resolved elevation companion could not be read: {path} ({ex.Message})");
         }
 
-        return Result<ElevationCompanionResolution>.Success(new ElevationCompanionResolution(path));
+        var versionCheck = EmbeddedRuntimeVersionCheck.Check(path, "elevation companion", EmbeddedRuntimeVersionCheck.CompilerVersion);
+        if (versionCheck.IsFailure)
+            return Result<ElevationCompanionResolution>.Failure(versionCheck.Error);
+
+        return Result<ElevationCompanionResolution>.Success(new ElevationCompanionResolution(path, versionCheck.Value));
     }
 }

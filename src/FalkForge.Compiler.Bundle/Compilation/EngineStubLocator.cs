@@ -1,4 +1,5 @@
 using FalkForge.Configuration;
+using FalkForge.Diagnostics;
 
 namespace FalkForge.Compiler.Bundle.Compilation;
 
@@ -194,22 +195,13 @@ public static class EngineStubLocator
     /// resolution via <paramref name="resolver"/>.
     /// </summary>
     internal static Result<string> CreateStubFile(
-        string outputDir, string? explicitStubPath, bool allowPlaceholderStub, Func<Result<string>> resolver)
+        string outputDir, string? explicitStubPath, bool allowPlaceholderStub, Func<Result<string>> resolver,
+        IFalkLogger? logger = null)
     {
         Directory.CreateDirectory(outputDir);
         var stubPath = Path.Combine(outputDir, $"stub_{Guid.NewGuid():N}.tmp");
 
-        if (explicitStubPath is not null)
-        {
-            if (!File.Exists(explicitStubPath))
-                return Result<string>.Failure(ErrorKind.BundleError,
-                    $"Engine stub not found at the configured EngineStubPath: {explicitStubPath}");
-
-            File.Copy(explicitStubPath, stubPath, overwrite: true);
-            return stubPath;
-        }
-
-        if (allowPlaceholderStub)
+        if (allowPlaceholderStub && explicitStubPath is null)
         {
             // Design-time placeholder (explicit opt-in): the bundle begins directly with the
             // FALKBUNDLE magic and is NOT a runnable installer.
@@ -217,11 +209,35 @@ public static class EngineStubLocator
             return stubPath;
         }
 
-        var resolved = resolver();
-        if (resolved.IsFailure)
-            return Result<string>.Failure(resolved.Error);
+        string source;
+        if (explicitStubPath is not null)
+        {
+            if (!File.Exists(explicitStubPath))
+                return Result<string>.Failure(ErrorKind.BundleError,
+                    $"Engine stub not found at the configured EngineStubPath: {explicitStubPath}");
+            source = explicitStubPath;
+        }
+        else
+        {
+            var resolved = resolver();
+            if (resolved.IsFailure)
+                return Result<string>.Failure(resolved.Error);
+            source = resolved.Value;
+        }
 
-        File.Copy(resolved.Value, stubPath, overwrite: true);
+        // The engine verifies the integrity envelope on every install (ApplyStep), so an engine older
+        // than the compiler that signed it refuses every bundle it fronts. Checked here rather than in
+        // Validate because an explicit EngineStubPath never reaches Validate.
+        var versionCheck = EmbeddedRuntimeVersionCheck.Check(source, "engine", EmbeddedRuntimeVersionCheck.CompilerVersion);
+        if (versionCheck.IsFailure)
+            return Result<string>.Failure(versionCheck.Error);
+        if (versionCheck.Value is { } warning)
+        {
+            logger?.Log(LogLevel.Warning, "BundleCompiler", warning,
+                new Dictionary<string, string> { ["code"] = "BDL038" });
+        }
+
+        File.Copy(source, stubPath, overwrite: true);
         return stubPath;
     }
 }
