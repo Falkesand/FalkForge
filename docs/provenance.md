@@ -467,7 +467,7 @@ cap FalkForge enforces against DoS/corruption). See
 (including the `authorshipEstablished` field JSON consumers should key off of) and exit-code table.
 
 **`forge inspect`** additionally surfaces signature *presence*, the format tag (e.g.
-`falkforge-ecdsa-envelope-v2`), and the declared signing-key fingerprint(s) for quick,
+`falkforge-ecdsa-envelope-v3`), and the declared signing-key fingerprint(s) for quick,
 non-cryptographic display — actual verification is `forge verify`'s job, not `forge inspect`'s.
 Classical (ECDSA-P256) fingerprints — the ones `--trusted-key` matches — are shown separately from
 any hybrid post-quantum companion fingerprint, under a distinct label, so the two are never
