@@ -10,6 +10,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
+    <!-- The rebuilt binary must report the release its sources came from. Without this the SDK default
+         1.0.0 wins, and the bundle compiler's runtime-version check (BDL038) ranks it above every
+         FalkForge prerelease. The token is rewritten to the real version when the package is packed. -->
+    <Version>$(FalkForgePackageVersion)</Version>
     <Deterministic>true</Deterministic>
 
     <OutputType>Exe</OutputType>

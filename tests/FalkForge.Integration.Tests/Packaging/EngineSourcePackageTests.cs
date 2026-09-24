@@ -90,6 +90,25 @@ public sealed class EngineSourcePackageTests
     }
 
     [Fact]
+    public void PackagedProjects_StampTheReleaseVersion_SoARebuiltBinaryIsNotNewerThanEveryCompiler()
+    {
+        // A rebuilt engine with no Version reports the SDK default 1.0.0, which the bundle compiler's
+        // runtime-version check ranks above every 0.5.0 prerelease and waves through. The packed csproj
+        // must carry the package version so a rebuilt binary's ProductVersion is the release it came from.
+        using var package = ZipFile.OpenRead(PackedNupkgPath());
+        foreach (var name in new[] { "FalkForge.Engine", "FalkForge.Engine.Elevation" })
+        {
+            var text = ReadPackedEntry(package, $"tools/src/{name}/{name}.csproj");
+            var reference = Regex.Match(text, @"FalkForge\.Engine\.Protocol""\s+Version=""\[([^""\]]+)\]""");
+            Assert.True(reference.Success, $"no exact FalkForge.Engine.Protocol pin in {name}.csproj:\n{text}");
+
+            var version = Regex.Match(text, @"<Version>([^<]+)</Version>");
+            Assert.True(version.Success, $"{name}.csproj carries no <Version> element:\n{text}");
+            Assert.Equal(reference.Groups[1].Value, version.Groups[1].Value);
+        }
+    }
+
+    [Fact]
     public void PackagedProjects_DoNotCompileViaTheDefaultGlob()
     {
         // Once restored, the packaged csproj lives under the machine-wide global NuGet packages
