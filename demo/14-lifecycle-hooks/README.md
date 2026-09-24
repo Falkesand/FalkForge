@@ -60,9 +60,10 @@ Engine.SetProperty("DBNAME", dbName);
 using var pw = SharedState.GetSensitive("DbPassword");
 Engine.SetSecureProperty("DBPASSWORD", pw);
 
-// The bundle that hosts this UI must declare every name the UI sets, on the package that receives
-// it. The elevated install refuses any other name, on the command line and on the secure channel
-// alike, so DBPASSWORD is declared here as well:
+// The bundle that hosts this UI must declare every name the UI sets, on every per-machine MSI
+// package in the bundle -- the engine presents every property to every package's plan action, not
+// only to the package it was meant for. The elevated install refuses any other name, on the command
+// line and on the secure channel alike, so DBPASSWORD is declared here as well:
 //   chain.MsiPackage("App.msi", p => p
 //       .Id("App")
 //       .AllowElevatedProperty("DBSERVER", "DBNAME", "INTEGRATEDSECURITY", "DBUSERNAME", "DBPASSWORD"));
